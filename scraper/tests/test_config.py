@@ -120,14 +120,14 @@ class TestSourceTypes:
         assert SOURCE_TYPES["reddit"]["weight"] == 0.05
 
     def test_priorities_are_unique(self):
-        priorities = [v["priority"] for v in SOURCE_TYPES.values()]
+        priorities = [v["queue_priority"] for v in SOURCE_TYPES.values()]
         assert len(priorities) == len(set(priorities)), "Priorities are not unique"
 
     def test_papers_priority_is_one(self):
-        assert SOURCE_TYPES["papers"]["priority"] == 1
+        assert SOURCE_TYPES["papers"]["queue_priority"] == 1
 
     def test_reddit_priority_is_six(self):
-        assert SOURCE_TYPES["reddit"]["priority"] == 6
+        assert SOURCE_TYPES["reddit"]["queue_priority"] == 6
 
 
 # ---------------------------------------------------------------------------

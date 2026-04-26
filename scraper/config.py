@@ -129,12 +129,12 @@ CATEGORIES: Dict[str, dict] = {
 # ---------------------------------------------------------------------------
 
 SOURCE_TYPES: Dict[str, dict] = {
-    "papers":   {"weight": 0.40, "priority": 1},
-    "youtube":  {"weight": 0.20, "priority": 2},
-    "articles": {"weight": 0.15, "priority": 3},
-    "podcasts": {"weight": 0.10, "priority": 4},
-    "books":    {"weight": 0.10, "priority": 5},
-    "reddit":   {"weight": 0.05, "priority": 6},
+    "papers":   {"weight": 0.40, "queue_priority": 1},
+    "youtube":  {"weight": 0.20, "queue_priority": 2},
+    "articles": {"weight": 0.15, "queue_priority": 3},
+    "podcasts": {"weight": 0.10, "queue_priority": 4},
+    "books":    {"weight": 0.10, "queue_priority": 5},
+    "reddit":   {"weight": 0.05, "queue_priority": 6},
 }
 
 # ---------------------------------------------------------------------------
@@ -337,7 +337,7 @@ TARGET_BOOKS: List[dict] = [
     {
         "title": "Fast After 50",
         "author": "Joe Friel",
-        "isbn": "9781937715441",
+        "isbn": "9781937715267",
     },
     # Triathlon
     {
