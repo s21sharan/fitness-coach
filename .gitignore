@@ -1,0 +1,11 @@
+# Sensitive configuration
+.mcp.json
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
