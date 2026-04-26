@@ -609,3 +609,428 @@ class TestSearchAndFetchPapersTask:
 
             mock_bio.assert_called_once()
             mock_pmc.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# YouTube task tests
+# ---------------------------------------------------------------------------
+
+class TestListChannelVideos(unittest.TestCase):
+    """Tests for list_channel_videos helper."""
+
+    def _make_ydl_mock(self, entries):
+        """Return a context-manager mock whose extract_info returns given entries."""
+        mock_ydl = MagicMock()
+        mock_ydl.extract_info.return_value = {"entries": entries}
+        cm = MagicMock()
+        cm.__enter__ = MagicMock(return_value=mock_ydl)
+        cm.__exit__ = MagicMock(return_value=False)
+        return cm, mock_ydl
+
+    @patch("yt_dlp.YoutubeDL")
+    def test_list_channel_videos_returns_list(self, mock_ydl_cls):
+        from scraper.tasks.youtube import list_channel_videos
+
+        entries = [
+            {"id": "abc123", "title": "Video 1", "url": "https://yt.com/watch?v=abc123",
+             "duration": 600, "upload_date": "20240101"},
+        ]
+        cm, _ = self._make_ydl_mock(entries)
+        mock_ydl_cls.return_value = cm
+
+        result = list_channel_videos("https://www.youtube.com/@SomeChannel")
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 1)
+
+    @patch("yt_dlp.YoutubeDL")
+    def test_list_channel_videos_correct_fields(self, mock_ydl_cls):
+        from scraper.tasks.youtube import list_channel_videos
+
+        entries = [
+            {"id": "vid1", "title": "Title One", "url": "https://yt.com/watch?v=vid1",
+             "duration": 300, "upload_date": "20230615"},
+        ]
+        cm, _ = self._make_ydl_mock(entries)
+        mock_ydl_cls.return_value = cm
+
+        result = list_channel_videos("https://www.youtube.com/@Channel")
+        self.assertEqual(result[0]["id"], "vid1")
+        self.assertEqual(result[0]["title"], "Title One")
+        self.assertEqual(result[0]["duration"], 300)
+        self.assertEqual(result[0]["upload_date"], "20230615")
+
+    @patch("yt_dlp.YoutubeDL")
+    def test_list_channel_videos_filters_none_entries(self, mock_ydl_cls):
+        from scraper.tasks.youtube import list_channel_videos
+
+        entries = [
+            None,
+            {"id": "vid2", "title": "Video 2", "url": "https://yt.com/watch?v=vid2",
+             "duration": 200, "upload_date": "20240201"},
+            None,
+        ]
+        cm, _ = self._make_ydl_mock(entries)
+        mock_ydl_cls.return_value = cm
+
+        result = list_channel_videos("https://www.youtube.com/@Channel")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["id"], "vid2")
+
+    @patch("yt_dlp.YoutubeDL")
+    def test_list_channel_videos_filters_none_id(self, mock_ydl_cls):
+        from scraper.tasks.youtube import list_channel_videos
+
+        entries = [
+            {"id": None, "title": "No ID video", "url": None, "duration": 100, "upload_date": None},
+            {"id": "valid_id", "title": "Valid", "url": "https://yt.com/watch?v=valid_id",
+             "duration": 400, "upload_date": "20240301"},
+        ]
+        cm, _ = self._make_ydl_mock(entries)
+        mock_ydl_cls.return_value = cm
+
+        result = list_channel_videos("https://www.youtube.com/@Channel")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["id"], "valid_id")
+
+    @patch("yt_dlp.YoutubeDL")
+    def test_list_channel_videos_empty_channel(self, mock_ydl_cls):
+        from scraper.tasks.youtube import list_channel_videos
+
+        cm, _ = self._make_ydl_mock([])
+        mock_ydl_cls.return_value = cm
+
+        result = list_channel_videos("https://www.youtube.com/@EmptyChannel")
+        self.assertEqual(result, [])
+
+    @patch("yt_dlp.YoutubeDL")
+    def test_list_channel_videos_multiple_entries(self, mock_ydl_cls):
+        from scraper.tasks.youtube import list_channel_videos
+
+        entries = [
+            {"id": f"vid{i}", "title": f"Video {i}", "url": f"https://yt.com/watch?v=vid{i}",
+             "duration": 300 + i * 10, "upload_date": "20240101"}
+            for i in range(5)
+        ]
+        cm, _ = self._make_ydl_mock(entries)
+        mock_ydl_cls.return_value = cm
+
+        result = list_channel_videos("https://www.youtube.com/@Channel")
+        self.assertEqual(len(result), 5)
+
+    @patch("yt_dlp.YoutubeDL")
+    def test_list_channel_videos_url_fallback(self, mock_ydl_cls):
+        """When entry has no url, it should be constructed from the id."""
+        from scraper.tasks.youtube import list_channel_videos
+
+        entries = [
+            {"id": "xyz999", "title": "No URL Video", "url": None,
+             "duration": 500, "upload_date": "20240101"},
+        ]
+        cm, _ = self._make_ydl_mock(entries)
+        mock_ydl_cls.return_value = cm
+
+        result = list_channel_videos("https://www.youtube.com/@Channel")
+        self.assertEqual(len(result), 1)
+        self.assertIn("xyz999", result[0]["url"])
+
+
+class TestParseVttIntegration(unittest.TestCase):
+    """Integration tests for parse_vtt_string."""
+
+    def test_parse_vtt_string_basic(self):
+        from scraper.extractors.transcript import parse_vtt_string
+
+        vtt = (
+            "WEBVTT\n\n"
+            "00:00:00.000 --> 00:00:03.000\n"
+            "Hello world\n\n"
+            "00:00:03.000 --> 00:00:06.000\n"
+            "This is a test\n"
+        )
+        result = parse_vtt_string(vtt)
+        self.assertIn("Hello world", result)
+        self.assertIn("This is a test", result)
+
+    def test_parse_vtt_string_removes_header(self):
+        from scraper.extractors.transcript import parse_vtt_string
+
+        vtt = "WEBVTT\n\n00:00:00.000 --> 00:00:03.000\nSome text\n"
+        result = parse_vtt_string(vtt)
+        self.assertNotIn("WEBVTT", result)
+
+    def test_parse_vtt_string_removes_timestamps(self):
+        from scraper.extractors.transcript import parse_vtt_string
+
+        vtt = "WEBVTT\n\n00:00:01.500 --> 00:00:04.000\nSpoken words\n"
+        result = parse_vtt_string(vtt)
+        self.assertNotIn("-->", result)
+
+    def test_parse_vtt_string_removes_inline_tags(self):
+        from scraper.extractors.transcript import parse_vtt_string
+
+        vtt = (
+            "WEBVTT\n\n"
+            "00:00:00.000 --> 00:00:03.000\n"
+            "<c>Tagged</c> text here\n"
+        )
+        result = parse_vtt_string(vtt)
+        self.assertNotIn("<c>", result)
+        self.assertNotIn("</c>", result)
+        self.assertIn("Tagged", result)
+
+    def test_parse_vtt_string_deduplicates_consecutive(self):
+        from scraper.extractors.transcript import parse_vtt_string
+
+        vtt = (
+            "WEBVTT\n\n"
+            "00:00:00.000 --> 00:00:03.000\n"
+            "Duplicate line\n\n"
+            "00:00:03.000 --> 00:00:06.000\n"
+            "Duplicate line\n\n"
+            "00:00:06.000 --> 00:00:09.000\n"
+            "Unique line\n"
+        )
+        result = parse_vtt_string(vtt)
+        self.assertEqual(result.count("Duplicate line"), 1)
+
+    def test_parse_vtt_string_empty_returns_empty(self):
+        from scraper.extractors.transcript import parse_vtt_string
+
+        result = parse_vtt_string("WEBVTT\n\n")
+        self.assertEqual(result, "")
+
+    def test_parse_vtt_string_returns_string(self):
+        from scraper.extractors.transcript import parse_vtt_string
+
+        result = parse_vtt_string("WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nHello\n")
+        self.assertIsInstance(result, str)
+
+
+class TestGetTranscriptInMemory(unittest.TestCase):
+    """Tests for get_transcript_in_memory."""
+
+    def _make_ydl_mock(self, info):
+        mock_ydl = MagicMock()
+        mock_ydl.extract_info.return_value = info
+        cm = MagicMock()
+        cm.__enter__ = MagicMock(return_value=mock_ydl)
+        cm.__exit__ = MagicMock(return_value=False)
+        return cm
+
+    @patch("requests.get")
+    @patch("yt_dlp.YoutubeDL")
+    def test_returns_transcript_from_subtitles(self, mock_ydl_cls, mock_requests):
+        from scraper.tasks.youtube import get_transcript_in_memory
+
+        vtt_content = "WEBVTT\n\n00:00:00.000 --> 00:00:03.000\nHello fitness world\n"
+        mock_resp = MagicMock()
+        mock_resp.text = vtt_content
+        mock_resp.raise_for_status = MagicMock()
+        mock_requests.return_value = mock_resp
+
+        info = {
+            "subtitles": {
+                "en": [{"ext": "vtt", "url": "https://example.com/sub.vtt"}]
+            },
+            "automatic_captions": {},
+        }
+        mock_ydl_cls.return_value = self._make_ydl_mock(info)
+
+        result = get_transcript_in_memory("https://youtube.com/watch?v=test")
+        self.assertIsNotNone(result)
+        self.assertIn("Hello fitness world", result)
+
+    @patch("yt_dlp.YoutubeDL")
+    def test_returns_none_when_no_subtitles(self, mock_ydl_cls):
+        from scraper.tasks.youtube import get_transcript_in_memory
+
+        info = {"subtitles": {}, "automatic_captions": {}}
+        mock_ydl_cls.return_value = self._make_ydl_mock(info)
+
+        result = get_transcript_in_memory("https://youtube.com/watch?v=nosubs")
+        self.assertIsNone(result)
+
+    @patch("requests.get")
+    @patch("yt_dlp.YoutubeDL")
+    def test_falls_back_to_automatic_captions(self, mock_ydl_cls, mock_requests):
+        from scraper.tasks.youtube import get_transcript_in_memory
+
+        vtt_content = "WEBVTT\n\n00:00:00.000 --> 00:00:03.000\nAuto caption text\n"
+        mock_resp = MagicMock()
+        mock_resp.text = vtt_content
+        mock_resp.raise_for_status = MagicMock()
+        mock_requests.return_value = mock_resp
+
+        info = {
+            "subtitles": {},
+            "automatic_captions": {
+                "en": [{"ext": "vtt", "url": "https://example.com/auto.vtt"}]
+            },
+        }
+        mock_ydl_cls.return_value = self._make_ydl_mock(info)
+
+        result = get_transcript_in_memory("https://youtube.com/watch?v=autocap")
+        self.assertIsNotNone(result)
+        self.assertIn("Auto caption text", result)
+
+
+class TestGetVideoMetadata(unittest.TestCase):
+    """Tests for get_video_metadata."""
+
+    def _make_ydl_mock(self, info):
+        mock_ydl = MagicMock()
+        mock_ydl.extract_info.return_value = info
+        cm = MagicMock()
+        cm.__enter__ = MagicMock(return_value=mock_ydl)
+        cm.__exit__ = MagicMock(return_value=False)
+        return cm
+
+    @patch("yt_dlp.YoutubeDL")
+    def test_returns_metadata_dict(self, mock_ydl_cls):
+        from scraper.tasks.youtube import get_video_metadata
+
+        info = {
+            "title": "Hypertrophy Science",
+            "channel": "Jeff Nippard",
+            "view_count": 500000,
+            "like_count": 25000,
+            "duration": 900,
+            "upload_date": "20240115",
+            "description": "A detailed look at muscle hypertrophy mechanisms",
+        }
+        mock_ydl_cls.return_value = self._make_ydl_mock(info)
+
+        result = get_video_metadata("https://youtube.com/watch?v=xyz")
+        self.assertEqual(result["title"], "Hypertrophy Science")
+        self.assertEqual(result["channel"], "Jeff Nippard")
+        self.assertEqual(result["views"], 500000)
+        self.assertEqual(result["likes"], 25000)
+        self.assertEqual(result["duration"], 900)
+        self.assertEqual(result["upload_date"], "20240115")
+
+    @patch("yt_dlp.YoutubeDL")
+    def test_description_truncated_to_500_chars(self, mock_ydl_cls):
+        from scraper.tasks.youtube import get_video_metadata
+
+        long_description = "x" * 1000
+        info = {
+            "title": "Test", "channel": "Channel", "view_count": 100,
+            "like_count": 5, "duration": 600, "upload_date": "20240101",
+            "description": long_description,
+        }
+        mock_ydl_cls.return_value = self._make_ydl_mock(info)
+
+        result = get_video_metadata("https://youtube.com/watch?v=xyz")
+        self.assertEqual(len(result["description"]), 500)
+
+    @patch("yt_dlp.YoutubeDL")
+    def test_returns_empty_dict_on_none_info(self, mock_ydl_cls):
+        from scraper.tasks.youtube import get_video_metadata
+
+        mock_ydl_cls.return_value = self._make_ydl_mock(None)
+
+        result = get_video_metadata("https://youtube.com/watch?v=xyz")
+        self.assertEqual(result, {})
+
+
+class TestFetchVideoTask(unittest.TestCase):
+    """Tests for fetch_video Celery task (called directly via .run())."""
+
+    @patch("scraper.tasks.youtube.get_transcript_in_memory")
+    @patch("scraper.tasks.youtube.get_video_metadata")
+    @patch("scraper.tasks.youtube.Database")
+    def test_fetch_video_skips_short_videos(self, mock_db_cls, mock_meta, mock_transcript):
+        from scraper.tasks.youtube import fetch_video
+
+        mock_db = MagicMock()
+        mock_db.hash_exists.return_value = False
+        mock_db_cls.return_value = mock_db
+
+        mock_meta.return_value = {
+            "title": "Short Video", "channel": "Test", "views": 1000,
+            "likes": 50, "duration": 60, "upload_date": "20240101",
+            "description": "A short clip",
+        }
+
+        result = fetch_video.run("https://youtube.com/watch?v=short")
+        self.assertEqual(result["status"], "skipped")
+        self.assertEqual(result["reason"], "too_short")
+
+    @patch("scraper.tasks.youtube.get_transcript_in_memory")
+    @patch("scraper.tasks.youtube.get_video_metadata")
+    @patch("scraper.tasks.youtube.Database")
+    def test_fetch_video_returns_duplicate_if_hash_exists(self, mock_db_cls, mock_meta, mock_transcript):
+        from scraper.tasks.youtube import fetch_video
+
+        mock_db = MagicMock()
+        mock_db.hash_exists.return_value = True
+        mock_db_cls.return_value = mock_db
+
+        result = fetch_video.run("https://youtube.com/watch?v=existing")
+        self.assertEqual(result["status"], "duplicate")
+
+    @patch("scraper.tasks.youtube.get_transcript_in_memory")
+    @patch("scraper.tasks.youtube.get_video_metadata")
+    @patch("scraper.tasks.youtube.Database")
+    def test_fetch_video_saves_valid_video(self, mock_db_cls, mock_meta, mock_transcript):
+        from scraper.tasks.youtube import fetch_video
+
+        mock_db = MagicMock()
+        mock_db.hash_exists.return_value = False
+        mock_db.insert_content.return_value = 42
+        mock_db_cls.return_value = mock_db
+
+        mock_meta.return_value = {
+            "title": "Creatine for Muscle Growth", "channel": "Jeff Nippard",
+            "views": 500000, "likes": 25000, "duration": 900,
+            "upload_date": "20240115", "description": "Creatine science explained",
+        }
+        mock_transcript.return_value = "Creatine is a well-studied supplement for strength"
+
+        result = fetch_video.run("https://youtube.com/watch?v=creatine")
+        self.assertEqual(result["status"], "saved")
+        self.assertEqual(result["content_id"], 42)
+
+    @patch("scraper.tasks.youtube.get_transcript_in_memory")
+    @patch("scraper.tasks.youtube.get_video_metadata")
+    @patch("scraper.tasks.youtube.Database")
+    def test_fetch_video_handles_missing_transcript(self, mock_db_cls, mock_meta, mock_transcript):
+        from scraper.tasks.youtube import fetch_video
+
+        mock_db = MagicMock()
+        mock_db.hash_exists.return_value = False
+        mock_db.insert_content.return_value = 99
+        mock_db_cls.return_value = mock_db
+
+        mock_meta.return_value = {
+            "title": "No Captions Video", "channel": "SomeChannel",
+            "views": 10000, "likes": 500, "duration": 300,
+            "upload_date": "20240201", "description": "Short description",
+        }
+        mock_transcript.return_value = None
+
+        result = fetch_video.run("https://youtube.com/watch?v=nocaptions")
+        self.assertIn(result["status"], ("saved", "duplicate"))
+
+    @patch("scraper.tasks.youtube.get_transcript_in_memory")
+    @patch("scraper.tasks.youtube.get_video_metadata")
+    @patch("scraper.tasks.youtube.Database")
+    def test_fetch_video_extracts_year_from_upload_date(self, mock_db_cls, mock_meta, mock_transcript):
+        from scraper.tasks.youtube import fetch_video
+
+        mock_db = MagicMock()
+        mock_db.hash_exists.return_value = False
+        mock_db.insert_content.return_value = 7
+        mock_db_cls.return_value = mock_db
+
+        mock_meta.return_value = {
+            "title": "Some Video", "channel": "Channel",
+            "views": 50000, "likes": 2000, "duration": 600,
+            "upload_date": "20220315", "description": "",
+        }
+        mock_transcript.return_value = "Some content here"
+
+        fetch_video.run("https://youtube.com/watch?v=yeartest")
+
+        call_kwargs = mock_db.insert_content.call_args
+        self.assertEqual(call_kwargs.kwargs.get("year"), 2022)
