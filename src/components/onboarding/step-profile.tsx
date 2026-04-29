@@ -34,47 +34,40 @@ export function StepProfile({ data, onUpdate }: StepProfileProps) {
         <p className="mt-1 text-gray-500">Basic info to personalize your plan.</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <span className="block text-sm font-medium text-gray-700">Height</span>
-          <div className="mt-1 flex gap-2">
-            <div className="flex-1">
-              <label htmlFor="feet" className="sr-only">Feet</label>
-              <div className="relative">
-                <input
-                  id="feet"
-                  type="number"
-                  min={3}
-                  max={8}
-                  value={feet ?? ""}
-                  onChange={(e) => handleHeightChange(e.target.value ? Number(e.target.value) : null, inches)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-8 focus:border-black focus:outline-none"
-                  placeholder="5"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">ft</span>
-              </div>
-            </div>
-            <div className="flex-1">
-              <label htmlFor="inches" className="sr-only">Inches</label>
-              <div className="relative">
-                <input
-                  id="inches"
-                  type="number"
-                  min={0}
-                  max={11}
-                  value={inches ?? ""}
-                  onChange={(e) => handleHeightChange(feet, e.target.value ? Number(e.target.value) : null)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-8 focus:border-black focus:outline-none"
-                  placeholder="10"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">in</span>
-              </div>
-            </div>
-          </div>
-          {totalInches && (
-            <p className="mt-1 text-sm text-gray-400">{totalInches} inches total</p>
-          )}
+      <div>
+        <span className="block text-sm font-medium text-gray-700">Height</span>
+        <div className="mt-1 flex items-center gap-2">
+          <label htmlFor="feet" className="sr-only">Feet</label>
+          <input
+            id="feet"
+            type="number"
+            min={3}
+            max={8}
+            value={feet ?? ""}
+            onChange={(e) => handleHeightChange(e.target.value ? Number(e.target.value) : null, inches)}
+            className="w-20 rounded-lg border border-gray-300 px-3 py-2 focus:border-black focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            placeholder="5"
+          />
+          <span className="text-sm text-gray-500">ft</span>
+          <label htmlFor="inches" className="sr-only">Inches</label>
+          <input
+            id="inches"
+            type="number"
+            min={0}
+            max={11}
+            value={inches ?? ""}
+            onChange={(e) => handleHeightChange(feet, e.target.value ? Number(e.target.value) : null)}
+            className="w-20 rounded-lg border border-gray-300 px-3 py-2 focus:border-black focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            placeholder="10"
+          />
+          <span className="text-sm text-gray-500">in</span>
         </div>
+        {totalInches && (
+          <p className="mt-1 text-sm text-gray-400">{totalInches} inches total</p>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
         <div>
           <label htmlFor="weight" className="block text-sm font-medium text-gray-700">
             Weight (lbs)
@@ -88,20 +81,19 @@ export function StepProfile({ data, onUpdate }: StepProfileProps) {
             placeholder="175"
           />
         </div>
-      </div>
-
-      <div>
-        <label htmlFor="age" className="block text-sm font-medium text-gray-700">
-          Age
-        </label>
-        <input
-          id="age"
-          type="number"
-          value={data.age ?? ""}
-          onChange={(e) => onUpdate({ age: e.target.value ? Number(e.target.value) : null })}
-          className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
-          placeholder="25"
-        />
+        <div>
+          <label htmlFor="age" className="block text-sm font-medium text-gray-700">
+            Age
+          </label>
+          <input
+            id="age"
+            type="number"
+            value={data.age ?? ""}
+            onChange={(e) => onUpdate({ age: e.target.value ? Number(e.target.value) : null })}
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
+            placeholder="25"
+          />
+        </div>
       </div>
 
       <div>
