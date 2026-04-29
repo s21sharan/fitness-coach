@@ -15,7 +15,7 @@ _db: Optional[Database] = None
 def get_db() -> Database:
     global _db
     if _db is None:
-        _db = Database()
+        _db = Database("scraper/data/fitness_data.db")
         _db.initialize()
     return _db
 
