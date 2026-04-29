@@ -1,11 +1,29 @@
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
+import { createServerClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { userId } = await auth();
+
+  if (userId) {
+    const supabase = createServerClient();
+    const { data: user } = await supabase
+      .from("users")
+      .select("onboarding_completed")
+      .eq("id", userId)
+      .single();
+
+    if (!user || !user.onboarding_completed) {
+      redirect("/onboarding");
+    }
+  }
+
   return (
     <div className="flex h-screen">
       <Sidebar />
