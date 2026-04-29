@@ -27,4 +27,12 @@ app.conf.update(
     task_default_queue="default",
 )
 
-app.autodiscover_tasks(["scraper.tasks"])
+app.conf.include = [
+    "scraper.tasks.orchestrator",
+    "scraper.tasks.papers",
+    "scraper.tasks.youtube",
+    "scraper.tasks.podcasts",
+    "scraper.tasks.articles",
+    "scraper.tasks.books",
+    "scraper.tasks.reddit",
+]
