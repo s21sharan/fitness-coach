@@ -9,6 +9,7 @@ import tempfile
 from typing import Optional
 
 from scraper.celery_app import app
+from scraper.config import DB_PATH
 from scraper.db import Database
 from scraper.extractors.epub import extract_chapters
 from scraper.extractors.pdf import extract_text_from_bytes
@@ -18,11 +19,10 @@ from scraper.utils.rate_limiter import get_limiter
 
 logger = logging.getLogger(__name__)
 
-_DB_PATH = "scraper/data/scraper.db"
 
 
 def _get_db() -> Database:
-    db = Database(_DB_PATH)
+    db = Database(DB_PATH)
     db.initialize()
     return db
 

@@ -9,7 +9,7 @@ from typing import Optional
 import feedparser
 
 from scraper.celery_app import app
-from scraper.config import LIBGEN_MIRRORS
+from scraper.config import DB_PATH, LIBGEN_MIRRORS
 from scraper.db import Database
 from scraper.extractors.audio import download_and_transcribe
 from scraper.utils.classifier import classify, get_subcategories
@@ -18,11 +18,10 @@ from scraper.utils.quality import score_podcast
 
 logger = logging.getLogger(__name__)
 
-_DB_PATH = "scraper/data/scraper.db"
 
 
 def _get_db() -> Database:
-    db = Database(_DB_PATH)
+    db = Database(DB_PATH)
     db.initialize()
     return db
 

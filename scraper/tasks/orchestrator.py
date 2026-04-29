@@ -6,7 +6,7 @@ from scraper.db import Database
 from scraper.config import (
     ScraperConfig, CATEGORIES, SOURCE_TYPES,
     YOUTUBE_CHANNELS, PODCAST_FEEDS, ARTICLE_SITES,
-    TARGET_BOOKS, REDDIT_SUBREDDITS,
+    TARGET_BOOKS, REDDIT_SUBREDDITS, DB_PATH,
 )
 
 
@@ -86,7 +86,7 @@ def run_session(session_id: int, config_json: str):
     from scraper.tasks.reddit import fetch_subreddit
 
     config = ScraperConfig(**json.loads(config_json)) if config_json != "{}" else ScraperConfig()
-    db = Database()
+    db = Database(DB_PATH)
     db.initialize()
 
     search_tasks = generate_search_tasks(config)
@@ -166,10 +166,10 @@ def run_session(session_id: int, config_json: str):
                 search_term=st["search_term"],
                 session_id=session_id,
                 task_id=task_id,
-                client_id=config.reddit_client_id or "",
-                client_secret=config.reddit_client_secret or "",
-                username=config.reddit_username if hasattr(config, "reddit_username") else "",
-                password=config.reddit_password if hasattr(config, "reddit_password") else "",
+                credentials={
+                    "client_id": config.reddit_client_id or "",
+                    "client_secret": config.reddit_client_secret or "",
+                },
             )
 
     db.close()

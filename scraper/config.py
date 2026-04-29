@@ -7,6 +7,8 @@ import json
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
+DB_PATH = "scraper/data/fitness_data.db"
+
 # ---------------------------------------------------------------------------
 # Category definitions
 # ---------------------------------------------------------------------------

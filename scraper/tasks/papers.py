@@ -12,7 +12,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from scraper.celery_app import app
-from scraper.config import BIORXIV_API, NCBI_BASE, SCIHUB_MIRRORS
+from scraper.config import BIORXIV_API, DB_PATH, NCBI_BASE, SCIHUB_MIRRORS
 from scraper.db import Database
 from scraper.extractors.pdf import detect_paper_type, extract_text_from_bytes
 from scraper.utils.classifier import classify, get_subcategories
@@ -238,7 +238,7 @@ def search_biorxiv(
     Returns:
         List of paper dicts from the ``collection`` key of the API response.
     """
-    url = f"{BIORXIV_API}{server}/{start_date}/{end_date}/0/json"
+    url = f"{BIORXIV_API}/details/{server}/{start_date}/{end_date}/0/json"
     resp = requests.get(url, headers=HEADERS, timeout=15)
     resp.raise_for_status()
     data = resp.json()
@@ -281,7 +281,7 @@ def fetch_paper(
         Dict with keys ``status`` ("saved", "duplicate", or "failed") and
         optional ``content_id``.
     """
-    db = Database("scraper/data/papers.db")
+    db = Database(DB_PATH)
     db.initialize()
 
     # --- Dedup check ---
@@ -367,7 +367,7 @@ def search_and_fetch_papers(
     Returns:
         Dict with ``status`` and ``enqueued`` count.
     """
-    db = Database("scraper/data/papers.db")
+    db = Database(DB_PATH)
     db.initialize()
 
     # Respect session pause

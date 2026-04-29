@@ -9,6 +9,7 @@ import yt_dlp
 from typing import Optional
 
 from scraper.celery_app import app
+from scraper.config import DB_PATH
 from scraper.db import Database
 from scraper.extractors.transcript import parse_vtt_string
 from scraper.utils.dedup import url_hash
@@ -150,14 +151,8 @@ def fetch_video(self, video_url: str, session_id: int = 0):
 
     # Import here to allow patching in tests
     from scraper.config import RATE_LIMITS as _rl
-    db_path = "scraper/data/fitness.db"
-
-    try:
-        db = Database(db_path)
-        db.initialize()
-    except Exception:
-        db = Database(":memory:")
-        db.initialize()
+    db = Database(DB_PATH)
+    db.initialize()
 
     # Dedup check
     if db.hash_exists(dedup_key):

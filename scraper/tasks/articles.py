@@ -11,6 +11,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from scraper.celery_app import app
+from scraper.config import DB_PATH
 from scraper.db import Database
 from scraper.extractors.html import extract_from_url, extract_metadata_from_url
 from scraper.utils.classifier import classify, get_subcategories
@@ -20,13 +21,12 @@ from scraper.utils.rate_limiter import get_limiter
 
 logger = logging.getLogger(__name__)
 
-_DB_PATH = "scraper/data/scraper.db"
 
 _ARTICLE_PATH_KEYWORDS = ("/article", "/blog", "/post", "/research", "/supplement")
 
 
 def _get_db() -> Database:
-    db = Database(_DB_PATH)
+    db = Database(DB_PATH)
     db.initialize()
     return db
 

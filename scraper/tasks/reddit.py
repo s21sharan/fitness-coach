@@ -9,6 +9,7 @@ from typing import Optional
 import praw
 
 from scraper.celery_app import app
+from scraper.config import DB_PATH
 from scraper.db import Database
 from scraper.utils.classifier import classify, get_subcategories
 from scraper.utils.dedup import url_hash
@@ -16,11 +17,10 @@ from scraper.utils.quality import score_reddit
 
 logger = logging.getLogger(__name__)
 
-_DB_PATH = "scraper/data/scraper.db"
 
 
 def _get_db() -> Database:
-    db = Database(_DB_PATH)
+    db = Database(DB_PATH)
     db.initialize()
     return db
 

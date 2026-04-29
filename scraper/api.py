@@ -4,7 +4,7 @@ from typing import Optional
 import json
 
 from scraper.db import Database
-from scraper.config import ScraperConfig
+from scraper.config import DB_PATH, ScraperConfig
 from scraper.tasks.orchestrator import run_session
 
 app = FastAPI(title="Fitness Data Scraper", version="1.0.0")
@@ -15,7 +15,7 @@ _db: Optional[Database] = None
 def get_db() -> Database:
     global _db
     if _db is None:
-        _db = Database("scraper/data/fitness_data.db")
+        _db = Database(DB_PATH)
         _db.initialize()
     return _db
 
