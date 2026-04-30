@@ -172,5 +172,4 @@ def run_session(session_id: int, config_json: str):
                 },
             )
 
-    db.close()
     return {"status": "dispatched", "total_tasks": len(task_ids)}

@@ -50,7 +50,7 @@ def list_channel_videos(channel_url: str) -> list[dict]:
         videos.append({
             "id": video_id,
             "title": entry.get("title"),
-            "url": entry.get("url") or f"https://www.youtube.com/watch?v={video_id}",
+            "url": f"https://www.youtube.com/watch?v={video_id}",
             "duration": entry.get("duration"),
             "upload_date": entry.get("upload_date"),
         })
@@ -235,13 +235,8 @@ def scrape_channel(self, channel_url: str, session_id: int, task_id: int):
     Checks pause status, lists videos, and enqueues fetch_video for each.
     Updates the search_task progress on completion.
     """
-    db_path = "scraper/data/fitness.db"
-    try:
-        db = Database(db_path)
-        db.initialize()
-    except Exception:
-        db = Database(":memory:")
-        db.initialize()
+    db = Database(DB_PATH)
+    db.initialize()
 
     # Check pause status
     status = db.get_session_status(session_id)
