@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import { SyncStatus } from "@/components/dashboard/sync-status";
 
 export default async function DashboardPage() {
   const { userId } = await auth();
@@ -6,6 +7,8 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Dashboard</h1>
+
+      <SyncStatus />
 
       {/* Today Card */}
       <div className="rounded-lg border bg-white p-6">
