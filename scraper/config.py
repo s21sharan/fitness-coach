@@ -136,7 +136,6 @@ SOURCE_TYPES: Dict[str, dict] = {
     "articles": {"weight": 0.15, "queue_priority": 3},
     "podcasts": {"weight": 0.10, "queue_priority": 4},
     "books":    {"weight": 0.10, "queue_priority": 5},
-    "reddit":   {"weight": 0.05, "queue_priority": 6},
 }
 
 # ---------------------------------------------------------------------------
@@ -374,12 +373,12 @@ REDDIT_SUBREDDITS: List[str] = [
 # ---------------------------------------------------------------------------
 
 RATE_LIMITS: Dict[str, dict] = {
-    "papers":   {"requests_per_second": 0.5,  "delay": 2.0},
-    "youtube":  {"requests_per_second": 1.0,  "delay": 1.0},
+    "papers":   {"requests_per_second": 0.33, "delay": 3.0},
+    "pmc":      {"requests_per_second": 0.33, "delay": 3.0},
+    "youtube":  {"requests_per_second": 0.2,  "delay": 5.0},
     "articles": {"requests_per_second": 0.5,  "delay": 2.0},
     "podcasts": {"requests_per_second": 1.0,  "delay": 1.0},
     "books":    {"requests_per_second": 0.25, "delay": 4.0},
-    "reddit":   {"requests_per_second": 1.0,  "delay": 1.0},
 }
 
 # ---------------------------------------------------------------------------
@@ -400,7 +399,7 @@ LIBGEN_MIRRORS: List[str] = [
 ]
 
 NCBI_BASE: str = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
-BIORXIV_API: str = "https://api.biorxiv.org/details/biorxiv/"
+BIORXIV_API: str = "https://api.biorxiv.org"
 
 # ---------------------------------------------------------------------------
 # ScraperConfig dataclass

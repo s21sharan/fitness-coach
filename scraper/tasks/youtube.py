@@ -145,20 +145,18 @@ def fetch_video(self, video_url: str, session_id: int = 0):
     Returns a status dict with keys: status, video_url, and optionally
     content_id or reason.
     """
-    from scraper.config import RATE_LIMITS
-
     dedup_key = url_hash(video_url)
 
-    # Import here to allow patching in tests
-    from scraper.config import RATE_LIMITS as _rl
     db = Database(DB_PATH)
     db.initialize()
+    limiter = get_limiter("youtube")
 
     # Dedup check
     if db.hash_exists(dedup_key):
         return {"status": "duplicate", "video_url": video_url}
 
     # Get metadata
+    limiter.wait()
     try:
         meta = get_video_metadata(video_url)
     except Exception as exc:
@@ -171,12 +169,14 @@ def fetch_video(self, video_url: str, session_id: int = 0):
     if duration < 180:
         return {"status": "skipped", "video_url": video_url, "reason": "too_short"}
 
-    # Get transcript
+    # Get transcript (wait between yt-dlp calls to avoid 429s)
+    limiter.wait()
     transcript = get_transcript_in_memory(video_url)
     if not transcript:
         logger.warning("No transcript available for %s", video_url)
         if session_id:
             db.log_failed_fetch(session_id, video_url, "no_transcript", "youtube")
+        return {"status": "skipped", "video_url": video_url, "reason": "no_transcript"}
 
     # Classify using title + description + transcript
     classify_text = " ".join(filter(None, [

@@ -239,6 +239,7 @@ def search_biorxiv(
         List of paper dicts from the ``collection`` key of the API response.
     """
     url = f"{BIORXIV_API}/details/{server}/{start_date}/{end_date}/0/json"
+    logger.info("bioRxiv request URL: %s", url)
     resp = requests.get(url, headers=HEADERS, timeout=15)
     resp.raise_for_status()
     data = resp.json()

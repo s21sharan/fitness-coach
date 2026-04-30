@@ -44,18 +44,26 @@ Hybro is a web-based AI fitness coaching platform that connects users' existing 
 - Onboarding guard redirects incomplete users from dashboard
 - 24 tests passing across 7 test files
 
+**Phase 3: Integrations** — all 13 tasks done
+- Encryption utilities (AES-256-GCM) + sync_logs migration
+- Railway Express backend (server/) with config, auth, health endpoint
+- MacroFactor API client (Firebase auth + Firestore)
+- Hevy API client (REST with pagination, incremental events)
+- Strava API client + OAuth token manager
+- Sync workers: MacroFactor (nutrition), Hevy (workouts), Strava (cardio), Garmin (recovery)
+- Garmin Python FastAPI microservice (services/garmin/)
+- Cron scheduler, sync trigger/backfill routes, Strava webhook handler
+- Next.js API routes: connect, disconnect, status, sync for all 4 providers
+- Settings page with integration management UI + connection modals
+- Dashboard sync status + onboarding integrations wiring
+- 81 tests passing (57 frontend + 24 server) across 27 test files
+
 ### Next Up
 
-**Phase 3: Integrations** — not started
-- MacroFactor sync (via `@sjawhar/macrofactor-mcp` package)
-- Hevy sync (official REST API v1, requires Pro)
-- Strava sync (OAuth 2.0 + webhooks)
-- Garmin sync (Python microservice, unofficial)
-- Backend API on Railway (Express/Fastify)
-- Integration Manager with cron-based sync workers
+**Phase 4: Training Plan Engine** — not started
+- AI split generation, weekly training view
 
 **Remaining phases:**
-- Phase 4: Training Plan Engine (AI split generation, weekly view)
 - Phase 5: AI Chat Coach (Claude agent with tools, chat UI)
 - Phase 6: Weekly Check-in & Calendar (auto-adjust, Google Cal)
 - Phase 7: Dashboard & Polish (wire real data, landing page)

@@ -6,7 +6,7 @@ from scraper.db import Database
 from scraper.config import (
     ScraperConfig, CATEGORIES, SOURCE_TYPES,
     YOUTUBE_CHANNELS, PODCAST_FEEDS, ARTICLE_SITES,
-    TARGET_BOOKS, REDDIT_SUBREDDITS, DB_PATH,
+    TARGET_BOOKS, DB_PATH,
 )
 
 
@@ -24,16 +24,6 @@ def generate_search_tasks(config: ScraperConfig) -> list[dict]:
                             "source_type": "papers",
                             "search_term": term,
                             "source_platform": platform,
-                        })
-
-            elif source_type == "reddit":
-                for term in category_info["search_terms"][:3]:
-                    for subreddit in REDDIT_SUBREDDITS:
-                        tasks.append({
-                            "category": category_name,
-                            "source_type": "reddit",
-                            "search_term": term,
-                            "source_platform": f"r/{subreddit}",
                         })
 
     if "youtube" in config.sources_enabled:
@@ -83,7 +73,6 @@ def run_session(session_id: int, config_json: str):
     from scraper.tasks.podcasts import scrape_feed
     from scraper.tasks.articles import scrape_site
     from scraper.tasks.books import fetch_book
-    from scraper.tasks.reddit import fetch_subreddit
 
     config = ScraperConfig(**json.loads(config_json)) if config_json != "{}" else ScraperConfig()
     db = Database(DB_PATH)
@@ -159,17 +148,5 @@ def run_session(session_id: int, config_json: str):
                     session_id=session_id,
                 )
                 db.update_search_task(task_id, "completed", 1, 1, None)
-
-        elif source == "reddit":
-            fetch_subreddit.delay(
-                subreddit_name=st["source_platform"].replace("r/", ""),
-                search_term=st["search_term"],
-                session_id=session_id,
-                task_id=task_id,
-                credentials={
-                    "client_id": config.reddit_client_id or "",
-                    "client_secret": config.reddit_client_secret or "",
-                },
-            )
 
     return {"status": "dispatched", "total_tasks": len(task_ids)}
