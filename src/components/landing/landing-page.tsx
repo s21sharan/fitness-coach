@@ -411,8 +411,8 @@ function FeaturesSection() {
               <text x="20" y="44" fontSize="13" fontWeight="700" fill="#0F1B22">
                 Skip today — HRV ↓ 22%
               </text>
-              <rect x="120" y="68" rx="14" width="180" height="38" fill="#0F1B22" />
-              <text x="132" y="92" fontSize="13" fontWeight="700" fill="#F6B7A6">
+              <rect x="100" y="68" rx="14" width="212" height="38" fill="#0F1B22" />
+              <text x="112" y="92" fontSize="12.5" fontWeight="700" fill="#F6B7A6">
                 Coach knows. Coach adjusts.
               </text>
             </svg>
@@ -699,7 +699,7 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div style={{ fontFamily: "var(--font-jakarta), 'Plus Jakarta Sans', system-ui, sans-serif", background: "#EAF3F6" }}>
+    <div style={{ fontFamily: "var(--font-jakarta), 'Plus Jakarta Sans', system-ui, sans-serif", background: "#EAF3F6", minHeight: "100vh", overflowX: "hidden" as const }}>
       <NavBar />
       <HeroSection />
       <MarqueeSection />

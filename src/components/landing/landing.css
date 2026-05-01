@@ -429,9 +429,14 @@ h1.landing-headline {
   display: flex; align-items: center; gap: 10px; z-index: 4;
 }
 .landing-deco svg { flex-shrink: 0; }
-.landing-deco-a { top: -14px; left: -30px; animation: landingBob 5s ease-in-out infinite; }
-.landing-deco-b { bottom: 30px; right: -40px; animation: landingBob 6s ease-in-out -1.5s infinite; }
-.landing-deco-c { top: 42%; left: -50px; animation: landingBob 5.5s ease-in-out -2.8s infinite; }
+.landing-deco-a { top: -20px; left: 50%; transform: translateX(-50%); animation: landingBob 5s ease-in-out infinite; }
+.landing-deco-b { bottom: 60px; right: -20px; animation: landingBob 6s ease-in-out -1.5s infinite; }
+.landing-deco-c { top: 50%; left: -30px; animation: landingBob 5.5s ease-in-out -2.8s infinite; }
+@media (min-width: 961px) {
+  .landing-deco-a { top: -20px; left: -60px; transform: none; }
+  .landing-deco-b { bottom: 80px; right: -50px; }
+  .landing-deco-c { top: 45%; left: -70px; }
+}
 .landing-deco-c.landing-tag-mint { background: var(--landing-mint); }
 .landing-deco-a.landing-tag-coral { background: var(--landing-coral); }
 .landing-deco-b.landing-tag-sky { background: var(--landing-sky); }
