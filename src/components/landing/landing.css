@@ -429,13 +429,12 @@ h1.landing-headline {
   display: flex; align-items: center; gap: 10px; z-index: 4;
 }
 .landing-deco svg { flex-shrink: 0; }
-.landing-deco-a { top: -20px; left: 50%; transform: translateX(-50%); animation: landingBob 5s ease-in-out infinite; }
-.landing-deco-b { bottom: 60px; right: -20px; animation: landingBob 6s ease-in-out -1.5s infinite; }
-.landing-deco-c { top: 50%; left: -30px; animation: landingBob 5.5s ease-in-out -2.8s infinite; }
-@media (min-width: 961px) {
-  .landing-deco-a { top: -20px; left: -60px; transform: none; }
-  .landing-deco-b { bottom: 80px; right: -50px; }
-  .landing-deco-c { top: 45%; left: -70px; }
+/* Decos positioned relative to hero section — above/below/beside phone cluster */
+.landing-deco-a { top: 90px; right: 28%; animation: landingBob 5s ease-in-out infinite; }
+.landing-deco-b { bottom: 60px; right: 6%; animation: landingBob 6s ease-in-out -1.5s infinite; }
+.landing-deco-c { top: 60%; left: 40%; animation: landingBob 5.5s ease-in-out -2.8s infinite; }
+@media (max-width: 960px) {
+  .landing-deco { display: none; }
 }
 .landing-deco-c.landing-tag-mint { background: var(--landing-mint); }
 .landing-deco-a.landing-tag-coral { background: var(--landing-coral); }

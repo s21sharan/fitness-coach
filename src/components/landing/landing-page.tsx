@@ -58,6 +58,42 @@ function HeroSection() {
       <div className="landing-blob landing-blob-b" />
       <div className="landing-blob landing-blob-c" />
 
+      {/* Floating decorations — positioned relative to hero section */}
+      <div className="landing-deco landing-deco-a landing-tag-coral">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M12 21s-7-4.35-7-10a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 5.65-7 10-7 10z"
+            fill="currentColor"
+          />
+        </svg>
+        72 BPM · Resting
+      </div>
+      <div className="landing-deco landing-deco-b landing-tag-sky">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M3 12l4-7 5 9 4-5 5 8"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+        +1.2% strength
+      </div>
+      <div className="landing-deco landing-deco-c landing-tag-mint">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" />
+          <path
+            d="M8 12l3 3 5-6"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+        Recovery: Ready
+      </div>
+
       <div className="landing-hero-grid">
         {/* Left — Copy */}
         <div className="hero-copy">
@@ -121,42 +157,6 @@ function HeroSection() {
 
         {/* Right — Phone mockups */}
         <div className="landing-phone-stage">
-          {/* Floating decorations */}
-          <div className="landing-deco landing-deco-a landing-tag-coral">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M12 21s-7-4.35-7-10a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 5.65-7 10-7 10z"
-                fill="currentColor"
-              />
-            </svg>
-            72 BPM · Resting
-          </div>
-          <div className="landing-deco landing-deco-b landing-tag-sky">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M3 12l4-7 5 9 4-5 5 8"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            +1.2% strength
-          </div>
-          <div className="landing-deco landing-deco-c landing-tag-mint">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" />
-              <path
-                d="M8 12l3 3 5-6"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            Recovery: Ready
-          </div>
-
           {/* Phone 1: Run */}
           <div className="landing-phone landing-phone-1">
             <div className="landing-p2">
