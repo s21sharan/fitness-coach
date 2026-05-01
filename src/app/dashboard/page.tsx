@@ -1,8 +1,76 @@
-import { auth } from "@clerk/nextjs/server";
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { TodayCard } from "@/components/dashboard/today-card";
+import { WeekStrip } from "@/components/plan/week-strip";
+import { CaloriesCard } from "@/components/dashboard/calories-card";
+import { WeightCard } from "@/components/dashboard/weight-card";
+import { RecoveryCard } from "@/components/dashboard/recovery-card";
 import { SyncStatus } from "@/components/dashboard/sync-status";
 
-export default async function DashboardPage() {
-  const { userId } = await auth();
+interface DashboardData {
+  today: {
+    date: string;
+    session_type: string | null;
+    ai_notes: string | null;
+  };
+  weekWorkouts: Array<{
+    id: string;
+    date: string;
+    day_of_week: number;
+    session_type: string;
+    ai_notes: string | null;
+    status: string;
+    approved: boolean;
+  }>;
+  weekCompletions: Record<string, {
+    workout?: { name: string; duration_minutes: number; exercise_count: number };
+    cardio?: Array<{ type: string; distance: number; duration: number; avg_hr: number | null; pace_or_speed: number | null }>;
+  }>;
+  weekStart: string;
+  nutrition: {
+    calories: number;
+    protein: number;
+    target_calories: number;
+  } | null;
+  recovery: {
+    hrv: number | null;
+    sleep_hours: number | null;
+    body_battery: number | null;
+    readiness: "good" | "fair" | "low";
+  } | null;
+  weight: {
+    current: number | null;
+    direction: "up" | "down" | "stable";
+  } | null;
+}
+
+export default function DashboardPage() {
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    const res = await fetch("/api/dashboard");
+    if (res.ok) {
+      setData(await res.json());
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-black" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -10,48 +78,44 @@ export default async function DashboardPage() {
 
       <SyncStatus />
 
-      {/* Today Card */}
-      <div className="rounded-lg border bg-white p-6">
-        <h2 className="text-sm font-medium text-gray-500">Today</h2>
-        <p className="mt-2 text-xl font-semibold">Rest Day</p>
-        <p className="mt-1 text-sm text-gray-500">
-          No session planned. Connect your integrations to get started.
-        </p>
-      </div>
+      <TodayCard
+        sessionType={data?.today.session_type ?? null}
+        aiNotes={data?.today.ai_notes ?? null}
+        recovery={data?.recovery ? {
+          hrv: data.recovery.hrv,
+          sleep_hours: data.recovery.sleep_hours,
+          body_battery: data.recovery.body_battery,
+        } : null}
+      />
 
-      {/* This Week */}
-      <div className="rounded-lg border bg-white p-6">
-        <h2 className="text-sm font-medium text-gray-500">This Week</h2>
-        <div className="mt-4 grid grid-cols-7 gap-2">
-          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
-            <div
-              key={day}
-              className="flex flex-col items-center rounded-lg border p-3"
-            >
-              <span className="text-xs text-gray-500">{day}</span>
-              <span className="mt-1 text-sm text-gray-400">--</span>
-            </div>
-          ))}
+      {data?.weekWorkouts && data.weekWorkouts.length > 0 && (
+        <div>
+          <h2 className="mb-3 text-sm font-medium text-gray-500">This Week</h2>
+          <WeekStrip
+            workouts={data.weekWorkouts}
+            completions={data.weekCompletions}
+            weekStart={data.weekStart}
+            today={today}
+          />
         </div>
-      </div>
+      )}
 
-      {/* Quick Stats */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-lg border bg-white p-6">
-          <h3 className="text-sm font-medium text-gray-500">Calories</h3>
-          <p className="mt-2 text-2xl font-bold">--</p>
-          <p className="text-sm text-gray-400">No data yet</p>
-        </div>
-        <div className="rounded-lg border bg-white p-6">
-          <h3 className="text-sm font-medium text-gray-500">Weight Trend</h3>
-          <p className="mt-2 text-2xl font-bold">--</p>
-          <p className="text-sm text-gray-400">No data yet</p>
-        </div>
-        <div className="rounded-lg border bg-white p-6">
-          <h3 className="text-sm font-medium text-gray-500">Recovery</h3>
-          <p className="mt-2 text-2xl font-bold">--</p>
-          <p className="text-sm text-gray-400">No data yet</p>
-        </div>
+        <CaloriesCard
+          calories={data?.nutrition?.calories ?? null}
+          target={data?.nutrition?.target_calories ?? 2000}
+          protein={data?.nutrition?.protein ?? null}
+        />
+        <WeightCard
+          current={data?.weight?.current ?? null}
+          direction={data?.weight?.direction ?? "stable"}
+        />
+        <RecoveryCard
+          hrv={data?.recovery?.hrv ?? null}
+          sleepHours={data?.recovery?.sleep_hours ?? null}
+          bodyBattery={data?.recovery?.body_battery ?? null}
+          readiness={data?.recovery?.readiness ?? null}
+        />
       </div>
     </div>
   );
