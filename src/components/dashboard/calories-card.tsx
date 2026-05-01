@@ -1,37 +1,94 @@
 "use client";
 
-interface CaloriesCardProps {
-  calories: number | null;
-  target: number;
-  protein: number | null;
+import { MacroDonut } from "@/components/app/macro-donut";
+
+function Legend({
+  color,
+  label,
+  v,
+}: {
+  color: string;
+  label: string;
+  v: string;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <span
+        style={{ width: 10, height: 10, borderRadius: 3, background: color }}
+      />
+      <span style={{ fontWeight: 700, fontSize: 12, minWidth: 54 }}>{label}</span>
+      <span style={{ color: "var(--muted)", fontSize: 12, fontWeight: 600 }}>
+        {v}
+      </span>
+    </div>
+  );
 }
 
-export function CaloriesCard({ calories, target, protein }: CaloriesCardProps) {
-  if (calories === null) {
-    return (
-      <div className="rounded-lg border bg-white p-6">
-        <h3 className="text-sm font-medium text-gray-500">Calories</h3>
-        <p className="mt-2 text-sm text-gray-400">No data today</p>
-      </div>
-    );
-  }
-
-  const pct = Math.min(100, Math.round((calories / target) * 100));
-  const barColor = pct >= 90 ? "bg-green-500" : pct >= 60 ? "bg-amber-500" : "bg-gray-300";
-
+export function CaloriesCard() {
   return (
-    <div className="rounded-lg border bg-white p-6">
-      <h3 className="text-sm font-medium text-gray-500">Calories</h3>
-      <div className="mt-2 flex items-baseline gap-1">
-        <span className="text-2xl font-bold">{calories.toLocaleString()}</span>
-        <span className="text-sm text-gray-400">/ {target.toLocaleString()} cal</span>
+    <div className="card" style={{ background: "#fff", padding: 22 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 12,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 800,
+            color: "var(--ink-2)",
+            letterSpacing: ".08em",
+            textTransform: "uppercase",
+          }}
+        >
+          Macros
+        </span>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: "var(--ink-2)",
+            opacity: 0.7,
+          }}
+        >
+          148g P · 210g C · 62g F
+        </span>
       </div>
-      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-100">
-        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+      <div
+        style={{
+          fontSize: 30,
+          fontWeight: 800,
+          letterSpacing: "-0.025em",
+          marginBottom: 6,
+        }}
+      >
+        2,140 / 2,400
       </div>
-      {protein !== null && (
-        <p className="mt-1.5 text-xs text-gray-500">{protein}g protein</p>
-      )}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          marginTop: 6,
+        }}
+      >
+        <MacroDonut size={120} />
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            fontSize: 12,
+          }}
+        >
+          <Legend color="var(--coral-deep)" label="Protein" v="148g" />
+          <Legend color="var(--sky-deep)" label="Carbs" v="210g" />
+          <Legend color="var(--lemon-deep)" label="Fat" v="62g" />
+        </div>
+      </div>
     </div>
   );
 }

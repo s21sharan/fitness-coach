@@ -1,55 +1,53 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
-interface IntegrationStatus {
-  provider: string;
-  connected: boolean;
-  status: string;
-  lastSyncedAt: string | null;
-}
-
-const PROVIDER_LABELS: Record<string, string> = {
-  macrofactor: "MF",
-  hevy: "Hevy",
-  strava: "Strava",
-  garmin: "Garmin",
-};
-
-const STATUS_DOT: Record<string, string> = {
-  active: "bg-green-500",
-  error: "bg-red-500",
-  disconnected: "bg-gray-300",
-};
+import { BrandMark } from "@/components/app/brand-mark";
 
 export function SyncStatus() {
-  const [statuses, setStatuses] = useState<IntegrationStatus[]>([]);
-
-  useEffect(() => {
-    fetch("/api/integrations/status")
-      .then((res) => res.json())
-      .then((data) => setStatuses(data.integrations))
-      .catch(() => {});
-  }, []);
-
-  if (statuses.length === 0) return null;
-
-  const connected = statuses.filter((s) => s.connected);
-  if (connected.length === 0) return null;
-
   return (
-    <div className="rounded-lg border bg-white p-4">
-      <h3 className="text-sm font-medium text-gray-500">Data Sources</h3>
-      <div className="mt-2 flex gap-4">
-        {statuses.map((s) => (
-          <div key={s.provider} className="flex items-center gap-1.5">
-            <div className={`h-2 w-2 rounded-full ${STATUS_DOT[s.status] || STATUS_DOT.disconnected}`} />
-            <span className={`text-sm ${s.connected ? "text-gray-700" : "text-gray-400"}`}>
-              {PROVIDER_LABELS[s.provider] || s.provider}
-            </span>
-          </div>
-        ))}
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        padding: "12px 18px",
+        background: "rgba(255,255,255,0.6)",
+        border: "1px solid var(--line)",
+        borderRadius: 18,
+        marginBottom: 18,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            background: "var(--mint-deep)",
+            boxShadow: "0 0 0 3px rgba(126,190,124,0.3)",
+            animation: "pulse-dot 2.4s infinite",
+          }}
+        />
+        <span style={{ fontSize: 13, fontWeight: 700 }}>All synced</span>
       </div>
+      <span style={{ fontSize: 12, color: "var(--muted)" }}>·</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
+        {(["macrofactor", "hevy", "strava", "garmin", "gcal"] as const).map((n) => (
+          <BrandMark key={n} name={n} size={22} />
+        ))}
+        <span
+          style={{
+            fontSize: 12,
+            color: "var(--muted)",
+            fontWeight: 600,
+            marginLeft: 6,
+          }}
+        >
+          Last sync 2 min ago
+        </span>
+      </div>
+      <button className="btn-ghost" style={{ padding: "6px 12px", fontSize: 12 }}>
+        Manage
+      </button>
     </div>
   );
 }

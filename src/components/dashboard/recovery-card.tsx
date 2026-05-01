@@ -1,43 +1,65 @@
 "use client";
 
-interface RecoveryCardProps {
-  hrv: number | null;
-  sleepHours: number | null;
-  bodyBattery: number | null;
-  readiness: "good" | "fair" | "low" | null;
-}
+import { Sparkline } from "@/components/app/sparkline";
 
-const READINESS_CONFIG: Record<string, { label: string; color: string; bgColor: string; pct: number }> = {
-  good: { label: "Good", color: "text-green-600", bgColor: "bg-green-500", pct: 90 },
-  fair: { label: "Fair", color: "text-amber-600", bgColor: "bg-amber-500", pct: 55 },
-  low: { label: "Low", color: "text-red-600", bgColor: "bg-red-500", pct: 25 },
-};
-
-export function RecoveryCard({ hrv, sleepHours, bodyBattery, readiness }: RecoveryCardProps) {
-  if (!readiness) {
-    return (
-      <div className="rounded-lg border bg-white p-6">
-        <h3 className="text-sm font-medium text-gray-500">Recovery</h3>
-        <p className="mt-2 text-sm text-gray-400">No data today</p>
-      </div>
-    );
-  }
-
-  const config = READINESS_CONFIG[readiness];
-
+export function RecoveryCard() {
   return (
-    <div className="rounded-lg border bg-white p-6">
-      <h3 className="text-sm font-medium text-gray-500">Recovery</h3>
-      <div className="mt-2 flex items-baseline gap-2">
-        <span className={`text-2xl font-bold ${config.color}`}>{config.label}</span>
+    <div className="card" style={{ background: "var(--sky)", padding: 22 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 12,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 800,
+            color: "var(--ink-2)",
+            letterSpacing: ".08em",
+            textTransform: "uppercase",
+          }}
+        >
+          Recovery
+        </span>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: "var(--ink-2)",
+            opacity: 0.7,
+          }}
+        >
+          HRV · 7-day
+        </span>
       </div>
-      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-100">
-        <div className={`h-full rounded-full ${config.bgColor}`} style={{ width: `${config.pct}%` }} />
+      <div
+        style={{
+          fontSize: 30,
+          fontWeight: 800,
+          letterSpacing: "-0.025em",
+          marginBottom: 6,
+        }}
+      >
+        78
       </div>
-      <div className="mt-2 flex gap-3 text-xs text-gray-500">
-        {hrv !== null && <span>HRV {hrv}</span>}
-        {sleepHours !== null && <span>{sleepHours}h sleep</span>}
-        {bodyBattery !== null && <span>BB {bodyBattery}</span>}
+      <Sparkline
+        points={[58, 62, 55, 68, 72, 75, 78]}
+        width={210}
+        height={56}
+        color="#1d4a59"
+      />
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          color: "#1d4a59",
+          marginTop: 4,
+        }}
+      >
+        ↑ trending up · ready to push
       </div>
     </div>
   );
