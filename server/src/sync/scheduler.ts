@@ -4,6 +4,7 @@ import { syncAllHevy } from "./hevy.js";
 import { syncAllStrava } from "./strava.js";
 import { syncAllGarmin } from "./garmin.js";
 import { logger } from "../utils/logger.js";
+import { runAllWeeklyCheckIns } from "../adjustment/weekly-check-in.js";
 
 export function startScheduler(): void {
   cron.schedule("0 */6 * * *", () => {
@@ -24,6 +25,12 @@ export function startScheduler(): void {
   cron.schedule("0 2,14 * * *", () => {
     logger.info("Cron: starting Garmin sync");
     syncAllGarmin().catch((err) => logger.error("Cron: Garmin sync failed", { error: String(err) }));
+  });
+
+  // Weekly plan adjustment: Sunday 9 PM UTC
+  cron.schedule("0 21 * * 0", () => {
+    logger.info("Cron: starting weekly check-ins");
+    runAllWeeklyCheckIns().catch((err) => logger.error("Cron: weekly check-in failed", { error: String(err) }));
   });
 
   logger.info("Sync scheduler started");
