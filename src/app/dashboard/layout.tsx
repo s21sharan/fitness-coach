@@ -2,9 +2,7 @@ import "@/components/app/tokens.css";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
-import { Sidebar } from "@/components/sidebar";
-import { Topbar } from "@/components/topbar";
-import { ChatLauncher } from "@/components/chat/chat-launcher";
+import { AppShell } from "@/components/app/shell-client";
 
 export default async function DashboardLayout({
   children,
@@ -26,16 +24,5 @@ export default async function DashboardLayout({
     }
   }
 
-  return (
-    <div className="flex h-screen">
-      <Sidebar />
-      <div className="flex flex-1 flex-col">
-        <Topbar />
-        <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
-          {children}
-        </main>
-      </div>
-      <ChatLauncher />
-    </div>
-  );
+  return <AppShell>{children}</AppShell>;
 }
