@@ -2,10 +2,10 @@
 
 import { useChat } from "ai/react";
 import { useEffect, useRef, useState } from "react";
-import { MessageBubble } from "@/components/chat/message-bubble";
-import { ToolCallPills } from "@/components/chat/tool-call-pills";
+import { MessageBubble, TypingIndicator } from "@/components/chat/message-bubble";
 import { ChatInput } from "@/components/chat/chat-input";
-import { SuggestedPrompts } from "@/components/chat/suggested-prompts";
+import { ContextPanel } from "@/components/chat/context-panel";
+import { Topbar } from "@/components/topbar";
 
 interface HistoryMessage {
   id: string;
@@ -61,56 +61,122 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-full flex-col -m-6">
-      <SuggestedPrompts onSelect={handleSuggestedPrompt} />
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        height: "100%",
+        margin: "-24px",
+      }}
+    >
+      <Topbar title="Coach" subtitle="● Online · sees your data" />
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4">
-        {messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-500">
-              <span className="text-2xl font-bold text-white">C</span>
-            </div>
-            <h2 className="mt-4 text-lg font-semibold">Hey! I&apos;m your Coach.</h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Ask me about your nutrition, training, recovery — or just what to eat for dinner.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {messages.map((m) => (
-              <div key={m.id}>
-                {m.role === "assistant" && (m as any).toolInvocations && (
-                  <ToolCallPills
-                    toolCalls={(m as any).toolInvocations?.map((t: any) => ({ toolName: t.toolName }))}
-                  />
-                )}
-                <MessageBubble role={m.role as "user" | "assistant"} content={m.content} />
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 280px",
+          gap: 0,
+          flex: 1,
+          overflow: "hidden",
+        }}
+      >
+        {/* Left column: chat thread + input */}
+        <div style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div
+            ref={scrollRef}
+            style={{ flex: 1, overflow: "auto", padding: "24px 32px" }}
+          >
+            <div
+              style={{
+                maxWidth: 680,
+                margin: "0 auto",
+                display: "flex",
+                flexDirection: "column",
+                gap: 14,
+              }}
+            >
+              {/* Timestamp */}
+              <div
+                style={{
+                  textAlign: "center",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "var(--muted)",
+                  letterSpacing: ".08em",
+                  textTransform: "uppercase",
+                  margin: "8px 0",
+                }}
+              >
+                Today · {new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
               </div>
-            ))}
-            {isLoading && (
-              <div className="flex gap-2.5 items-start">
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-500">
-                  <span className="text-sm font-bold text-white">C</span>
-                </div>
-                <div className="rounded-2xl rounded-tl-sm border border-gray-200 bg-white px-4 py-3">
-                  <div className="flex gap-1">
-                    <div className="h-2 w-2 animate-bounce rounded-full bg-gray-300" style={{ animationDelay: "0ms" }} />
-                    <div className="h-2 w-2 animate-bounce rounded-full bg-gray-300" style={{ animationDelay: "150ms" }} />
-                    <div className="h-2 w-2 animate-bounce rounded-full bg-gray-300" style={{ animationDelay: "300ms" }} />
+
+              {messages.length === 0 ? (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "48px 0",
+                    gap: 12,
+                    textAlign: "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: "50%",
+                      background: "var(--ink)",
+                      color: "#fff",
+                      display: "grid",
+                      placeItems: "center",
+                      fontWeight: 800,
+                      fontSize: 18,
+                    }}
+                  >
+                    H
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}>
+                      Hey! I&apos;m your Coach.
+                    </div>
+                    <div style={{ fontSize: 13, color: "var(--muted)" }}>
+                      Ask me about your nutrition, training, recovery — or just what to eat for dinner.
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+              ) : (
+                messages.map((m) => {
+                  const toolInvocations = (m as unknown as { toolInvocations?: Array<{ toolName: string }> }).toolInvocations;
+                  const tools = toolInvocations?.map((t) => t.toolName);
+                  return (
+                    <MessageBubble
+                      key={m.id}
+                      role={m.role as "user" | "assistant"}
+                      content={m.content}
+                      tools={tools}
+                    />
+                  );
+                })
+              )}
 
-      <ChatInput
-        input={input}
-        onChange={handleInputChange}
-        onSubmit={handleSubmit}
-        isLoading={isLoading}
-      />
+              {isLoading && <TypingIndicator />}
+            </div>
+          </div>
+
+          <ChatInput
+            input={input}
+            onChange={handleInputChange}
+            onSubmit={handleSubmit}
+            isLoading={isLoading}
+          />
+        </div>
+
+        {/* Right column: context panel */}
+        <ContextPanel onPromptSelect={handleSuggestedPrompt} />
+      </div>
     </div>
   );
 }

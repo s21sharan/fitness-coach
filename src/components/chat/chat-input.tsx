@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent } from "react";
+import { Icon } from "@/components/app/icon";
 
 interface ChatInputProps {
   input: string;
@@ -11,25 +12,81 @@ interface ChatInputProps {
 
 export function ChatInput({ input, onChange, onSubmit, isLoading }: ChatInputProps) {
   return (
-    <div className="border-t bg-white px-5 py-3">
-      <form onSubmit={onSubmit} className="flex items-center gap-2">
+    <div
+      style={{
+        padding: "14px 32px 22px",
+        borderTop: "1px solid var(--line)",
+        background: "rgba(255,255,255,0.6)",
+        backdropFilter: "blur(10px)",
+      }}
+    >
+      <form
+        onSubmit={onSubmit}
+        style={{
+          maxWidth: 680,
+          margin: "0 auto",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          background: "#fff",
+          borderRadius: 999,
+          padding: "8px 8px 8px 18px",
+          border: "1px solid var(--line)",
+        }}
+      >
+        <Icon name="sparkle" size={16} style={{ color: "var(--coral-deep)", flexShrink: 0 }} />
         <input
           type="text"
           value={input}
           onChange={onChange}
-          placeholder="Ask your coach anything..."
-          className="flex-1 rounded-full border border-gray-200 px-4 py-2.5 text-sm outline-none focus:border-gray-400"
+          placeholder="Ask anything — coach has your data"
           disabled={isLoading}
+          style={{
+            flex: 1,
+            border: "none",
+            outline: "none",
+            font: "inherit",
+            fontSize: 14,
+            padding: "8px 0",
+            background: "transparent",
+          }}
         />
+        <button
+          type="button"
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: "50%",
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            display: "grid",
+            placeItems: "center",
+            color: "var(--ink-2)",
+            flexShrink: 0,
+          }}
+        >
+          <Icon name="mic" size={16} />
+        </button>
         <button
           type="submit"
           disabled={isLoading || !input.trim()}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-white disabled:opacity-40"
+          className="btn-coral"
+          style={{ padding: "9px 14px", fontSize: 13, flexShrink: 0 }}
         >
           {isLoading ? (
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            <div
+              style={{
+                width: 14,
+                height: 14,
+                borderRadius: "50%",
+                border: "2px solid rgba(255,255,255,0.4)",
+                borderTopColor: "#fff",
+                animation: "spin 0.7s linear infinite",
+              }}
+            />
           ) : (
-            <span className="text-lg">↑</span>
+            <Icon name="send" size={14} />
           )}
         </button>
       </form>
