@@ -1,3 +1,4 @@
+import "@/components/app/tokens.css";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";

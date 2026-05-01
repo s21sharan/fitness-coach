@@ -1,3 +1,5 @@
+import "@/components/app/tokens.css";
+
 export default function OnboardingLayout({
   children,
 }: {
