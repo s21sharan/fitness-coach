@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
-import { Inter, Geist } from "next/font/google";
+import { Inter, Geist, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const inter = Inter({ subsets: ["latin"] });
+const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-jakarta", weight: ["400", "500", "600", "700", "800"] });
 
 export const metadata: Metadata = {
   title: "Hybro",
@@ -21,7 +22,7 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en" className={cn("font-sans", geist.variable)}>
-        <body className={inter.className}>{children}</body>
+        <body className={`${inter.className} ${jakarta.variable}`}>{children}</body>
       </html>
     </ClerkProvider>
   );
