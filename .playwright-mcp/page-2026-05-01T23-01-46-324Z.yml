@@ -1,0 +1,285 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - navigation [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]:
+          - img [ref=e7]
+          - generic [ref=e9]: Hybro
+        - generic [ref=e10]:
+          - link "Features" [ref=e11] [cursor=pointer]:
+            - /url: "#features"
+          - link "How it works" [ref=e12] [cursor=pointer]:
+            - /url: "#how"
+          - link "Built for" [ref=e13] [cursor=pointer]:
+            - /url: "#built-for"
+          - link "Waitlist" [ref=e14] [cursor=pointer]:
+            - /url: "#waitlist"
+        - button "Get early access" [ref=e15] [cursor=pointer]
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - generic [ref=e19]: Coming soon to iOS · Beta opens this summer
+        - heading "Train smarter, not harder." [level=1] [ref=e21]:
+          - text: Train smarter,
+          - text: not
+          - emphasis [ref=e22]: harder.
+        - paragraph [ref=e23]: Hybro is the AI coach for hybrid athletes. It connects MacroFactor, Hevy, Strava, Garmin and your calendar — then builds one plan that adapts to your sleep, recovery, and life.
+        - generic [ref=e24]:
+          - button "Join the waitlist" [ref=e25] [cursor=pointer]:
+            - text: Join the waitlist
+            - img [ref=e26]
+          - link "See features" [ref=e28] [cursor=pointer]:
+            - /url: "#features"
+            - text: See features
+            - img [ref=e29]
+        - generic [ref=e37]:
+          - generic [ref=e38]: ★★★★★
+          - generic [ref=e39]: 2,400+ athletes on the waitlist
+      - generic [ref=e40]:
+        - img [ref=e41]
+        - text: 72 BPM · Resting
+      - generic [ref=e43]:
+        - img [ref=e44]
+        - text: +1.2% strength
+      - generic [ref=e46]:
+        - img [ref=e47]
+        - text: "Recovery: Ready"
+      - generic [ref=e50]:
+        - generic [ref=e52]:
+          - generic [ref=e53]:
+            - generic [ref=e54]: ‹
+            - heading "Today's run" [level=4] [ref=e55]
+          - generic [ref=e59]:
+            - img [ref=e61]
+            - generic [ref=e63]: Easy zone 2
+            - heading "5.2km" [level=2] [ref=e64]
+          - generic [ref=e65]:
+            - generic [ref=e66]:
+              - paragraph [ref=e67]: Pace
+              - heading "5'42\"" [level=4] [ref=e68]
+            - generic [ref=e69]:
+              - paragraph [ref=e70]: Time
+              - heading "32:14" [level=4] [ref=e71]
+            - generic [ref=e72]:
+              - paragraph [ref=e73]: HR
+              - heading "138" [level=4] [ref=e74]
+          - generic [ref=e75]:
+            - generic [ref=e76]: ▶
+            - text: Start run
+        - generic [ref=e78]:
+          - generic [ref=e79]:
+            - generic [ref=e82]:
+              - paragraph [ref=e83]: Good morning
+              - heading "Hi, Alex 👋" [level=4] [ref=e84]
+            - img [ref=e86]
+          - generic [ref=e88]:
+            - generic [ref=e90]: 64%
+            - generic [ref=e91]:
+              - paragraph [ref=e92]: Today
+              - heading "Push Day" [level=3] [ref=e93]
+              - generic [ref=e94]: 8 of 12 sets
+          - generic [ref=e95]:
+            - generic [ref=e96]:
+              - paragraph [ref=e97]: Calories
+              - heading "1,847" [level=5] [ref=e98]
+            - generic [ref=e99]:
+              - paragraph [ref=e100]: Protein
+              - heading "148g" [level=5] [ref=e101]
+            - generic [ref=e102]:
+              - paragraph [ref=e103]: Sleep
+              - heading "7.2h" [level=5] [ref=e104]
+          - generic [ref=e105]:
+            - generic [ref=e106]:
+              - paragraph [ref=e107]: Weight trend
+              - heading "−0.4 lb" [level=6] [ref=e108]
+            - img [ref=e109]
+        - generic [ref=e114]:
+          - generic [ref=e115]:
+            - generic [ref=e116]: H
+            - generic [ref=e117]:
+              - heading "Hybro Coach" [level=4] [ref=e118]
+              - paragraph [ref=e119]: ● Online · sees your data
+          - generic [ref=e120]: What should I eat tonight?
+          - generic [ref=e121]: "You're 82g protein short. Try:"
+          - generic [ref=e122]: 🍗 Chicken bowl + rice (52g P)
+          - generic [ref=e123]: 🐟 Salmon teriyaki (48g P)
+          - generic [ref=e124]: Should I run tomorrow?
+    - generic [ref=e129]:
+      - paragraph [ref=e130]: Connects to the apps you already use
+      - generic [ref=e132]:
+        - generic [ref=e133]:
+          - generic [ref=e134]: M
+          - text: MacroFactor
+        - generic [ref=e135]:
+          - generic [ref=e136]: H
+          - text: Hevy
+        - generic [ref=e137]:
+          - generic [ref=e138]: S
+          - text: Strava
+        - generic [ref=e139]:
+          - generic [ref=e140]: G
+          - text: Garmin
+        - generic [ref=e141]:
+          - generic [ref=e142]: C
+          - text: Google Calendar
+        - generic [ref=e143]:
+          - generic [ref=e144]: A
+          - text: Apple Health
+        - generic [ref=e145]:
+          - generic [ref=e146]: W
+          - text: Whoop
+        - generic [ref=e147]:
+          - generic [ref=e148]: M
+          - text: MacroFactor
+        - generic [ref=e149]:
+          - generic [ref=e150]: H
+          - text: Hevy
+        - generic [ref=e151]:
+          - generic [ref=e152]: S
+          - text: Strava
+        - generic [ref=e153]:
+          - generic [ref=e154]: G
+          - text: Garmin
+        - generic [ref=e155]:
+          - generic [ref=e156]: C
+          - text: Google Calendar
+        - generic [ref=e157]:
+          - generic [ref=e158]: A
+          - text: Apple Health
+        - generic [ref=e159]:
+          - generic [ref=e160]: W
+          - text: Whoop
+    - generic [ref=e161]:
+      - generic [ref=e162]:
+        - generic [ref=e163]: The problem
+        - heading "You're tracking everything. Nothing talks to each other." [level=2] [ref=e164]:
+          - text: You're tracking everything.
+          - text: Nothing talks to each other.
+        - paragraph [ref=e165]: Five apps. Five dashboards. Five silos. None of them know what the others know — so none of them coach you.
+      - generic [ref=e166]:
+        - generic [ref=e167]:
+          - generic [ref=e168]: ×
+          - heading "Your nutrition app doesn't know you crushed legs yesterday." [level=4] [ref=e169]
+          - paragraph [ref=e170]: So your protein target stays flat while your recovery demands more.
+        - generic [ref=e171]:
+          - generic [ref=e172]: ×
+          - heading "Your lifting app doesn't know you only slept 5 hours." [level=4] [ref=e173]
+          - paragraph [ref=e174]: So it pushes the same heavy session — and you grind through it half-broken.
+        - generic [ref=e175]:
+          - generic [ref=e176]: ×
+          - heading "Your run tracker doesn't know you're in a deficit." [level=4] [ref=e177]
+          - paragraph [ref=e178]: So it queues a tempo run that wrecks recovery for the rest of the week.
+    - generic [ref=e179]:
+      - generic [ref=e180]:
+        - generic [ref=e181]: Features
+        - heading "Everything a great coach does. In your pocket." [level=2] [ref=e182]:
+          - text: Everything a great coach does.
+          - text: In your pocket.
+      - generic [ref=e183]:
+        - generic [ref=e184]:
+          - generic [ref=e185]: ● AI Coach
+          - heading "An AI coach that actually knows your body." [level=3] [ref=e186]
+          - paragraph [ref=e187]: Ask what to eat, whether to train, or how to fix a lagging body part. Get advice grounded in your real data — not generic gym tips.
+          - img [ref=e189]:
+            - generic [ref=e191]: Skip today — HRV ↓ 22%
+            - generic [ref=e193]: Coach knows. Coach adjusts.
+        - generic [ref=e194]:
+          - generic [ref=e195]: ● Adaptive plans
+          - heading "Plans that evolve every week." [level=3] [ref=e196]
+          - paragraph [ref=e197]: Compliance, recovery, performance — Hybro re-tunes your plan and shows you exactly what changed before it ships.
+          - img [ref=e199]
+        - generic [ref=e205]:
+          - generic [ref=e206]: ● Recovery
+          - heading "Recovery aware." [level=3] [ref=e207]
+          - paragraph [ref=e208]: HRV trending down? Sleep was rough? Hybro spots it before you burn out.
+        - generic [ref=e209]:
+          - generic [ref=e210]: ● Splits
+          - heading "Smart split selection." [level=3] [ref=e211]
+          - paragraph [ref=e212]: PPL, Arnold, Upper/Lower or Hybrid — picked for your goals and schedule.
+        - generic [ref=e213]:
+          - generic [ref=e214]: ● Calendar
+          - heading "Calendar sync." [level=3] [ref=e215]
+          - paragraph [ref=e216]: Reads your week, finds open slots, drops approved sessions in.
+        - generic [ref=e217]:
+          - generic [ref=e218]: ● 24/7 Chat
+          - heading "Talk to your coach. Anytime." [level=3] [ref=e219]
+          - paragraph [ref=e220]: "\"What should I eat for dinner?\" Hybro checks your macros, sees you have 80g protein left, and suggests three meals you'd actually make."
+        - generic [ref=e221]:
+          - generic [ref=e222]: ● You decide
+          - heading "You approve every change." [level=3] [ref=e223]
+          - paragraph [ref=e224]: Hybro proposes. You approve. Nothing changes in your plan without your sign-off — your body, your call.
+    - generic [ref=e225]:
+      - generic [ref=e226]:
+        - generic [ref=e227]: How it works
+        - heading "Three steps. Smarter every week." [level=2] [ref=e228]:
+          - text: Three steps.
+          - text: Smarter every week.
+      - generic [ref=e229]:
+        - generic [ref=e230]:
+          - generic [ref=e231]: "01"
+          - heading "Connect your apps" [level=4] [ref=e232]
+          - paragraph [ref=e233]: Link MacroFactor, Hevy, Strava, Garmin and Google Calendar. Two minutes, no spreadsheets.
+          - img [ref=e235]:
+            - generic [ref=e237]: M
+            - generic [ref=e239]: H
+            - generic [ref=e241]: S
+        - generic [ref=e242]:
+          - generic [ref=e243]: "02"
+          - heading "Tell us your goals" [level=4] [ref=e244]
+          - paragraph [ref=e245]: Body goals, training history, schedule, upcoming races. A few questions and we know the shape of your week.
+          - img [ref=e247]
+        - generic [ref=e254]:
+          - generic [ref=e255]: "03"
+          - heading "Get coached daily" [level=4] [ref=e256]
+          - paragraph [ref=e257]: Your AI coach builds your plan, adjusts it weekly, and is online 24/7 for the gray-area calls.
+          - img [ref=e259]:
+            - generic [ref=e261]: Push it today 🔥
+            - generic [ref=e263]: On it, coach.
+    - generic [ref=e264]:
+      - generic [ref=e265]:
+        - generic [ref=e266]: Built for
+        - heading "Athletes who take it seriously." [level=2] [ref=e267]
+        - paragraph [ref=e268]: Hybro is built for the people juggling lifts, miles, macros and a real life — and tired of pretending five separate apps add up to a coach.
+      - generic [ref=e269]:
+        - generic [ref=e270]:
+          - generic [ref=e271]: 💪
+          - heading "Bodybuilders" [level=4] [ref=e272]
+          - paragraph [ref=e273]: Periodization, volume tracking, cut and bulk phases.
+        - generic [ref=e274]:
+          - generic [ref=e275]: ⚡
+          - heading "Hybrid athletes" [level=4] [ref=e276]
+          - paragraph [ref=e277]: Strength + endurance with interference managed.
+        - generic [ref=e278]:
+          - generic [ref=e279]: 🏃
+          - heading "Runners" [level=4] [ref=e280]
+          - paragraph [ref=e281]: 5K to Ironman — taper timing and race prep handled.
+        - generic [ref=e282]:
+          - generic [ref=e283]: 🏋️
+          - heading "Serious lifters" [level=4] [ref=e284]
+          - paragraph [ref=e285]: PPL, Arnold, Upper/Lower — auto-adjusted to your week.
+    - generic [ref=e287]:
+      - heading "Be the first to train with a coach that actually knows you." [level=2] [ref=e290]:
+        - text: Be the first to train with a coach
+        - emphasis [ref=e291]: that actually knows you.
+      - paragraph [ref=e292]: Join 2,400+ athletes on the waitlist. Early-access invites go out as we open the iOS beta.
+      - generic [ref=e293]:
+        - textbox "you@hybridathlete.com" [ref=e294]
+        - button "Get early access" [ref=e295] [cursor=pointer]
+      - paragraph [ref=e296]: No spam. Unsubscribe anytime. iOS only at launch.
+    - contentinfo [ref=e297]:
+      - generic [ref=e298]:
+        - generic [ref=e299]:
+          - img [ref=e301]
+          - generic [ref=e303]: Hybro
+        - generic [ref=e304]:
+          - link "Privacy" [ref=e305] [cursor=pointer]:
+            - /url: "#"
+          - link "Terms" [ref=e306] [cursor=pointer]:
+            - /url: "#"
+          - link "Twitter" [ref=e307] [cursor=pointer]:
+            - /url: "#"
+          - link "Contact" [ref=e308] [cursor=pointer]:
+            - /url: "#"
+        - generic [ref=e309]: © 2025 Hybro Labs · Made for athletes
+  - button "Open Next.js Dev Tools" [ref=e315] [cursor=pointer]:
+    - img [ref=e316]
+  - alert [ref=e319]
