@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { PlanHeader } from "@/components/plan/plan-header";
-import { WeekStrip } from "@/components/plan/week-strip";
+import { Topbar } from "@/components/topbar";
+import { PlanNav } from "@/components/plan/plan-header";
+import { WeekStrip, buildWeekDays } from "@/components/plan/week-strip";
 import { AdjustmentBanner } from "@/components/plan/adjustment-banner";
 import { AdjustmentReview } from "@/components/plan/adjustment-review";
+import { Bars } from "@/components/app/bars";
+import { Sparkline } from "@/components/app/sparkline";
 
 interface PlanData {
   plan: {
@@ -39,6 +42,14 @@ interface CheckIn {
   ai_summary: string;
   risk_flags: string[] | null;
   adjustments: Array<{ type: string; description: string; affected_days: number[] }> | null;
+}
+
+function formatWeekLabel(weekStart: string, weekEnd: string): string {
+  const fmt = (s: string) => {
+    const d = new Date(s + "T00:00:00");
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+  return `Week of ${fmt(weekStart)} — ${fmt(weekEnd)}`;
 }
 
 export default function PlanPage() {
@@ -102,56 +113,88 @@ export default function PlanPage() {
 
   if (!data?.plan) {
     return (
-      <div>
-        <h1 className="text-2xl font-bold">My Plan</h1>
-        <p className="mt-2 text-gray-500">
-          Complete onboarding to generate your training plan.
-        </p>
+      <div style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <Topbar title="My Plan" subtitle="No plan yet" />
+        <div className="main">
+          <p style={{ fontSize: 14, color: "var(--muted)", marginTop: 24 }}>
+            Complete onboarding to generate your training plan.
+          </p>
+        </div>
       </div>
     );
   }
 
+  const weekLabel =
+    data.weekStart && data.weekEnd
+      ? formatWeekLabel(data.weekStart, data.weekEnd)
+      : `Week ${data.weekNumber}`;
+
+  const days = buildWeekDays(data.workouts, data.completions, data.weekStart, today);
+
   return (
-    <div className="space-y-6">
-      <PlanHeader
-        splitType={data.plan.split_type}
-        bodyGoal={data.plan.body_goal}
-        raceType={data.plan.race_type}
-        planConfig={data.plan.plan_config}
-        weekNumber={data.weekNumber}
-        weekOffset={weekOffset}
-        onPrev={() => setWeekOffset((o) => o - 1)}
-        onNext={() => setWeekOffset((o) => o + 1)}
-        onToday={() => setWeekOffset(0)}
+    <div style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <Topbar
+        title="My Plan"
+        subtitle={weekLabel}
+        right={
+          <PlanNav
+            weekOffset={weekOffset}
+            onPrev={() => setWeekOffset((o) => o - 1)}
+            onNext={() => setWeekOffset((o) => o + 1)}
+            onToday={() => setWeekOffset(0)}
+          />
+        }
       />
 
-      <WeekStrip
-        workouts={data.workouts}
-        completions={data.completions}
-        weekStart={data.weekStart}
-        today={today}
-      />
+      <div className="main">
+        {/* Adjustment banner */}
+        <AdjustmentBanner
+          checkIn={checkIn}
+          visible={!!checkIn}
+          onApprove={(id) => {
+            setReviewOpen(true);
+            void id;
+          }}
+          onReject={handleReject}
+          onReview={() => setReviewOpen(true)}
+          onDismiss={() => setCheckIn(null)}
+        />
 
-      <div className="flex flex-wrap gap-4">
-        {[
-          { color: "bg-green-50 border-green-500", label: "Lifting (Hevy)" },
-          { color: "bg-blue-50 border-blue-500", label: "Run (Strava)" },
-          { color: "bg-indigo-50 border-indigo-500", label: "Swim (Strava)" },
-          { color: "bg-amber-50 border-amber-500", label: "Key Session" },
-        ].map(({ color, label }) => (
-          <div key={label} className="flex items-center gap-1.5 text-xs text-gray-500">
-            <span className={`inline-block h-2.5 w-2.5 rounded border ${color}`} />
-            {label}
+        {/* 7-column week strip */}
+        <WeekStrip days={days} />
+
+        {/* Charts row */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div className="card">
+            <div className="eyebrow">Weekly volume by muscle group</div>
+            <h3 style={{ margin: "4px 0 12px", fontSize: 18, fontWeight: 800 }}>Balanced split</h3>
+            <Bars
+              width={420}
+              height={120}
+              data={[
+                { l: "Chest", v: 14, active: true },
+                { l: "Back", v: 16 },
+                { l: "Shldr", v: 10 },
+                { l: "Arms", v: 12 },
+                { l: "Legs", v: 18 },
+                { l: "Core", v: 8 },
+              ]}
+            />
           </div>
-        ))}
+          <div className="card">
+            <div className="eyebrow">Cardio load · 6 weeks</div>
+            <h3 style={{ margin: "4px 0 12px", fontSize: 18, fontWeight: 800 }}>Building base</h3>
+            <Sparkline
+              points={[18, 22, 25, 28, 32, 38]}
+              width={420}
+              height={100}
+              color="var(--sky-deep)"
+            />
+          </div>
+        </div>
       </div>
 
-      <AdjustmentBanner
-        checkIn={checkIn}
-        onReview={() => setReviewOpen(true)}
-        onDismiss={() => setCheckIn(null)}
-      />
-
+      {/* Adjustment review modal */}
       {checkIn && (
         <AdjustmentReview
           checkInId={checkIn.id}
