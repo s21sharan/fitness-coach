@@ -9,6 +9,7 @@ import { CaloriesCard } from "@/components/dashboard/calories-card";
 import { WeightCard } from "@/components/dashboard/weight-card";
 import { RecoveryCard } from "@/components/dashboard/recovery-card";
 import { CoachNudge } from "@/components/dashboard/coach-nudge";
+import { PlanSummary } from "@/components/dashboard/plan-summary";
 
 interface WeekWorkout {
   id: string;
@@ -29,6 +30,11 @@ interface DashboardData {
   weekWorkouts: WeekWorkout[];
   weekCompletions: Record<string, Record<string, unknown>>;
   weekStart: string;
+  plan: {
+    splitType: string;
+    sessionsCompleted: number;
+    sessionsTotal: number;
+  } | null;
   nutrition: {
     calories: number;
     protein: number;
@@ -77,7 +83,13 @@ export default function DashboardPage() {
           readiness={data?.recovery?.readiness}
           hrv={data?.recovery?.hrv}
         />
+        <PlanSummary
+          splitType={data?.plan?.splitType}
+          sessionsCompleted={data?.plan?.sessionsCompleted}
+          sessionsTotal={data?.plan?.sessionsTotal}
+        />
         <div
+          className="mt-4 md:mt-0"
           style={{
             fontSize: 11,
             fontWeight: 800,

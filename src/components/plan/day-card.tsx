@@ -63,10 +63,10 @@ export function DayCard({
 
   return (
     <div
+      className="p-3 md:p-4"
       style={{
         background: bgColor,
         borderRadius: 22,
-        padding: 16,
         border: active ? "none" : "1px solid var(--line)",
         position: "relative",
         overflow: "hidden",

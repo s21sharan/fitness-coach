@@ -91,17 +91,11 @@ export function WeekStripHome({ weekWorkouts, weekCompletions, weekStart }: Week
   }
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(7, 1fr)",
-        gap: 10,
-        marginBottom: 18,
-      }}
-    >
+    <div className="flex gap-2 overflow-x-auto pb-2 mb-[18px] md:grid md:grid-cols-7 md:overflow-visible md:pb-0">
       {cells.map((day, i) => (
         <div
           key={i}
+          className="min-w-[90px] flex-shrink-0 md:min-w-0"
           style={{
             background: day.active ? "var(--ink)" : "#fff",
             color: day.active ? "#fff" : "var(--ink)",
@@ -188,7 +182,7 @@ export function WeekStripHome({ weekWorkouts, weekCompletions, weekStart }: Week
                 color: "var(--coral)",
               }}
             >
-              ● NOW
+              ● TODAY
             </div>
           )}
         </div>

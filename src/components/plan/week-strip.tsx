@@ -23,27 +23,21 @@ interface WeekStripProps {
 
 export function WeekStrip({ days }: WeekStripProps) {
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(7, 1fr)",
-        gap: 12,
-        marginBottom: 18,
-      }}
-    >
+    <div className="flex gap-3 overflow-x-auto pb-2 mb-[18px] md:grid md:grid-cols-7 md:overflow-visible md:pb-0">
       {days.map((day, i) => (
-        <DayCard
-          key={i}
-          day={day.day}
-          date={day.date}
-          label={day.label}
-          type={day.type}
-          duration={day.duration}
-          exercises={day.exercises}
-          done={day.done}
-          active={day.active}
-          color={day.color}
-        />
+        <div key={i} className="min-w-[100px] flex-shrink-0 md:min-w-0">
+          <DayCard
+            day={day.day}
+            date={day.date}
+            label={day.label}
+            type={day.type}
+            duration={day.duration}
+            exercises={day.exercises}
+            done={day.done}
+            active={day.active}
+            color={day.color}
+          />
+        </div>
       ))}
     </div>
   );
