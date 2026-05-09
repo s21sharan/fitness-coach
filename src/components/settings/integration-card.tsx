@@ -1,14 +1,16 @@
 "use client";
 
+import { BrandMark } from "@/components/app/brand-mark";
+
 interface IntegrationCardProps {
-  name: string;
-  description: string;
   provider: string;
+  name: string;
+  category: string;
   connected: boolean;
-  status: string;
   lastSyncedAt: string | null;
   onConnect: () => void;
   onDisconnect: () => void;
+  onSync?: () => void;
 }
 
 function formatTimeAgo(dateStr: string): string {
@@ -22,56 +24,87 @@ function formatTimeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
-const STATUS_BADGE: Record<string, { label: string; className: string }> = {
-  active: { label: "Connected", className: "bg-green-100 text-green-700" },
-  error: { label: "Sync error", className: "bg-red-100 text-red-700" },
-  expired: { label: "Expired", className: "bg-yellow-100 text-yellow-700" },
-  disconnected: { label: "Not connected", className: "bg-gray-100 text-gray-500" },
-};
-
 export function IntegrationCard({
-  name,
-  description,
   provider,
+  name,
+  category,
   connected,
-  status,
   lastSyncedAt,
   onConnect,
   onDisconnect,
+  onSync,
 }: IntegrationCardProps) {
-  const badge = STATUS_BADGE[status] || STATUS_BADGE.disconnected;
-
   return (
-    <div className="flex items-center justify-between rounded-lg border p-4">
-      <div className="flex-1">
-        <div className="flex items-center gap-3">
-          <p className="font-medium">{name}</p>
-          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}>
-            {badge.label}
-          </span>
+    <div className="card" style={{ padding: 18, display: "flex", flexDirection: "row", alignItems: "center", gap: 16 }}>
+      {/* Brand mark */}
+      <BrandMark name={provider} size={44} />
+
+      {/* Middle info */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>{name}</span>
+          {connected && (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                background: "var(--mint-soft)",
+                borderRadius: 999,
+                padding: "2px 8px",
+              }}
+            >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: "var(--mint-deep)",
+                  flexShrink: 0,
+                }}
+              />
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  color: "var(--mint-deep)",
+                }}
+              >
+                Connected
+              </span>
+            </span>
+          )}
         </div>
-        <p className="mt-0.5 text-sm text-gray-500">{description}</p>
-        {connected && lastSyncedAt && (
-          <p className="mt-0.5 text-xs text-gray-400">
-            Last synced {formatTimeAgo(lastSyncedAt)}
-          </p>
-        )}
+        <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
+          {category}
+          {connected && lastSyncedAt && (
+            <span style={{ marginLeft: 6 }}>· Synced {formatTimeAgo(lastSyncedAt)}</span>
+          )}
+        </div>
       </div>
-      <div>
+
+      {/* Actions */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
         {connected ? (
-          <button
-            type="button"
-            onClick={onDisconnect}
-            className="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-          >
-            Disconnect
-          </button>
+          <>
+            {onSync && (
+              <button type="button" className="btn-ghost" onClick={onSync}>
+                Sync now
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={onDisconnect}
+              style={{ color: "var(--coral-deep)" }}
+            >
+              Disconnect
+            </button>
+          </>
         ) : (
-          <button
-            type="button"
-            onClick={onConnect}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50"
-          >
+          <button type="button" className="btn-coral" onClick={onConnect}>
             Connect
           </button>
         )}
