@@ -3,7 +3,49 @@
 import { Icon } from "@/components/app/icon";
 import { Ring } from "@/components/app/ring";
 
-export function TodayCard() {
+interface RecoveryData {
+  hrv?: number | null;
+  sleep_hours?: number | null;
+  body_battery?: number | null;
+}
+
+interface TodayCardProps {
+  sessionType?: string | null;
+  aiNotes?: string | null;
+  date?: string | null;
+  readiness?: "good" | "fair" | "low" | null;
+  hrv?: number | null;
+  recovery?: RecoveryData | null;
+}
+
+function formatDateLabel(dateStr: string | null | undefined): string {
+  if (!dateStr) {
+    const now = new Date();
+    return now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  }
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+}
+
+export function TodayCard({ sessionType, aiNotes, date, readiness, hrv, recovery }: TodayCardProps) {
+  const resolvedHrv = hrv ?? recovery?.hrv ?? null;
+  const recoveryScore = resolvedHrv != null ? Math.round(resolvedHrv) : null;
+  const dateLabel = formatDateLabel(date);
+
+  let sessionLabel: string;
+  let notes: string;
+
+  if (sessionType == null) {
+    sessionLabel = "No session planned";
+    notes = "No training plan active. Set up your plan to get started.";
+  } else if (sessionType.toLowerCase() === "rest" || sessionType.toLowerCase() === "recovery") {
+    sessionLabel = "Rest Day";
+    notes = aiNotes || "Take it easy — recovery day.";
+  } else {
+    sessionLabel = sessionType;
+    notes = aiNotes || "Get after it today.";
+  }
+
   return (
     <div
       className="card"
@@ -51,7 +93,7 @@ export function TodayCard() {
       >
         <div>
           <div className="eyebrow" style={{ color: "var(--ink)", opacity: 0.6 }}>
-            Today · Friday May 1
+            Today · {dateLabel}
           </div>
           <h1
             style={{
@@ -62,7 +104,7 @@ export function TodayCard() {
               lineHeight: 1.05,
             }}
           >
-            Push Day · Chest + Shoulders
+            {sessionLabel}
           </h1>
           <p
             style={{
@@ -72,7 +114,7 @@ export function TodayCard() {
               maxWidth: 480,
             }}
           >
-            HRV is up 8% from your baseline — green light to push intensity. 6 main lifts, ~58 min.
+            {notes}
           </p>
           <div
             style={{
@@ -91,20 +133,22 @@ export function TodayCard() {
             >
               <Icon name="chat" size={14} /> Ask coach
             </button>
-            <span
-              style={{
-                display: "inline-flex",
-                gap: 6,
-                alignItems: "center",
-                fontSize: 12,
-                fontWeight: 700,
-                padding: "8px 14px",
-                borderRadius: 999,
-                background: "rgba(255,255,255,0.55)",
-              }}
-            >
-              <Icon name="zap" size={12} /> Recovery 78
-            </span>
+            {recoveryScore != null && (
+              <span
+                style={{
+                  display: "inline-flex",
+                  gap: 6,
+                  alignItems: "center",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "8px 14px",
+                  borderRadius: 999,
+                  background: "rgba(255,255,255,0.55)",
+                }}
+              >
+                <Icon name="zap" size={12} /> Recovery {recoveryScore}
+              </span>
+            )}
           </div>
         </div>
         <div style={{ display: "grid", placeItems: "center" }}>

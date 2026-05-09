@@ -2,7 +2,20 @@
 
 import { Sparkline } from "@/components/app/sparkline";
 
-export function WeightCard() {
+interface WeightCardProps {
+  weight?: number | null;
+  direction?: "up" | "down" | "stable" | null;
+}
+
+function directionLabel(direction: string | null | undefined): string {
+  if (direction === "down") return "↓ trending down";
+  if (direction === "up") return "↑ trending up";
+  return "→ stable";
+}
+
+export function WeightCard({ weight, direction }: WeightCardProps) {
+  const weightDisplay = weight != null ? weight.toFixed(1) : "--";
+
   return (
     <div className="card" style={{ background: "var(--mint)", padding: 22 }}>
       <div
@@ -43,10 +56,10 @@ export function WeightCard() {
           marginBottom: 6,
         }}
       >
-        183.2
+        {weightDisplay}
       </div>
       <Sparkline
-        points={[185.1, 184.8, 184.5, 184.2, 184.0, 183.6, 183.2]}
+        points={[185.1, 184.8, 184.5, 184.2, 184.0, 183.6, weight ?? 183.2]}
         width={210}
         height={56}
         color="#2E6B33"
@@ -59,7 +72,7 @@ export function WeightCard() {
           marginTop: 4,
         }}
       >
-        ↓ 1.9 lb · on track for cut
+        {directionLabel(direction)}
       </div>
     </div>
   );

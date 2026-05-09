@@ -5,9 +5,10 @@ interface MacroDonutProps {
   p?: number;
   c?: number;
   f?: number;
+  calories?: number | null;
 }
 
-export function MacroDonut({ size = 140, p = 148, c = 210, f = 62 }: MacroDonutProps) {
+export function MacroDonut({ size = 140, p = 148, c = 210, f = 62, calories }: MacroDonutProps) {
   const total = p * 4 + c * 4 + f * 9;
   const segs = [
     { v: (p * 4) / total, color: 'var(--coral-deep)' },
@@ -63,7 +64,7 @@ export function MacroDonut({ size = 140, p = 148, c = 210, f = 62 }: MacroDonutP
           >
             Today
           </div>
-          <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em' }}>2,140</div>
+          <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em' }}>{calories != null ? calories.toLocaleString() : "--"}</div>
           <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>kcal</div>
         </div>
       </div>

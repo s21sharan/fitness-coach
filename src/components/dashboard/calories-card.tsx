@@ -2,6 +2,13 @@
 
 import { MacroDonut } from "@/components/app/macro-donut";
 
+interface CaloriesCardProps {
+  calories?: number | null;
+  target?: number | null;
+  targetCalories?: number | null;
+  protein?: number | null;
+}
+
 function Legend({
   color,
   label,
@@ -24,7 +31,46 @@ function Legend({
   );
 }
 
-export function CaloriesCard() {
+export function CaloriesCard({ calories, target, targetCalories, protein }: CaloriesCardProps) {
+  const cal = calories ?? null;
+  const prot = protein ?? null;
+  // Support both `target` and `targetCalories` prop names
+  const targetVal = target ?? targetCalories ?? null;
+
+  if (cal == null) {
+    return (
+      <div className="card" style={{ background: "#fff", padding: 22 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 12,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 800,
+              color: "var(--ink-2)",
+              letterSpacing: ".08em",
+              textTransform: "uppercase",
+            }}
+          >
+            Macros
+          </span>
+        </div>
+        <div style={{ fontSize: 15, color: "var(--muted)", fontWeight: 600, marginTop: 8 }}>
+          No data today
+        </div>
+      </div>
+    );
+  }
+
+  const calDisplay = cal.toLocaleString();
+  const targetDisplay = targetVal != null ? targetVal.toLocaleString() : "--";
+  const protDisplay = prot != null ? `${prot}g protein` : "--";
+
   return (
     <div className="card" style={{ background: "#fff", padding: 22 }}>
       <div
@@ -54,7 +100,7 @@ export function CaloriesCard() {
             opacity: 0.7,
           }}
         >
-          148g P · 210g C · 62g F
+          {protDisplay}
         </span>
       </div>
       <div
@@ -65,7 +111,7 @@ export function CaloriesCard() {
           marginBottom: 6,
         }}
       >
-        2,140 / 2,400
+        {calDisplay} / {targetDisplay}
       </div>
       <div
         style={{
@@ -75,7 +121,7 @@ export function CaloriesCard() {
           marginTop: 6,
         }}
       >
-        <MacroDonut size={120} />
+        <MacroDonut size={120} p={prot ?? 148} calories={cal} />
         <div
           style={{
             display: "flex",
@@ -84,9 +130,9 @@ export function CaloriesCard() {
             fontSize: 12,
           }}
         >
-          <Legend color="var(--coral-deep)" label="Protein" v="148g" />
-          <Legend color="var(--sky-deep)" label="Carbs" v="210g" />
-          <Legend color="var(--lemon-deep)" label="Fat" v="62g" />
+          <Legend color="var(--coral-deep)" label="Protein" v={prot != null ? `${prot}g` : "--"} />
+          <Legend color="var(--sky-deep)" label="Carbs" v="--" />
+          <Legend color="var(--lemon-deep)" label="Fat" v="--" />
         </div>
       </div>
     </div>

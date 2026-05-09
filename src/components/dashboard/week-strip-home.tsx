@@ -4,23 +4,30 @@ import { Icon } from "@/components/app/icon";
 
 type DayType = "lift" | "run" | "swim" | "rest";
 
-interface Day {
-  d: string;
-  label: string;
-  type: DayType;
-  done?: boolean;
-  active?: boolean;
+interface WeekWorkout {
+  id: string;
+  date: string;
+  day_of_week?: string;
+  session_type?: string | null;
+  ai_notes?: string | null;
+  status?: string;
+  approved?: boolean;
 }
 
-const days: Day[] = [
-  { d: "Mon", label: "Pull", type: "lift", done: true },
-  { d: "Tue", label: "Run 8K", type: "run", done: true },
-  { d: "Wed", label: "Legs", type: "lift", done: true },
-  { d: "Thu", label: "Rest", type: "rest", done: true },
-  { d: "Fri", label: "Push", type: "lift", active: true },
-  { d: "Sat", label: "Long Run", type: "run" },
-  { d: "Sun", label: "Rest", type: "rest" },
-];
+interface WeekStripHomeProps {
+  weekWorkouts?: WeekWorkout[];
+  weekCompletions?: Record<string, Record<string, unknown>>;
+  weekStart?: string;
+}
+
+function sessionToDayType(sessionType: string | null | undefined): DayType {
+  if (!sessionType) return "rest";
+  const s = sessionType.toLowerCase();
+  if (s.includes("run") || s.includes("cardio") || s.includes("jog")) return "run";
+  if (s.includes("swim")) return "swim";
+  if (s.includes("rest") || s.includes("recovery") || s.includes("off")) return "rest";
+  return "lift";
+}
 
 function tone(t: DayType): string {
   const map: Record<DayType, string> = {
@@ -32,7 +39,57 @@ function tone(t: DayType): string {
   return map[t] || "var(--mint)";
 }
 
-export function WeekStripHome() {
+const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+export function WeekStripHome({ weekWorkouts, weekCompletions, weekStart }: WeekStripHomeProps) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  // Build 7-day strip
+  interface DayCell {
+    d: string;
+    label: string;
+    type: DayType;
+    done: boolean;
+    active: boolean;
+    dateStr: string;
+  }
+
+  let cells: DayCell[];
+
+  if (weekWorkouts && weekWorkouts.length > 0 && weekStart) {
+    // Build from real data
+    cells = Array.from({ length: 7 }, (_, i) => {
+      const dateStr = addDays(weekStart, i);
+      const workout = weekWorkouts.find((w) => w.date === dateStr);
+      const sessionType = workout?.session_type;
+      const type = sessionToDayType(sessionType);
+      const label = sessionType || "Rest";
+      const done = !!(weekCompletions && weekCompletions[dateStr]);
+      const active = dateStr === todayStr;
+      return { d: DAY_LABELS[i], label, type, done, active, dateStr };
+    });
+  } else {
+    // Fallback: 7 placeholder days anchored to this week
+    const now = new Date();
+    const day = now.getDay();
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + mondayOffset);
+    const mondayStr = monday.toISOString().slice(0, 10);
+
+    cells = Array.from({ length: 7 }, (_, i) => {
+      const dateStr = addDays(mondayStr, i);
+      const active = dateStr === todayStr;
+      return { d: DAY_LABELS[i], label: "Rest", type: "rest" as DayType, done: false, active, dateStr };
+    });
+  }
+
   return (
     <div
       style={{
@@ -42,7 +99,7 @@ export function WeekStripHome() {
         marginBottom: 18,
       }}
     >
-      {days.map((day, i) => (
+      {cells.map((day, i) => (
         <div
           key={i}
           style={{
