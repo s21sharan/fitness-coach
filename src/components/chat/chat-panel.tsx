@@ -1,9 +1,12 @@
 "use client";
 
-import { useChat } from "ai/react";
-import { useEffect, useRef } from "react";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+import { useEffect, useRef, useState } from "react";
 import { MessageBubble } from "./message-bubble";
 import Link from "next/link";
+
+const transport = new DefaultChatTransport({ api: "/api/chat" });
 
 interface ChatPanelProps {
   open: boolean;
@@ -12,10 +15,10 @@ interface ChatPanelProps {
 
 export function ChatPanel({ open, onClose }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [input, setInput] = useState("");
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
-    api: "/api/chat",
-  });
+  const { messages, sendMessage, status } = useChat({ transport });
+  const isLoading = status === "streaming" || status === "submitted";
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -23,10 +26,17 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
     }
   }, [messages]);
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+    sendMessage({ text: input });
+    setInput("");
+  };
+
   if (!open) return null;
 
   return (
-    <div className="fixed right-0 top-0 bottom-0 z-40 flex w-80 flex-col border-l bg-white shadow-xl">
+    <div className="fixed right-0 top-0 bottom-0 z-40 flex w-full sm:w-80 flex-col border-l bg-white shadow-xl">
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
           <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-500">
@@ -51,9 +61,15 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
           </div>
         ) : (
           <div className="space-y-3">
-            {messages.map((m) => (
-              <MessageBubble key={m.id} role={m.role as "user" | "assistant"} content={m.content} />
-            ))}
+            {messages.map((m) => {
+              const textContent = m.parts
+                ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
+                .map((p) => p.text)
+                .join("") || "";
+              return (
+                <MessageBubble key={m.id} role={m.role as "user" | "assistant"} content={textContent} />
+              );
+            })}
             {isLoading && (
               <div className="flex gap-2 items-start">
                 <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-500">
@@ -77,7 +93,7 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
           <input
             type="text"
             value={input}
-            onChange={handleInputChange}
+            onChange={(e) => setInput(e.target.value)}
             placeholder="Ask Coach..."
             className="flex-1 rounded-full border border-gray-200 px-3 py-1.5 text-xs outline-none"
             disabled={isLoading}

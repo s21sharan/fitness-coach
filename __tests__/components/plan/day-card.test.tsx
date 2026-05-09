@@ -5,49 +5,108 @@ import { DayCard } from "@/components/plan/day-card";
 describe("DayCard", () => {
   it("renders a scheduled session", () => {
     render(
-      <DayCard dayName="Mon" dateStr="May 4" sessionType="Push" status="scheduled" isToday={false} aiNotes={null} completion={null} />,
+      <DayCard
+        day="Mon"
+        date="May 4"
+        label="Push"
+        type="lift"
+        duration="—"
+        exercises={["Bench Press", "Overhead Press"]}
+        done={false}
+        active={false}
+        color="coral"
+      />,
     );
     expect(screen.getByText("Mon")).toBeDefined();
     expect(screen.getByText("Push")).toBeDefined();
-    expect(screen.getByText("Scheduled")).toBeDefined();
+    expect(screen.getByText("May 4")).toBeDefined();
   });
 
-  it("renders today with highlight and AI notes", () => {
+  it("renders today with active highlight", () => {
     render(
-      <DayCard dayName="Fri" dateStr="May 2" sessionType="Upper Body" status="scheduled" isToday={true} aiNotes="HRV 52, sleep 7.8h — push hard" completion={null} />,
+      <DayCard
+        day="Fri"
+        date="May 2"
+        label="Upper Body"
+        type="lift"
+        duration="—"
+        exercises={[]}
+        done={false}
+        active={true}
+        color="coral"
+      />,
     );
-    expect(screen.getByText("Today")).toBeDefined();
-    expect(screen.getByText("HRV 52, sleep 7.8h — push hard")).toBeDefined();
+    expect(screen.getByText("TODAY")).toBeDefined();
   });
 
-  it("renders completed lifting session with Hevy data", () => {
+  it("renders completed lifting session", () => {
     render(
-      <DayCard dayName="Mon" dateStr="Apr 28" sessionType="Push" status="completed" isToday={false} aiNotes={null} completion={{ workout: { name: "Push Day", duration_minutes: 72, exercise_count: 10 } }} />,
+      <DayCard
+        day="Mon"
+        date="Apr 28"
+        label="Push"
+        type="lift"
+        duration="72 min"
+        exercises={["Push Day", "72 min · 10 exercises"]}
+        done={true}
+        active={false}
+        color="coral"
+      />,
     );
     expect(screen.getByText("72 min")).toBeDefined();
     expect(screen.getByText(/10 exercises/)).toBeDefined();
   });
 
-  it("renders completed cardio with Strava data", () => {
+  it("renders cardio session with distance", () => {
     render(
-      <DayCard dayName="Tue" dateStr="Apr 29" sessionType="Tempo Run" status="completed" isToday={false} aiNotes={null} completion={{ cardio: [{ type: "run", distance: 8.2, duration: 2355, avg_hr: 168, pace_or_speed: 4.79 }] }} />,
+      <DayCard
+        day="Tue"
+        date="Apr 29"
+        label="Tempo Run"
+        type="run"
+        duration="8.2 km"
+        exercises={["8.2 km", "Avg HR 168"]}
+        done={true}
+        active={false}
+        color="sky"
+      />,
     );
-    expect(screen.getByText("8.2 km")).toBeDefined();
-    expect(screen.getByText(/168 bpm/)).toBeDefined();
+    expect(screen.getByText(/Avg HR 168/)).toBeDefined();
   });
 
   it("renders rest day", () => {
     render(
-      <DayCard dayName="Sun" dateStr="May 4" sessionType="Rest" status="scheduled" isToday={false} aiNotes={null} completion={null} />,
+      <DayCard
+        day="Sun"
+        date="May 4"
+        label="Rest"
+        type="rest"
+        duration="—"
+        exercises={["Recovery day"]}
+        done={false}
+        active={false}
+        color="lemon"
+      />,
     );
     expect(screen.getByText("Rest")).toBeDefined();
-    expect(screen.getByText("Recovery day")).toBeDefined();
+    expect(screen.getByText(/Recovery day/)).toBeDefined();
   });
 
-  it("renders missed session", () => {
+  it("renders exercises list", () => {
     render(
-      <DayCard dayName="Wed" dateStr="Apr 30" sessionType="Legs" status="missed" isToday={false} aiNotes={null} completion={null} />,
+      <DayCard
+        day="Wed"
+        date="Apr 30"
+        label="Legs"
+        type="lift"
+        duration="—"
+        exercises={["Squat", "Deadlift", "Leg Press"]}
+        done={false}
+        active={false}
+        color="coral"
+      />,
     );
-    expect(screen.getByText("Missed")).toBeDefined();
+    expect(screen.getByText(/· Squat/)).toBeDefined();
+    expect(screen.getByText(/· Deadlift/)).toBeDefined();
   });
 });

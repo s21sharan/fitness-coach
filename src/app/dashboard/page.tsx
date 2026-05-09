@@ -107,9 +107,8 @@ export default function DashboardPage() {
           weekStart={data?.weekStart}
         />
         <div
+          className="grid grid-cols-1 sm:grid-cols-3"
           style={{
-            display: "grid",
-            gridTemplateColumns: "1.4fr 1fr 1fr",
             gap: 14,
             marginBottom: 14,
           }}

@@ -17,8 +17,8 @@ describe("AdjustmentBanner", () => {
       />,
     );
     expect(screen.getByText(/HRV has been trending down/)).toBeDefined();
-    expect(screen.getByRole("button", { name: /Review Changes/i })).toBeDefined();
-    expect(screen.getByRole("button", { name: /Dismiss/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: /Approve/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: /Reject/i })).toBeDefined();
   });
 
   it("returns null when no check-in", () => {

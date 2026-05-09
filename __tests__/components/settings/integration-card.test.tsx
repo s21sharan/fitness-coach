@@ -7,17 +7,16 @@ describe("IntegrationCard", () => {
     render(
       <IntegrationCard
         name="MacroFactor"
-        description="Nutrition tracking & macros"
+        category="Nutrition tracking & macros"
         provider="macrofactor"
         connected={false}
-        status="disconnected"
         lastSyncedAt={null}
         onConnect={() => {}}
         onDisconnect={() => {}}
       />,
     );
     expect(screen.getByText("MacroFactor")).toBeDefined();
-    expect(screen.getByText("Not connected")).toBeDefined();
+    expect(screen.getByText("Nutrition tracking & macros")).toBeDefined();
     expect(screen.getByRole("button", { name: /connect/i })).toBeDefined();
   });
 
@@ -25,10 +24,9 @@ describe("IntegrationCard", () => {
     render(
       <IntegrationCard
         name="Hevy"
-        description="Strength training"
+        category="Strength training"
         provider="hevy"
         connected={true}
-        status="active"
         lastSyncedAt={new Date().toISOString()}
         onConnect={() => {}}
         onDisconnect={() => {}}
@@ -38,19 +36,19 @@ describe("IntegrationCard", () => {
     expect(screen.getByRole("button", { name: /disconnect/i })).toBeDefined();
   });
 
-  it("renders error state", () => {
+  it("renders without sync button when onSync is not provided", () => {
     render(
       <IntegrationCard
         name="Garmin"
-        description="Recovery"
+        category="Recovery"
         provider="garmin"
         connected={true}
-        status="error"
         lastSyncedAt={null}
         onConnect={() => {}}
         onDisconnect={() => {}}
       />,
     );
-    expect(screen.getByText("Sync error")).toBeDefined();
+    expect(screen.queryByRole("button", { name: /sync now/i })).toBeNull();
+    expect(screen.getByRole("button", { name: /disconnect/i })).toBeDefined();
   });
 });
