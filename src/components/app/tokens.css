@@ -90,3 +90,46 @@ body{font-family:'Plus Jakarta Sans', system-ui, sans-serif; -webkit-font-smooth
 .tb-icon.no-dot::after{display:none}
 
 .main{padding:28px; overflow:auto}
+
+/* Sidebar brand row with close button */
+.sb-brand-close-row{display:flex; align-items:center; margin-bottom:0}
+.sb-brand-close-row .sb-brand{padding-bottom:18px; flex:1}
+
+/* Mobile top bar */
+.mobile-topbar{display:none; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid var(--line); background:rgba(255,255,255,0.8); backdrop-filter:blur(12px); position:sticky; top:0; z-index:10}
+.mobile-topbar-brand{font-weight:800; font-size:18px; letter-spacing:-0.02em; flex:1}
+.hamburger-btn{width:36px; height:36px; border-radius:10px; background:transparent; border:1px solid var(--line); display:grid; place-items:center; cursor:pointer; color:var(--ink-2); transition:background .2s}
+.hamburger-btn:hover{background:rgba(255,255,255,0.8)}
+.sb-close-btn{width:32px; height:32px; border-radius:8px; background:transparent; border:1px solid var(--line); display:grid; place-items:center; cursor:pointer; color:var(--ink-2); transition:background .2s; margin-left:auto}
+.sb-close-btn:hover{background:rgba(255,255,255,0.8)}
+
+/* Mobile sidebar overlay backdrop */
+.sb-backdrop{display:none; position:fixed; inset:0; z-index:40; background:rgba(15,27,34,0.4); backdrop-filter:blur(2px)}
+.sb-backdrop.active{display:block}
+
+/* Responsive: mobile layout */
+@media (max-width: 767px) {
+  .app-shell{grid-template-columns:1fr}
+  .sb{
+    position:fixed;
+    inset-y:0;
+    left:0;
+    z-index:50;
+    width:264px;
+    transform:translateX(-100%);
+    transition:transform 0.25s ease;
+    border-right:1px solid var(--line);
+    box-shadow:4px 0 24px rgba(15,27,34,0.12);
+  }
+  .sb.open{transform:translateX(0)}
+  .mobile-topbar{display:flex}
+  .sb-brand-close-row{display:flex; align-items:center; justify-content:space-between}
+}
+
+/* Desktop: hide mobile elements */
+@media (min-width: 768px) {
+  .mobile-topbar{display:none}
+  .sb{transform:none !important}
+  .sb-close-btn{display:none}
+  .sb-backdrop{display:none !important}
+}

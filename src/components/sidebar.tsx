@@ -8,6 +8,8 @@ type ActiveKey = "home" | "plan" | "chat" | "review" | "settings";
 
 interface SidebarProps {
   active?: ActiveKey;
+  open?: boolean;
+  onClose?: () => void;
 }
 
 const items: { key: ActiveKey; label: string; icon: string; href: string; badge?: string }[] = [
@@ -18,26 +20,40 @@ const items: { key: ActiveKey; label: string; icon: string; href: string; badge?
   { key: "settings", label: "Settings", icon: "settings", href: "/dashboard/settings" },
 ];
 
-export function Sidebar({ active = "home" }: SidebarProps) {
+export function Sidebar({ active = "home", open = false, onClose }: SidebarProps) {
   return (
-    <aside className="sb">
-      <div className="sb-brand">
-        <div className="mark">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M5 4v16M5 12h7M12 4v16M19 7l3 3-3 3M19 14l3 3-3 3"
-              stroke="#F6B7A6"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+    <aside className={`sb${open ? " open" : ""}`}>
+      <div className="sb-brand-close-row">
+        <div className="sb-brand">
+          <div className="mark">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M5 4v16M5 12h7M12 4v16M19 7l3 3-3 3M19 14l3 3-3 3"
+                stroke="#F6B7A6"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          Hybro
         </div>
-        Hybro
+        {onClose && (
+          <button className="sb-close-btn" onClick={onClose} aria-label="Close sidebar">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
       <div className="sb-section">Workspace</div>
       {items.map((it) => (
-        <Link key={it.key} href={it.href} className={`sb-link ${active === it.key ? "active" : ""}`}>
+        <Link
+          key={it.key}
+          href={it.href}
+          className={`sb-link ${active === it.key ? "active" : ""}`}
+          onClick={onClose}
+        >
           <span className="ico">
             <Icon name={it.icon} size={18} />
           </span>
