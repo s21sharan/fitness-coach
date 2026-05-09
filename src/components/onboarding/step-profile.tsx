@@ -1,21 +1,42 @@
 "use client";
 
 import type { OnboardingData, Sex } from "@/lib/onboarding/types";
-import { OptionCard } from "./option-card";
 
 interface StepProfileProps {
   data: OnboardingData;
   onUpdate: (updates: Partial<OnboardingData>) => void;
 }
 
-const sexOptions: { value: Sex; label: string }[] = [
-  { value: "M", label: "Male" },
-  { value: "F", label: "Female" },
-  { value: "Other", label: "Other" },
-];
+export const STEP_PROFILE_TITLE = "Let's start with the basics.";
+export const STEP_PROFILE_SUBTITLE =
+  "A few details so your coach can dial in your nutrition and training targets.";
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  borderRadius: "var(--r-md)",
+  border: "1.5px solid var(--line)",
+  padding: "12px 14px",
+  fontSize: 15,
+  fontWeight: 600,
+  color: "var(--ink)",
+  background: "#fff",
+  outline: "none",
+  fontFamily: "inherit",
+  WebkitAppearance: "none",
+  MozAppearance: "textfield",
+};
+
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: 12,
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
+  color: "var(--muted)",
+  marginBottom: 6,
+};
 
 export function StepProfile({ data, onUpdate }: StepProfileProps) {
-  // Convert stored cm to feet/inches for display
   const totalInches = data.height ? Math.round(data.height / 2.54) : null;
   const feet = totalInches ? Math.floor(totalInches / 12) : null;
   const inches = totalInches ? totalInches % 12 : null;
@@ -27,86 +48,137 @@ export function StepProfile({ data, onUpdate }: StepProfileProps) {
     onUpdate({ height: total > 0 ? Math.round(total * 2.54) : null });
   };
 
+  const sexOptions: { value: Sex; label: string }[] = [
+    { value: "M", label: "Male" },
+    { value: "F", label: "Female" },
+    { value: "Other", label: "Other" },
+  ];
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">About You</h2>
-        <p className="mt-1 text-gray-500">Basic info to personalize your plan.</p>
-      </div>
-
-      <div>
-        <span className="block text-sm font-medium text-gray-700">Height</span>
-        <div className="mt-1 flex items-center gap-2">
-          <label htmlFor="feet" className="sr-only">Feet</label>
-          <input
-            id="feet"
-            type="number"
-            min={3}
-            max={8}
-            value={feet ?? ""}
-            onChange={(e) => handleHeightChange(e.target.value ? Number(e.target.value) : null, inches)}
-            className="w-20 rounded-lg border border-gray-300 px-3 py-2 focus:border-black focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-            placeholder="5"
-          />
-          <span className="text-sm text-gray-500">ft</span>
-          <label htmlFor="inches" className="sr-only">Inches</label>
-          <input
-            id="inches"
-            type="number"
-            min={0}
-            max={11}
-            value={inches ?? ""}
-            onChange={(e) => handleHeightChange(feet, e.target.value ? Number(e.target.value) : null)}
-            className="w-20 rounded-lg border border-gray-300 px-3 py-2 focus:border-black focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-            placeholder="10"
-          />
-          <span className="text-sm text-gray-500">in</span>
+    <div style={{ maxWidth: 520, margin: "0 auto", width: "100%" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 16,
+        }}
+      >
+        {/* Height */}
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label style={labelStyle}>Height</label>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div style={{ position: "relative", flex: 1 }}>
+              <input
+                type="number"
+                min={3}
+                max={8}
+                value={feet ?? ""}
+                onChange={(e) =>
+                  handleHeightChange(
+                    e.target.value ? Number(e.target.value) : null,
+                    inches
+                  )
+                }
+                placeholder="5"
+                style={inputStyle}
+              />
+            </div>
+            <span style={{ fontSize: 13, color: "var(--muted)", fontWeight: 600 }}>ft</span>
+            <div style={{ position: "relative", flex: 1 }}>
+              <input
+                type="number"
+                min={0}
+                max={11}
+                value={inches ?? ""}
+                onChange={(e) =>
+                  handleHeightChange(
+                    feet,
+                    e.target.value ? Number(e.target.value) : null
+                  )
+                }
+                placeholder="10"
+                style={inputStyle}
+              />
+            </div>
+            <span style={{ fontSize: 13, color: "var(--muted)", fontWeight: 600 }}>in</span>
+          </div>
         </div>
-        {totalInches && (
-          <p className="mt-1 text-sm text-gray-400">{totalInches} inches total</p>
-        )}
-      </div>
 
-      <div className="grid grid-cols-2 gap-4">
+        {/* Weight */}
         <div>
-          <label htmlFor="weight" className="block text-sm font-medium text-gray-700">
-            Weight (lbs)
-          </label>
-          <input
-            id="weight"
-            type="number"
-            value={data.weight ?? ""}
-            onChange={(e) => onUpdate({ weight: e.target.value ? Number(e.target.value) : null })}
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
-            placeholder="175"
-          />
+          <label htmlFor="ob-weight" style={labelStyle}>Weight</label>
+          <div style={{ position: "relative" }}>
+            <input
+              id="ob-weight"
+              type="number"
+              value={data.weight ?? ""}
+              onChange={(e) =>
+                onUpdate({ weight: e.target.value ? Number(e.target.value) : null })
+              }
+              placeholder="175"
+              style={inputStyle}
+            />
+            <span
+              style={{
+                position: "absolute",
+                right: 12,
+                top: "50%",
+                transform: "translateY(-50%)",
+                fontSize: 12,
+                color: "var(--muted)",
+                fontWeight: 600,
+                pointerEvents: "none",
+              }}
+            >
+              lbs
+            </span>
+          </div>
         </div>
+
+        {/* Age */}
         <div>
-          <label htmlFor="age" className="block text-sm font-medium text-gray-700">
-            Age
-          </label>
+          <label htmlFor="ob-age" style={labelStyle}>Age</label>
           <input
-            id="age"
+            id="ob-age"
             type="number"
             value={data.age ?? ""}
-            onChange={(e) => onUpdate({ age: e.target.value ? Number(e.target.value) : null })}
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-black focus:outline-none"
+            onChange={(e) =>
+              onUpdate({ age: e.target.value ? Number(e.target.value) : null })
+            }
             placeholder="25"
+            style={inputStyle}
           />
         </div>
-      </div>
 
-      <div>
-        <span className="block text-sm font-medium text-gray-700">Sex</span>
-        <div className="mt-2 grid grid-cols-3 gap-3">
-          {sexOptions.map((option) => (
-            <OptionCard
-              key={option.value}
-              label={option.label}
-              selected={data.sex === option.value}
-              onClick={() => onUpdate({ sex: option.value })}
-            />
-          ))}
+        {/* Sex */}
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label style={labelStyle}>Sex</label>
+          <div style={{ display: "flex", gap: 10 }}>
+            {sexOptions.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => onUpdate({ sex: opt.value })}
+                style={{
+                  flex: 1,
+                  padding: "11px 0",
+                  borderRadius: "var(--r-md)",
+                  border: data.sex === opt.value
+                    ? "2px solid var(--ink)"
+                    : "1.5px solid var(--line)",
+                  background: data.sex === opt.value ? "var(--ink)" : "#fff",
+                  color: data.sex === opt.value ? "#fff" : "var(--ink)",
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                  fontFamily: "inherit",
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>

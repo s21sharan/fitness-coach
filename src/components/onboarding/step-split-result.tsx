@@ -10,29 +10,32 @@ interface StepSplitResultProps {
   onUpdate: (updates: Partial<OnboardingData>) => void;
 }
 
-const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+export const STEP_SPLIT_RESULT_TITLE = "Here's your starting split.";
+export const STEP_SPLIT_RESULT_SUBTITLE = "Built around your goals, schedule, and experience level.";
 
-const SESSION_COLORS: Record<string, string> = {
-  Rest: "bg-gray-50 text-gray-400",
-  Push: "bg-green-50 text-green-700",
-  Pull: "bg-green-50 text-green-700",
-  Legs: "bg-green-50 text-green-700",
-  "Upper Body": "bg-green-50 text-green-700",
-  "Lower Body": "bg-green-50 text-green-700",
-  "Full Body": "bg-green-50 text-green-700",
-  "Chest + Back": "bg-green-50 text-green-700",
-  "Shoulders + Arms": "bg-green-50 text-green-700",
-};
+const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-function getSessionColor(sessionType: string): string {
-  if (SESSION_COLORS[sessionType]) return SESSION_COLORS[sessionType];
-  if (sessionType.toLowerCase().includes("run") || sessionType.toLowerCase().includes("ride")) {
-    return "bg-blue-50 text-blue-700";
+function getDayStyle(sessionType: string): React.CSSProperties {
+  const lower = sessionType.toLowerCase();
+  if (sessionType === "Rest") {
+    return { background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.35)" };
   }
-  if (sessionType.toLowerCase().includes("swim")) {
-    return "bg-indigo-50 text-indigo-700";
+  if (lower.includes("push") || lower.includes("chest") || lower.includes("shoulders")) {
+    return { background: "var(--coral)", color: "var(--ink)" };
   }
-  return "bg-white text-gray-700";
+  if (lower.includes("pull") || lower.includes("back")) {
+    return { background: "var(--mint)", color: "var(--ink)" };
+  }
+  if (lower.includes("leg") || lower.includes("lower")) {
+    return { background: "var(--sky)", color: "var(--ink)" };
+  }
+  if (lower.includes("run") || lower.includes("ride") || lower.includes("swim")) {
+    return { background: "var(--lemon)", color: "var(--ink)" };
+  }
+  if (lower.includes("upper") || lower.includes("full")) {
+    return { background: "var(--lilac)", color: "var(--ink)" };
+  }
+  return { background: "rgba(255,255,255,0.15)", color: "#fff" };
 }
 
 export function StepSplitResult({ data }: StepSplitResultProps) {
@@ -73,24 +76,44 @@ export function StepSplitResult({ data }: StepSplitResultProps) {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center space-y-4 py-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-black" />
-        <p className="text-lg font-medium">Generating your personalized plan...</p>
-        <p className="text-sm text-gray-500">Our AI coach is analyzing your goals and preferences</p>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 16,
+          padding: "48px 0",
+        }}
+      >
+        <div
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: "50%",
+            border: "3px solid rgba(255,255,255,0.2)",
+            borderTopColor: "var(--coral)",
+            animation: "spin 0.8s linear infinite",
+          }}
+        />
+        <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>
+          Generating your personalized plan…
+        </p>
+        <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
+          Our AI coach is analyzing your goals and preferences
+        </p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="space-y-4">
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
+      <div style={{ textAlign: "center", padding: "32px 0" }}>
+        <p style={{ color: "var(--coral-deep)", marginBottom: 16, fontWeight: 600 }}>{error}</p>
         <button
           type="button"
           onClick={() => setLoading(true)}
-          className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50"
+          className="btn-ghost"
         >
           Try Again
         </button>
@@ -103,32 +126,133 @@ export function StepSplitResult({ data }: StepSplitResultProps) {
   const splitName = result.split_type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Your AI-Generated Plan</h2>
-        <p className="mt-1 text-gray-500">Personalized by our AI coach based on your goals.</p>
-      </div>
+    <div style={{ maxWidth: 600, margin: "0 auto", width: "100%" }}>
+      {/* Dark card */}
+      <div
+        style={{
+          position: "relative",
+          background: "var(--ink)",
+          borderRadius: "var(--r-xl)",
+          padding: "32px",
+          overflow: "hidden",
+        }}
+      >
+        {/* Blobs inside dark card */}
+        <div
+          style={{
+            position: "absolute",
+            top: -40,
+            right: -40,
+            width: 180,
+            height: 180,
+            borderRadius: "50%",
+            background: "var(--coral)",
+            opacity: 0.18,
+            filter: "blur(50px)",
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            bottom: -30,
+            left: -30,
+            width: 150,
+            height: 150,
+            borderRadius: "50%",
+            background: "var(--sky)",
+            opacity: 0.18,
+            filter: "blur(50px)",
+            pointerEvents: "none",
+          }}
+        />
 
-      <div className="rounded-lg border bg-white p-6">
-        <h3 className="text-xl font-bold">{splitName}</h3>
-        <p className="mt-2 text-gray-600">{result.reasoning}</p>
-      </div>
+        {/* Eyebrow */}
+        <p
+          style={{
+            margin: "0 0 8px",
+            fontSize: 11,
+            fontWeight: 800,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color: "var(--coral)",
+          }}
+        >
+          Recommended split
+        </p>
 
-      <div className="rounded-lg border bg-white p-6">
-        <h3 className="mb-4 text-sm font-medium text-gray-500">Your Week</h3>
-        <div className="grid grid-cols-7 gap-2">
-          {result.weekly_layout.map((day, i) => (
-            <div
-              key={i}
-              className={`flex flex-col items-center rounded-lg border p-3 ${getSessionColor(day.session_type)}`}
-            >
-              <span className="text-xs text-gray-500">{dayNames[day.day_of_week]}</span>
-              <span className="mt-1 text-center text-xs font-medium">{day.session_type}</span>
-              {day.ai_notes && (
-                <span className="mt-1 text-center text-[10px] italic text-gray-400">{day.ai_notes}</span>
-              )}
-            </div>
-          ))}
+        {/* Split name */}
+        <h3
+          style={{
+            margin: "0 0 16px",
+            fontSize: 26,
+            fontWeight: 800,
+            letterSpacing: "-0.02em",
+            color: "#fff",
+          }}
+        >
+          {splitName}
+        </h3>
+
+        {/* Reasoning */}
+        <p
+          style={{
+            margin: "0 0 28px",
+            fontSize: 14,
+            lineHeight: 1.6,
+            color: "rgba(255,255,255,0.6)",
+          }}
+        >
+          {result.reasoning}
+        </p>
+
+        {/* Week grid */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(7, 1fr)",
+            gap: 6,
+          }}
+        >
+          {result.weekly_layout.map((day, i) => {
+            const dayStyle = getDayStyle(day.session_type);
+            return (
+              <div
+                key={i}
+                style={{
+                  borderRadius: 10,
+                  padding: "10px 4px",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 4,
+                  ...dayStyle,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    opacity: 0.7,
+                  }}
+                >
+                  {DAY_NAMES[day.day_of_week]}
+                </span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    textAlign: "center",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {day.session_type}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

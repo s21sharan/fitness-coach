@@ -1,7 +1,6 @@
 "use client";
 
-import type { OnboardingData } from "@/lib/onboarding/types";
-import { EMPHASIS_OPTIONS } from "@/lib/onboarding/types";
+import type { OnboardingData, Emphasis } from "@/lib/onboarding/types";
 import { OptionCard } from "./option-card";
 
 interface StepEmphasisProps {
@@ -9,21 +8,39 @@ interface StepEmphasisProps {
   onUpdate: (updates: Partial<OnboardingData>) => void;
 }
 
+export const STEP_EMPHASIS_TITLE = "Anything to emphasize?";
+export const STEP_EMPHASIS_SUBTITLE =
+  "Lagging body parts or focus areas — pick one and we'll bias your split.";
+
+const EMPHASIS_CARDS: { value: Emphasis; emoji: string; label: string; color: "coral" | "mint" | "sky" | "lemon" }[] = [
+  { value: "arms", emoji: "💪", label: "Arms", color: "coral" },
+  { value: "shoulders", emoji: "🤸", label: "Shoulders", color: "mint" },
+  { value: "chest", emoji: "🏋️", label: "Chest", color: "sky" },
+  { value: "back", emoji: "🦾", label: "Back", color: "lemon" },
+  { value: "legs", emoji: "🦵", label: "Legs", color: "coral" },
+  { value: "glutes", emoji: "🍑", label: "Glutes", color: "mint" },
+  { value: "none", emoji: "⚖️", label: "Balanced", color: "sky" },
+];
+
 export function StepEmphasis({ data, onUpdate }: StepEmphasisProps) {
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Any areas you want to emphasize?</h2>
-        <p className="mt-1 text-gray-500">This influences your training split selection.</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        {EMPHASIS_OPTIONS.map((option) => (
+    <div style={{ maxWidth: 520, margin: "0 auto", width: "100%" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 12,
+        }}
+      >
+        {EMPHASIS_CARDS.map((card) => (
           <OptionCard
-            key={option.value}
-            label={option.label}
-            selected={data.emphasis === option.value}
-            onClick={() => onUpdate({ emphasis: option.value })}
+            key={card.value}
+            emoji={card.emoji}
+            label={card.label}
+            selected={data.emphasis === card.value}
+            color={card.color}
+            size="md"
+            onClick={() => onUpdate({ emphasis: card.value })}
           />
         ))}
       </div>

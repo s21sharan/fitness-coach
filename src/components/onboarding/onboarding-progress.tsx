@@ -1,25 +1,30 @@
 "use client";
 
 interface OnboardingProgressProps {
-  currentStep: number;
-  totalSteps: number;
+  step: number;   // 0-indexed current step
+  total: number;
 }
 
-export function OnboardingProgress({ currentStep, totalSteps }: OnboardingProgressProps) {
-  const percentage = Math.round((currentStep / totalSteps) * 100);
-
+export function OnboardingProgress({ step, total }: OnboardingProgressProps) {
   return (
-    <div className="w-full">
-      <div className="mb-2 flex justify-between text-sm text-gray-500">
-        <span>Step {currentStep} of {totalSteps}</span>
-        <span>{percentage}%</span>
-      </div>
-      <div className="h-2 w-full rounded-full bg-gray-200">
+    <div style={{ display: "flex", gap: 5, width: "100%" }}>
+      {Array.from({ length: total }).map((_, i) => (
         <div
-          className="h-2 rounded-full bg-black transition-all duration-300"
-          style={{ width: `${percentage}%` }}
+          key={i}
+          style={{
+            flex: 1,
+            height: 5,
+            borderRadius: 3,
+            background:
+              i < step
+                ? "var(--ink)"
+                : i === step
+                ? "var(--coral)"
+                : "var(--line)",
+            transition: "background 0.3s",
+          }}
         />
-      </div>
+      ))}
     </div>
   );
 }

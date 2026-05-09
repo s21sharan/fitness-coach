@@ -1,7 +1,6 @@
 "use client";
 
-import type { OnboardingData } from "@/lib/onboarding/types";
-import { EXPERIENCE_LEVELS } from "@/lib/onboarding/types";
+import type { OnboardingData, Experience } from "@/lib/onboarding/types";
 import { OptionCard } from "./option-card";
 
 interface StepExperienceProps {
@@ -9,21 +8,42 @@ interface StepExperienceProps {
   onUpdate: (updates: Partial<OnboardingData>) => void;
 }
 
+export const STEP_EXPERIENCE_TITLE = "How experienced are you?";
+export const STEP_EXPERIENCE_SUBTITLE =
+  "Be honest — this calibrates volume, intensity, and how aggressive your plan can be.";
+
+const EXPERIENCE_CARDS: {
+  value: Experience;
+  emoji: string;
+  label: string;
+  sub: string;
+  color: "coral" | "mint" | "sky" | "lemon";
+}[] = [
+  { value: "beginner", emoji: "🌱", label: "Beginner", sub: "< 1 year consistent lifting", color: "mint" },
+  { value: "intermediate", emoji: "🔥", label: "Intermediate", sub: "1–3 years consistent lifting", color: "coral" },
+  { value: "advanced", emoji: "⚡", label: "Advanced", sub: "3+ years consistent lifting", color: "sky" },
+];
+
 export function StepExperience({ data, onUpdate }: StepExperienceProps) {
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">What&apos;s your training experience?</h2>
-      </div>
-
-      <div className="space-y-3">
-        {EXPERIENCE_LEVELS.map((level) => (
+    <div style={{ maxWidth: 520, margin: "0 auto", width: "100%" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 14,
+        }}
+      >
+        {EXPERIENCE_CARDS.map((card) => (
           <OptionCard
-            key={level.value}
-            label={level.label}
-            description={level.description}
-            selected={data.experience === level.value}
-            onClick={() => onUpdate({ experience: level.value })}
+            key={card.value}
+            emoji={card.emoji}
+            label={card.label}
+            sub={card.sub}
+            selected={data.experience === card.value}
+            color={card.color}
+            size="lg"
+            onClick={() => onUpdate({ experience: card.value })}
           />
         ))}
       </div>

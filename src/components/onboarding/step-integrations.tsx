@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import type { OnboardingData } from "@/lib/onboarding/types";
 import { CredentialsModal } from "@/components/settings/credentials-modal";
 import { ApiKeyModal } from "@/components/settings/api-key-modal";
+import { BrandMark } from "@/components/app/brand-mark";
 
 interface StepIntegrationsProps {
   data: OnboardingData;
@@ -16,11 +17,15 @@ interface IntegrationStatus {
   status: string;
 }
 
+export const STEP_INTEGRATIONS_TITLE = "Connect your apps.";
+export const STEP_INTEGRATIONS_SUBTITLE =
+  "The more Hybro sees, the better it coaches. You can always add more later.";
+
 const integrations = [
-  { provider: "macrofactor", name: "MacroFactor", description: "Nutrition tracking & macros", type: "credentials" },
-  { provider: "hevy", name: "Hevy", description: "Strength training & workouts", type: "api-key" },
-  { provider: "strava", name: "Strava", description: "Running, cycling & swimming", type: "oauth" },
-  { provider: "garmin", name: "Garmin", description: "Recovery, sleep & HRV", type: "credentials" },
+  { provider: "macrofactor", name: "MacroFactor", category: "Nutrition & macros", type: "credentials" },
+  { provider: "hevy", name: "Hevy", category: "Strength workouts", type: "api-key" },
+  { provider: "strava", name: "Strava", category: "Running & cycling", type: "oauth" },
+  { provider: "garmin", name: "Garmin", category: "Recovery & sleep", type: "credentials" },
 ] as const;
 
 export function StepIntegrations({ data, onUpdate }: StepIntegrationsProps) {
@@ -73,18 +78,15 @@ export function StepIntegrations({ data, onUpdate }: StepIntegrationsProps) {
     await fetchStatuses();
   };
 
-  const connectedCount = statuses.filter((s) => s.connected).length;
-
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Connect your apps</h2>
-        <p className="mt-1 text-gray-500">
-          Connect at least one app so Hybro can see your data. More connections = better coaching.
-        </p>
-      </div>
-
-      <div className="space-y-3">
+    <div style={{ maxWidth: 580, margin: "0 auto", width: "100%" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 14,
+        }}
+      >
         {integrations.map((integration) => {
           const status = statuses.find((s) => s.provider === integration.provider);
           const isConnected = status?.connected ?? false;
@@ -92,21 +94,87 @@ export function StepIntegrations({ data, onUpdate }: StepIntegrationsProps) {
           return (
             <div
               key={integration.provider}
-              className="flex items-center justify-between rounded-lg border p-4"
+              style={{
+                background: "#fff",
+                borderRadius: "var(--r-lg)",
+                border: isConnected ? "2px solid var(--mint-deep)" : "1px solid var(--line)",
+                padding: "20px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+                position: "relative",
+                transition: "border-color 0.2s",
+              }}
             >
-              <div>
-                <p className="font-medium">{integration.name}</p>
-                <p className="text-sm text-gray-500">{integration.description}</p>
-              </div>
-              {isConnected ? (
-                <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-700">
-                  Connected
+              {isConnected && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 12,
+                    right: 12,
+                    width: 22,
+                    height: 22,
+                    borderRadius: "50%",
+                    background: "var(--mint-deep)",
+                    display: "grid",
+                    placeItems: "center",
+                  }}
+                >
+                  <svg width={11} height={11} viewBox="0 0 11 11" fill="none">
+                    <path
+                      d="M2 5.5l2.5 2.5 4.5-4.5"
+                      stroke="#fff"
+                      strokeWidth={1.8}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
                 </span>
-              ) : (
+              )}
+
+              <BrandMark name={integration.provider} size={36} />
+
+              <div>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 14,
+                    fontWeight: 800,
+                    color: "var(--ink)",
+                  }}
+                >
+                  {integration.name}
+                </p>
+                <p
+                  style={{
+                    margin: "2px 0 0",
+                    fontSize: 12,
+                    color: "var(--muted)",
+                    fontWeight: 500,
+                  }}
+                >
+                  {integration.category}
+                </p>
+              </div>
+
+              {!isConnected && (
                 <button
                   type="button"
                   onClick={() => handleConnect(integration.provider, integration.type)}
-                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50"
+                  style={{
+                    marginTop: "auto",
+                    padding: "8px 16px",
+                    borderRadius: 999,
+                    border: "1.5px solid var(--line)",
+                    background: "transparent",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: "var(--ink)",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    transition: "background 0.15s",
+                    alignSelf: "flex-start",
+                  }}
                 >
                   Connect
                 </button>
@@ -115,17 +183,6 @@ export function StepIntegrations({ data, onUpdate }: StepIntegrationsProps) {
           );
         })}
       </div>
-
-      {connectedCount > 0 && (
-        <p className="text-center text-sm text-green-600">
-          {connectedCount} app{connectedCount > 1 ? "s" : ""} connected
-        </p>
-      )}
-      {connectedCount === 0 && (
-        <p className="text-center text-sm text-gray-400">
-          Connect at least one app to continue.
-        </p>
-      )}
 
       {modal?.type === "credentials" && (
         <CredentialsModal
