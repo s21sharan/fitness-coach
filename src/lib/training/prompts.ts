@@ -1,4 +1,15 @@
-interface UserContext {
+export interface RecentActivity {
+  avgRunPaceMinKm: number | null;
+  avgRunDistanceKm: number | null;
+  avgRunHr: number | null;
+  weeklyRunCount: number;
+  weeklyLiftCount: number;
+  avgLiftDurationMin: number | null;
+  avgHrv: number | null;
+  avgSleepHours: number | null;
+}
+
+export interface UserContext {
   age: number | null;
   height: number | null;
   weight: number | null;
@@ -14,6 +25,7 @@ interface UserContext {
   goalTime: string | null;
   doesCardio: boolean;
   cardioTypes: string[];
+  recentActivity: RecentActivity | null;
 }
 
 export const PLAN_SYSTEM_PROMPT = `You are a certified personal trainer and endurance coach creating a training plan.
@@ -33,7 +45,15 @@ Session type examples:
 - Multi-session days: "Upper Body + Easy Run (Zone 2)", "Easy Run (Zone 2) + Swim"
 - Rest: "Rest"
 
-day_of_week mapping: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday`;
+day_of_week mapping: 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday
+
+When setting targets for each day, use the athlete's recent data to set realistic goals:
+- For runs: set target_distance_km, target_pace_min_km, target_hr_zone, target_hr_max based on their recent averages
+- For lifting: set target_duration_min and muscle_focus
+- For rest days: targets can be omitted
+- Zone 2 runs should target a pace ~10-15% slower than their average pace
+- Long runs should target 1.5-2x their average distance at easy pace
+- Tempo runs should target their average pace or slightly faster`;
 
 export function buildUserPrompt(ctx: UserContext): string {
   const lines: string[] = [];
@@ -74,6 +94,21 @@ export function buildUserPrompt(ctx: UserContext): string {
   }
 
   lines.push(`Today's date: ${new Date().toISOString().slice(0, 10)}`);
+
+  if (ctx.recentActivity) {
+    const a = ctx.recentActivity;
+    lines.push("");
+    lines.push("Recent activity data (last 30 days):");
+    if (a.avgRunPaceMinKm) lines.push(`- Avg easy run pace: ${a.avgRunPaceMinKm} min/km`);
+    if (a.avgRunDistanceKm) lines.push(`- Avg run distance: ${a.avgRunDistanceKm} km`);
+    if (a.avgRunHr) lines.push(`- Avg run HR: ${a.avgRunHr} bpm`);
+    lines.push(`- Weekly runs: ${a.weeklyRunCount}, weekly lifts: ${a.weeklyLiftCount}`);
+    if (a.avgLiftDurationMin) lines.push(`- Avg lifting session: ${a.avgLiftDurationMin} min`);
+    if (a.avgHrv) lines.push(`- Avg HRV: ${a.avgHrv}`);
+    if (a.avgSleepHours) lines.push(`- Avg sleep: ${a.avgSleepHours}h`);
+    lines.push("");
+    lines.push("Use this data to set realistic pace, distance, and duration targets for each workout.");
+  }
 
   return lines.join("\n");
 }

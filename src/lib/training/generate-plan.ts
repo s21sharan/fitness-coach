@@ -38,6 +38,7 @@ export function generatePlannedWorkouts(
   day_of_week: number;
   session_type: string;
   ai_notes: string | null;
+  targets: DayLayout["targets"] | null;
   status: string;
   approved: boolean;
 }> {
@@ -47,6 +48,7 @@ export function generatePlannedWorkouts(
     day_of_week: number;
     session_type: string;
     ai_notes: string | null;
+    targets: DayLayout["targets"] | null;
     status: string;
     approved: boolean;
   }> = [];
@@ -63,6 +65,7 @@ export function generatePlannedWorkouts(
         day_of_week: day.day_of_week,
         session_type: day.session_type,
         ai_notes: day.ai_notes,
+        targets: day.targets || null,
         status: "scheduled",
         approved: true,
       });
@@ -92,6 +95,7 @@ export async function generateTrainingPlan(input: GeneratePlanInput): Promise<{
     goalTime: input.goals.goal_time,
     doesCardio: input.goals.does_cardio,
     cardioTypes: input.goals.cardio_types || [],
+    recentActivity: null,
   });
 
   const { object: plan } = await generateObject({
