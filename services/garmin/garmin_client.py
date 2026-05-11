@@ -70,15 +70,26 @@ def safe_get_stress_and_bb(client: Garmin, date_str: str) -> tuple[int | None, i
             return None, None
 
         if isinstance(stress, dict):
-            # Stress level
-            stress_val = stress.get("averageStressLevel")
+            # Stress level — field is "avgStressLevel" in current API
+            stress_val = stress.get("avgStressLevel") or stress.get("averageStressLevel")
             if stress_val is not None:
                 stress_val = round(stress_val)
 
             # Body battery from stress endpoint
+            # Array items can be [ts, value] OR [ts, "MEASURED", value, delta]
             bb_values = stress.get("bodyBatteryValuesArray", [])
             if bb_values and isinstance(bb_values, list):
-                valid = [v[1] for v in bb_values if isinstance(v, (list, tuple)) and len(v) > 1 and v[1] is not None and v[1] >= 0]
+                valid = []
+                for v in bb_values:
+                    if not isinstance(v, (list, tuple)) or len(v) < 2:
+                        continue
+                    # If v[1] is a string like "MEASURED", the actual value is at v[2]
+                    if isinstance(v[1], str) and len(v) > 2:
+                        val = v[2]
+                    else:
+                        val = v[1]
+                    if isinstance(val, (int, float)) and val >= 0:
+                        valid.append(val)
                 if valid:
                     bb_val = max(valid)
     except Exception as e:
