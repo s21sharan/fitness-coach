@@ -6,7 +6,7 @@ export function getTrainingPlanTool(userId: string) {
   return tool({
     description:
       "Get the user's current training plan including split type, weekly layout, and upcoming sessions. Use when the user asks about their plan, schedule, or what's coming up.",
-    parameters: z.object({}),
+    inputSchema: z.object({}),
     execute: async () => {
       const supabase = createServerClient();
       const { data: plan } = await supabase

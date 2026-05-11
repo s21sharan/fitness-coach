@@ -1,17 +1,13 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { MessageBubble, TypingIndicator } from "@/components/chat/message-bubble";
 import { ChatInput } from "@/components/chat/chat-input";
+import { PlanProposalCard } from "@/components/chat/plan-proposal-card";
 
-interface HistoryMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  tool_calls: unknown;
-  created_at: string;
-}
+const transport = new DefaultChatTransport({ api: "/api/chat" });
 
 const SUGGESTED_PROMPTS = [
   "How's my training looking this week?",
@@ -22,37 +18,74 @@ const SUGGESTED_PROMPTS = [
   "Give me a weekly summary",
 ];
 
+function extractPlanProposal(parts: unknown[]): unknown | null {
+  for (const part of parts) {
+    const p = part as Record<string, unknown>;
+
+    // v6 tool-result format
+    if (p.type === "tool-result" && p.toolName === "regenerate_plan" && p.result) {
+      return p.result;
+    }
+
+    // v6 tool-invocation with state=result
+    if (p.type === "tool-invocation") {
+      const inv = p.toolInvocation as Record<string, unknown> | undefined;
+      if (inv?.toolName === "regenerate_plan") {
+        if (inv.state === "result" && inv.result) return inv.result;
+        if (inv.output) return inv.output;
+      }
+    }
+
+    // Typed tool part: tool-regenerate_plan
+    if (p.type === "tool-regenerate_plan") {
+      if (p.state === "output-available" && p.output) return p.output;
+      if (p.state === "result" && p.result) return p.result;
+    }
+
+    // Generic: any part with toolName matching and an output/result
+    if ((p as Record<string, unknown>).toolName === "regenerate_plan") {
+      if (p.output) return p.output;
+      if (p.result) return p.result;
+    }
+  }
+  return null;
+}
+
+function extractToolNames(parts: unknown[]): string[] {
+  const names: string[] = [];
+  for (const part of parts) {
+    const p = part as Record<string, unknown>;
+    if (p.type === "tool-call" && typeof p.toolName === "string") {
+      names.push(p.toolName);
+    }
+    if (p.type === "tool-invocation") {
+      const inv = p.toolInvocation as Record<string, unknown> | undefined;
+      if (inv?.toolName && typeof inv.toolName === "string") {
+        names.push(inv.toolName);
+      }
+    }
+    // Typed tool parts start with "tool-"
+    if (typeof p.type === "string" && p.type.startsWith("tool-") && p.type !== "tool-call" && p.type !== "tool-result") {
+      const name = (p.type as string).replace("tool-", "");
+      if (name && !names.includes(name)) names.push(name);
+    }
+  }
+  return names;
+}
+
+function extractText(parts: unknown[]): string {
+  return (parts || [])
+    .filter((p): p is { type: "text"; text: string } => (p as Record<string, unknown>).type === "text")
+    .map((p) => p.text)
+    .join("");
+}
+
 export default function CoachPage() {
-  const [initialMessages, setInitialMessages] = useState<
-    Array<{ id: string; role: "user" | "assistant"; content: string }>
-  >([]);
-  const [loaded, setLoaded] = useState(false);
+  const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    async function loadHistory() {
-      try {
-        const res = await fetch("/api/chat/messages");
-        if (res.ok) {
-          const data = await res.json();
-          const msgs = (data.messages as HistoryMessage[]).map((m) => ({
-            id: m.id,
-            role: m.role as "user" | "assistant",
-            content: m.content,
-          }));
-          setInitialMessages(msgs);
-        }
-      } catch {}
-      setLoaded(true);
-    }
-    loadHistory();
-  }, []);
-
-  const { messages, input, handleInputChange, handleSubmit, isLoading, setInput } =
-    useChat({
-      api: "/api/chat",
-      initialMessages,
-    });
+  const { messages, sendMessage, status } = useChat({ transport });
+  const isLoading = status === "streaming" || status === "submitted";
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -60,61 +93,34 @@ export default function CoachPage() {
     }
   }, [messages]);
 
-  if (!loaded) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-black" />
-      </div>
-    );
-  }
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+    sendMessage({ text: input });
+    setInput("");
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", maxWidth: 780, margin: "0 auto" }}>
-      {/* Messages */}
       <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "24px 20px" }}>
         {messages.length === 0 ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", textAlign: "center" }}>
-            <div
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: "50%",
-                background: "var(--ink, #0F1B22)",
-                display: "grid",
-                placeItems: "center",
-              }}
-            >
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--ink, #0F1B22)", display: "grid", placeItems: "center" }}>
               <span style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>H</span>
             </div>
-            <h2 style={{ marginTop: 16, fontSize: 18, fontWeight: 700 }}>Hey! I'm your Coach.</h2>
+            <h2 style={{ marginTop: 16, fontSize: 18, fontWeight: 700 }}>Hey! I&apos;m your Coach.</h2>
             <p style={{ marginTop: 6, fontSize: 14, color: "#6b7280", maxWidth: 360 }}>
               I have access to all your fitness data — workouts, cardio, recovery, and more. Ask me anything.
             </p>
-
-            {/* Suggested prompts */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 24, maxWidth: 480 }}>
               {SUGGESTED_PROMPTS.map((prompt) => (
                 <button
                   key={prompt}
                   type="button"
-                  onClick={() => setInput(prompt)}
+                  onClick={() => sendMessage({ text: prompt })}
                   style={{
-                    padding: "8px 14px",
-                    borderRadius: 20,
-                    border: "1px solid #e5e7eb",
-                    background: "#fff",
-                    fontSize: 12,
-                    color: "#6b7280",
-                    cursor: "pointer",
-                    transition: "all 0.15s",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "#9ca3af";
-                    e.currentTarget.style.color = "#374151";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "#e5e7eb";
-                    e.currentTarget.style.color = "#6b7280";
+                    padding: "8px 14px", borderRadius: 20, border: "1px solid #e5e7eb",
+                    background: "#fff", fontSize: 12, color: "#6b7280", cursor: "pointer",
                   }}
                 >
                   {prompt}
@@ -124,27 +130,43 @@ export default function CoachPage() {
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {messages.map((m) => (
-              <MessageBubble
-                key={m.id}
-                role={m.role as "user" | "assistant"}
-                content={m.content}
-                tools={
-                  m.role === "assistant" && (m as any).toolInvocations
-                    ? (m as any).toolInvocations.map((t: any) => t.toolName)
-                    : undefined
-                }
-              />
-            ))}
+            {messages.map((m) => {
+              const parts = (m.parts || []) as unknown[];
+              const textContent = extractText(parts);
+              const toolNames = extractToolNames(parts);
+              const planData = m.role === "assistant" ? extractPlanProposal(parts) : null;
+
+              return (
+                <div key={m.id} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {textContent && (
+                    <MessageBubble
+                      role={m.role as "user" | "assistant"}
+                      content={textContent}
+                      tools={toolNames.length > 0 && !planData ? toolNames : undefined}
+                    />
+                  )}
+                  {planData && (planData as Record<string, unknown>).success && (
+                    <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <div style={{ width: 32, flexShrink: 0 }} />
+                      <div style={{ maxWidth: 560, width: "100%" }}>
+                        <PlanProposalCard data={planData as Parameters<typeof PlanProposalCard>[0]["data"]} />
+                      </div>
+                    </div>
+                  )}
+                  {!textContent && !planData && toolNames.length > 0 && (
+                    <MessageBubble role="assistant" content="" tools={toolNames} />
+                  )}
+                </div>
+              );
+            })}
             {isLoading && <TypingIndicator />}
           </div>
         )}
       </div>
 
-      {/* Input */}
       <ChatInput
         input={input}
-        onChange={handleInputChange}
+        onChange={(e) => setInput(e.target.value)}
         onSubmit={handleSubmit}
         isLoading={isLoading}
       />

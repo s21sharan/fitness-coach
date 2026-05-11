@@ -17,6 +17,7 @@ import {
   getWeightTrendTool,
   getTrainingPlanTool,
   updatePlannedWorkoutTool,
+  regeneratePlanTool,
 } from "@/lib/chat/tools";
 
 export async function POST(request: Request) {
@@ -25,8 +26,24 @@ export async function POST(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const { messages } = await request.json();
-  const lastUserMessage = messages[messages.length - 1];
+  const body = await request.json();
+  const messages = body.messages || [];
+  const lastMsg = messages[messages.length - 1];
+
+  // v6 UIMessage format: { role, parts: [{ type: "text", text: "..." }] }
+  // v5 format: { role, content: "..." }
+  let userText: string;
+  if (lastMsg.content) {
+    userText = lastMsg.content;
+  } else if (lastMsg.parts) {
+    userText = lastMsg.parts
+      .filter((p: { type: string; text?: string }) => p.type === "text")
+      .map((p: { text: string }) => p.text)
+      .join("");
+  } else {
+    userText = "";
+  }
+  const lastUserMessage = { role: lastMsg.role, content: userText };
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -154,16 +171,35 @@ export async function POST(request: Request) {
     weekStats,
   });
 
-  const recentMessages = await getRecentMessages(conversationId, 20);
-  const history = formatMessagesForAI(recentMessages);
+  // Convert incoming UIMessages to ModelMessages for streamText
+  const modelMessages: Array<{ role: "user" | "assistant"; content: string }> = [];
+  for (const msg of messages) {
+    let text = "";
+    if (msg.content) {
+      text = msg.content;
+    } else if (msg.parts) {
+      text = msg.parts
+        .filter((p: { type: string; text?: string }) => p.type === "text")
+        .map((p: { text: string }) => p.text)
+        .join("");
+    }
+    if (text && (msg.role === "user" || msg.role === "assistant")) {
+      modelMessages.push({ role: msg.role, content: text });
+    }
+  }
+
+  // If no messages from client, fall back to DB history
+  const finalMessages = modelMessages.length > 0
+    ? modelMessages
+    : [...(await getRecentMessages(conversationId, 20)).map((m: { role: string; content: string }) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      })), { role: "user" as const, content: lastUserMessage.content }];
 
   const result = streamText({
     model: anthropic("claude-sonnet-4-20250514"),
     system: systemPrompt,
-    messages: [
-      ...history,
-      { role: "user" as const, content: lastUserMessage.content },
-    ],
+    messages: finalMessages,
     tools: {
       get_nutrition: getNutritionTool(userId),
       get_workouts: getWorkoutsTool(userId),
@@ -172,14 +208,20 @@ export async function POST(request: Request) {
       get_weight_trend: getWeightTrendTool(userId),
       get_training_plan: getTrainingPlanTool(userId),
       update_planned_workout: updatePlannedWorkoutTool(userId),
+      regenerate_plan: regeneratePlanTool(userId),
     },
     maxSteps: 5,
-    onFinish: async ({ text, toolCalls }) => {
-      if (text) {
-        await saveMessage(conversationId, "assistant", text, toolCalls);
+    onFinish: async (event) => {
+      try {
+        const text = event.text || "";
+        if (text) {
+          await saveMessage(conversationId, "assistant", text, event.toolCalls);
+        }
+      } catch (e) {
+        console.error("onFinish error:", e);
       }
     },
   });
 
-  return result.toDataStreamResponse();
+  return result.toUIMessageStreamResponse();
 }

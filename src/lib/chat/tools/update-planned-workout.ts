@@ -6,7 +6,7 @@ export function updatePlannedWorkoutTool(userId: string) {
   return tool({
     description:
       "Modify a planned workout for a specific date. Can change session type, add notes, or mark as moved. Use when the user wants to swap a session, add a rest day, or adjust their upcoming schedule.",
-    parameters: z.object({
+    inputSchema: z.object({
       date: z
         .string()
         .describe("Date of the workout to modify in YYYY-MM-DD format"),

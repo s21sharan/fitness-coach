@@ -6,7 +6,7 @@ export function getNutritionTool(userId: string) {
   return tool({
     description:
       "Get nutrition data (calories, protein, carbs, fat) for a date range. Use when the user asks about their diet, macros, or what they've eaten.",
-    parameters: z.object({
+    inputSchema: z.object({
       start_date: z.string().describe("Start date in YYYY-MM-DD format"),
       end_date: z.string().describe("End date in YYYY-MM-DD format"),
     }),

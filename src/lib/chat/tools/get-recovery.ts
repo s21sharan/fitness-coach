@@ -6,7 +6,7 @@ export function getRecoveryTool(userId: string) {
   return tool({
     description:
       "Get recovery data (HRV, sleep hours, sleep score, resting heart rate, body battery, stress level, steps) for a date range. Use when the user asks about their recovery, sleep, or readiness to train.",
-    parameters: z.object({
+    inputSchema: z.object({
       start_date: z.string().describe("Start date in YYYY-MM-DD format"),
       end_date: z.string().describe("End date in YYYY-MM-DD format"),
     }),

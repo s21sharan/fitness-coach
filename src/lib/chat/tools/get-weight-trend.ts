@@ -6,7 +6,7 @@ export function getWeightTrendTool(userId: string) {
   return tool({
     description:
       "Get weight entries and trend direction for a date range. Use when the user asks about their weight or body composition progress.",
-    parameters: z.object({
+    inputSchema: z.object({
       start_date: z.string().describe("Start date in YYYY-MM-DD format"),
       end_date: z.string().describe("End date in YYYY-MM-DD format"),
     }),

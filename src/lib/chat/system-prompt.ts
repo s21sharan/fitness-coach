@@ -111,6 +111,9 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   lines.push("- Be concise — use bullet points, not paragraphs");
   lines.push("- You can use tools to look up data you don't have in this context");
   lines.push("- When modifying the plan, explain what you're changing and why");
+  lines.push("- When the user wants to change their entire training split or restructure their plan, use the regenerate_plan tool. This generates a new 2-week plan and adds it to their calendar.");
+  lines.push("- After regenerating a plan, present the new weekly layout clearly with day-by-day breakdown so the user can review it.");
+  lines.push("- For small changes (swapping one day, adding a rest day), use update_planned_workout instead.");
 
   return lines.join("\n");
 }

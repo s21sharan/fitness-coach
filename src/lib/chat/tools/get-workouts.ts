@@ -6,7 +6,7 @@ export function getWorkoutsTool(userId: string) {
   return tool({
     description:
       "Get strength training workout logs for a date range. Returns exercises, sets, reps, weight. Use when the user asks about their lifting sessions.",
-    parameters: z.object({
+    inputSchema: z.object({
       start_date: z.string().describe("Start date in YYYY-MM-DD format"),
       end_date: z.string().describe("End date in YYYY-MM-DD format"),
     }),

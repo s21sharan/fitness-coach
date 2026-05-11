@@ -6,7 +6,7 @@ export function getCardioTool(userId: string) {
   return tool({
     description:
       "Get cardio activity logs (runs, rides, swims) for a date range. Returns distance, duration, pace, heart rate. Use when the user asks about their cardio or endurance training.",
-    parameters: z.object({
+    inputSchema: z.object({
       start_date: z.string().describe("Start date in YYYY-MM-DD format"),
       end_date: z.string().describe("End date in YYYY-MM-DD format"),
     }),
