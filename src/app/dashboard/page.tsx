@@ -7,6 +7,9 @@ import { ChartModal } from "@/components/charts/chart-modal";
 import { getUnitPreferences, fmtDist as fmtDistUnit, fmtPace as fmtPaceUnit, distanceLabel, type UnitPreferences } from "@/lib/units";
 import { PlannedCard } from "@/components/calendar/planned-card";
 import { ComplianceBadge, getComplianceStatus } from "@/components/calendar/compliance-badge";
+import { WorkoutModal } from "@/components/calendar/workout-modal";
+import { MuscleDiagram } from "@/components/calendar/muscle-diagram";
+import { computeMuscleVolume } from "@/lib/exercise-muscles";
 
 /* ═══════════════════════════════════════════════
    DATA INTERFACES
@@ -226,12 +229,12 @@ function HrZoneBar({ avgHr }: { avgHr: number | null }) {
   );
 }
 
-function WorkoutCard({ w }: { w: WorkoutLog }) {
+function WorkoutCard({ w, onClick }: { w: WorkoutLog; onClick?: () => void }) {
   const c = TYPE_COLORS.lift;
   const { totalSets, topExercises, avgRpe } = exerciseSummary(w.exercises);
   const load = Math.round((w.duration_minutes || 0) * 0.8);
   return (
-    <div style={{ background: c.bg, borderLeft: `3px solid ${c.border}`, borderRadius: 5, padding: "6px 8px", fontSize: 10, lineHeight: 1.5 }}>
+    <div onClick={onClick} style={{ background: c.bg, borderLeft: `3px solid ${c.border}`, borderRadius: 5, padding: "6px 8px", fontSize: 10, lineHeight: 1.5, cursor: onClick ? "pointer" : "default", transition: "filter 0.1s" }} onMouseEnter={(e) => onClick && (e.currentTarget.style.filter = "brightness(0.95)")} onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}>
       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
         <span style={{ fontSize: 12 }}>{c.icon}</span>
         <span style={{ fontWeight: 700, color: c.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}>{w.name || "Workout"}</span>
@@ -317,7 +320,7 @@ function RecoveryBar({ r }: { r: RecoveryLog }) {
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-function DayColumn({ day, dayIndex }: { day: DayData; dayIndex: number }) {
+function DayColumn({ day, dayIndex, onWorkoutClick }: { day: DayData; dayIndex: number; onWorkoutClick?: (w: WorkoutLog) => void }) {
   const today = toDS(new Date());
   const isToday = day.date === today;
   const isFuture = day.date > today;
@@ -336,7 +339,7 @@ function DayColumn({ day, dayIndex }: { day: DayData; dayIndex: number }) {
         {compliance && <ComplianceBadge status={compliance} />}
       </div>
       {day.recovery && <RecoveryBar r={day.recovery} />}
-      {day.workouts.map((w, i) => <WorkoutCard key={`w-${i}`} w={w} />)}
+      {day.workouts.map((w, i) => <WorkoutCard key={`w-${i}`} w={w} onClick={() => onWorkoutClick?.(w)} />)}
       {day.cardio.map((c, i) => <CardioCard key={`c-${i}`} c={c} />)}
       {isFuture && day.planned && (
         <PlannedCard
@@ -349,7 +352,7 @@ function DayColumn({ day, dayIndex }: { day: DayData; dayIndex: number }) {
   );
 }
 
-function WeekRow({ days, weekNum, fitnessCurve }: { days: DayData[]; weekNum: number; fitnessCurve: FitnessPoint[] }) {
+function WeekRow({ days, weekNum, fitnessCurve, onWorkoutClick }: { days: DayData[]; weekNum: number; fitnessCurve: FitnessPoint[]; onWorkoutClick?: (w: WorkoutLog) => void }) {
   const todayStr = toDS(new Date());
   // A week is "future" if its first day is after today
   const isFutureWeek = days[0].date > todayStr;
@@ -411,6 +414,20 @@ function WeekRow({ days, weekNum, fitnessCurve }: { days: DayData[]; weekNum: nu
                 </table>
               </div>
             )}
+
+            {/* Muscle diagram */}
+            {(() => {
+              const allExercises = days.flatMap((d) =>
+                d.workouts.flatMap((w) => (Array.isArray(w.exercises) ? w.exercises : []) as Array<{ name: string; sets: Array<{ weight_kg: number; reps: number }> }>)
+              );
+              if (allExercises.length === 0) return null;
+              const muscleData = computeMuscleVolume(allExercises);
+              return (
+                <div style={{ marginTop: 6, borderTop: "1px solid #e5e7eb", paddingTop: 4 }}>
+                  <MuscleDiagram muscleData={muscleData} />
+                </div>
+              );
+            })()}
           </>
         ) : isFutureWeek ? (
           <div style={{ color: "#d1d5db", fontSize: 10, fontStyle: "italic", marginTop: 4 }}>—</div>
@@ -421,7 +438,7 @@ function WeekRow({ days, weekNum, fitnessCurve }: { days: DayData[]; weekNum: nu
       <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 0, minWidth: 0 }}>
         {days.map((day, i) => (
           <div key={day.date} style={{ borderRight: i < 6 ? "1px solid #f3f4f6" : "none", padding: "0 1px" }}>
-            <DayColumn day={day} dayIndex={i} />
+            <DayColumn day={day} dayIndex={i} onWorkoutClick={onWorkoutClick} />
           </div>
         ))}
       </div>
@@ -515,6 +532,7 @@ export default function DashboardPage() {
   const [insightLoading, setInsightLoading] = useState<string | null>(null);
   const [units, setUnits] = useState<UnitPreferences>({ distance: "mi", weight: "lbs" });
   const [planned, setPlanned] = useState<PlannedWorkout[]>([]);
+  const [selectedWorkout, setSelectedWorkout] = useState<WorkoutLog | null>(null);
 
   // Load unit preferences
   useEffect(() => {
@@ -662,7 +680,7 @@ export default function DashboardPage() {
       </div>
 
       <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "auto" }}>
-        {weeks.map((weekDays, wi) => <WeekRow key={weekDays[0].date} days={weekDays} weekNum={weekNumbers[wi]} fitnessCurve={fitnessCurve} />)}
+        {weeks.map((weekDays, wi) => <WeekRow key={weekDays[0].date} days={weekDays} weekNum={weekNumbers[wi]} fitnessCurve={fitnessCurve} onWorkoutClick={setSelectedWorkout} />)}
       </div>
 
       {/* Legend */}
@@ -734,6 +752,15 @@ export default function DashboardPage() {
         </p>
         <RecoveryTrendChart data={recoveryData} dataKey="stress_level" color="#f97316" label="Stress" unit="" domain={[0, 100]} />
       </ChartModal>
+
+      {/* Workout detail modal */}
+      {selectedWorkout && (
+        <WorkoutModal
+          workout={selectedWorkout}
+          open={true}
+          onClose={() => setSelectedWorkout(null)}
+        />
+      )}
     </div>
   );
 }
