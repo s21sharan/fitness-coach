@@ -50,30 +50,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         borderBottom: "1px solid #e5e7eb",
         flexShrink: 0,
       }}>
-        <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
-          <div style={{
-            width: 30, height: 30, borderRadius: 8,
-            background: "#0F1B22", display: "grid", placeItems: "center",
-            position: "relative", overflow: "hidden",
-          }}>
-            <div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 70% 30%, rgba(246,183,166,0.6), transparent 60%)" }} />
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M5 4v16M5 12h7M12 4v16M19 7l3 3-3 3M19 14l3 3-3 3" stroke="#F6B7A6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-          <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: "-0.02em" }}>Hybro</span>
+        <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", color: "inherit" }}>
+          <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: "-0.02em" }}>Trainer</span>
         </Link>
 
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <Link
             href="/dashboard"
             style={{
-              padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600,
-              textDecoration: "none",
+              padding: "6px 10px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+              textDecoration: "none", display: "flex", alignItems: "center", gap: 6,
               color: !isSettings && !isCoach ? "#0F1B22" : "#6b7280",
               background: !isSettings && !isCoach ? "#f3f4f6" : "transparent",
             }}
           >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <path d="M16 2v4M8 2v4M3 10h18" />
+            </svg>
             Calendar
           </Link>
           <Link
