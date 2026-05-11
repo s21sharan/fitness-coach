@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { FitnessChart, type FitnessPoint } from "@/components/charts/fitness-chart";
+import { RecoveryTrendChart, HrZoneChart, TrainingLoadChart, computeHrZones, type RecoveryPoint, type LoadPoint } from "@/components/charts/recovery-charts";
+import { ChartModal } from "@/components/charts/chart-modal";
 
 /* ═══════════════════════════════════════════════
    DATA INTERFACES
@@ -19,13 +22,7 @@ interface WorkoutLog {
   duration_minutes: number;
   exercises: Array<{
     name: string;
-    sets: Array<{
-      index: number;
-      type: string;
-      weight_kg: number;
-      reps: number;
-      rpe: number | null;
-    }>;
+    sets: Array<{ index: number; type: string; weight_kg: number; reps: number; rpe: number | null }>;
   }> | unknown;
 }
 
@@ -93,16 +90,13 @@ function fmtPace(p: number): string { const m = Math.floor(p); const s = Math.ro
 function fmtDist(km: number): string { return km >= 10 ? `${(Math.round(km * 10) / 10).toFixed(1)}` : `${(Math.round(km * 100) / 100).toFixed(2)}`; }
 function cType(t: string): string { return t === "run" ? "run" : t === "bike" ? "bike" : t === "swim" ? "swim" : "other"; }
 
-/** Estimate TRIMP training load from avg HR and duration */
 function estimateLoad(avgHr: number | null, durationSec: number): number {
   if (!avgHr || durationSec <= 0) return 0;
-  // Simplified TRIMP: duration(min) * (avgHR/180) * intensity factor
   const dMin = durationSec / 60;
   const hrFraction = avgHr / 180;
   return Math.round(dMin * hrFraction * hrFraction * 1.5);
 }
 
-/** Estimate HR zone (1-5) from avg HR */
 function hrZone(avgHr: number | null): number {
   if (!avgHr) return 0;
   if (avgHr < 120) return 1;
@@ -112,7 +106,6 @@ function hrZone(avgHr: number | null): number {
   return 5;
 }
 
-/** Get exercise summary from workout: total sets, top exercises */
 function exerciseSummary(exercises: unknown): { totalSets: number; topExercises: string[]; avgRpe: number | null } {
   if (!Array.isArray(exercises)) return { totalSets: 0, topExercises: [], avgRpe: null };
   let totalSets = 0;
@@ -135,16 +128,10 @@ function exerciseSummary(exercises: unknown): { totalSets: number; topExercises:
 }
 
 /* ═══════════════════════════════════════════════
-   DAY DATA
+   DAY DATA & WEEK BUILDERS
    ═══════════════════════════════════════════════ */
 
-interface DayData {
-  date: string;
-  dateObj: Date;
-  workouts: WorkoutLog[];
-  cardio: CardioLog[];
-  recovery: RecoveryLog | null;
-}
+interface DayData { date: string; dateObj: Date; workouts: WorkoutLog[]; cardio: CardioLog[]; recovery: RecoveryLog | null; }
 
 function buildMonthWeeks(firstMonday: Date, weekCount: number, data: ApiData): DayData[][] {
   const weeks: DayData[][] = [];
@@ -154,187 +141,50 @@ function buildMonthWeeks(firstMonday: Date, weekCount: number, data: ApiData): D
     for (let d = 0; d < 7; d++) {
       const date = addDays(weekMonday, d);
       const ds = toDS(date);
-      days.push({
-        date: ds,
-        dateObj: date,
-        workouts: data.workouts.filter((x) => x.date === ds),
-        cardio: data.cardio.filter((x) => x.date === ds),
-        recovery: data.recovery.find((x) => x.date === ds) || null,
-      });
+      days.push({ date: ds, dateObj: date, workouts: data.workouts.filter((x) => x.date === ds), cardio: data.cardio.filter((x) => x.date === ds), recovery: data.recovery.find((x) => x.date === ds) || null });
     }
     weeks.push(days);
   }
   return weeks;
 }
 
-/* ═══════════════════════════════════════════════
-   WEEK TOTALS
-   ═══════════════════════════════════════════════ */
-
-interface WeekTotals {
-  timeSec: number;
-  distKm: number;
-  kcal: number;
-  load: number;
-  workouts: number;
-  cardioSessions: number;
-  byType: Record<string, { timeSec: number; distKm: number; load: number; count: number }>;
-}
+interface WeekTotals { timeSec: number; distKm: number; kcal: number; load: number; workouts: number; cardioSessions: number; byType: Record<string, { timeSec: number; distKm: number; load: number; count: number }>; }
 
 function weekTotals(days: DayData[]): WeekTotals {
   const t: WeekTotals = { timeSec: 0, distKm: 0, kcal: 0, load: 0, workouts: 0, cardioSessions: 0, byType: {} };
   for (const day of days) {
     for (const w of day.workouts) {
-      const sec = (w.duration_minutes || 0) * 60;
-      t.timeSec += sec;
-      t.workouts++;
-      const load = Math.round(sec / 60 * 0.8); // rough estimate for lifting
-      t.load += load;
-      const k = "lift";
-      if (!t.byType[k]) t.byType[k] = { timeSec: 0, distKm: 0, load: 0, count: 0 };
-      t.byType[k].timeSec += sec;
-      t.byType[k].load += load;
-      t.byType[k].count++;
+      const sec = (w.duration_minutes || 0) * 60; t.timeSec += sec; t.workouts++;
+      const load = Math.round(sec / 60 * 0.8); t.load += load;
+      if (!t.byType.lift) t.byType.lift = { timeSec: 0, distKm: 0, load: 0, count: 0 };
+      t.byType.lift.timeSec += sec; t.byType.lift.load += load; t.byType.lift.count++;
     }
     for (const c of day.cardio) {
-      t.timeSec += c.duration || 0;
-      t.distKm += c.distance || 0;
+      t.timeSec += c.duration || 0; t.distKm += c.distance || 0;
       if (c.calories) t.kcal += c.calories;
-      const load = estimateLoad(c.avg_hr, c.duration);
-      t.load += load;
-      t.cardioSessions++;
+      const load = estimateLoad(c.avg_hr, c.duration); t.load += load; t.cardioSessions++;
       const k = cType(c.type);
       if (!t.byType[k]) t.byType[k] = { timeSec: 0, distKm: 0, load: 0, count: 0 };
-      t.byType[k].timeSec += c.duration || 0;
-      t.byType[k].distKm += c.distance || 0;
-      t.byType[k].load += load;
-      t.byType[k].count++;
+      t.byType[k].timeSec += c.duration || 0; t.byType[k].distKm += c.distance || 0; t.byType[k].load += load; t.byType[k].count++;
     }
   }
-  t.distKm = Math.round(t.distKm * 100) / 100;
-  t.kcal = Math.round(t.kcal);
+  t.distKm = Math.round(t.distKm * 100) / 100; t.kcal = Math.round(t.kcal);
   return t;
 }
-
-/* ═══════════════════════════════════════════════
-   FITNESS / FATIGUE / FORM (CTL / ATL / TSB)
-   ═══════════════════════════════════════════════ */
-
-interface FitnessPoint { date: string; load: number; ctl: number; atl: number; tsb: number; }
 
 function computeFitnessCurve(data: ApiData, numDays: number): FitnessPoint[] {
   const today = new Date();
   const points: FitnessPoint[] = [];
   let ctl = 0, atl = 0;
-
   for (let i = numDays - 1; i >= 0; i--) {
-    const d = addDays(today, -i);
-    const ds = toDS(d);
+    const d = addDays(today, -i); const ds = toDS(d);
     let dayLoad = 0;
-    for (const c of data.cardio.filter((x) => x.date === ds)) {
-      dayLoad += estimateLoad(c.avg_hr, c.duration);
-    }
-    for (const w of data.workouts.filter((x) => x.date === ds)) {
-      dayLoad += Math.round((w.duration_minutes || 0) * 0.8);
-    }
-    ctl = ctl + (dayLoad - ctl) / 42;
-    atl = atl + (dayLoad - atl) / 7;
+    for (const c of data.cardio.filter((x) => x.date === ds)) dayLoad += estimateLoad(c.avg_hr, c.duration);
+    for (const w of data.workouts.filter((x) => x.date === ds)) dayLoad += Math.round((w.duration_minutes || 0) * 0.8);
+    ctl = ctl + (dayLoad - ctl) / 42; atl = atl + (dayLoad - atl) / 7;
     points.push({ date: ds, load: dayLoad, ctl: Math.round(ctl * 10) / 10, atl: Math.round(atl * 10) / 10, tsb: Math.round((ctl - atl) * 10) / 10 });
   }
   return points;
-}
-
-/* ═══════════════════════════════════════════════
-   SVG CHART COMPONENTS
-   ═══════════════════════════════════════════════ */
-
-function MiniLineChart({ points, width, height, color, label, unit, data: rawData }: {
-  points: number[];
-  width: number;
-  height: number;
-  color: string;
-  label: string;
-  unit: string;
-  data?: { date: string; value: number }[];
-}) {
-  if (points.length < 2) return <div style={{ width, height, display: "flex", alignItems: "center", justifyContent: "center", color: "#d1d5db", fontSize: 11 }}>No data</div>;
-  const min = Math.min(...points);
-  const max = Math.max(...points);
-  const range = max - min || 1;
-  const pad = 4;
-  const w = width - pad * 2;
-  const h = height - pad * 2 - 20;
-  const pathPoints = points.map((v, i) => {
-    const x = pad + (i / (points.length - 1)) * w;
-    const y = pad + 20 + h - ((v - min) / range) * h;
-    return `${x},${y}`;
-  });
-  const current = points[points.length - 1];
-
-  return (
-    <div style={{ position: "relative" }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", marginBottom: 2, display: "flex", justifyContent: "space-between" }}>
-        <span>{label}</span>
-        <span style={{ color, fontWeight: 800 }}>{Math.round(current)}{unit}</span>
-      </div>
-      <svg width={width} height={height} style={{ display: "block" }}>
-        <defs>
-          <linearGradient id={`grad-${label}`} x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.15" />
-            <stop offset="100%" stopColor={color} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path d={`M${pathPoints[0]} ${pathPoints.slice(1).map((p) => `L${p}`).join(" ")} L${pad + w},${pad + 20 + h} L${pad},${pad + 20 + h} Z`} fill={`url(#grad-${label})`} />
-        <polyline points={pathPoints.join(" ")} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
-        <circle cx={pad + w} cy={pad + 20 + h - ((current - min) / range) * h} r="3" fill={color} />
-      </svg>
-    </div>
-  );
-}
-
-function FitnessChart({ curve, width, height }: { curve: FitnessPoint[]; width: number; height: number }) {
-  if (curve.length < 7) return null;
-  const last42 = curve.slice(-42);
-  const allVals = last42.flatMap((p) => [p.ctl, p.atl, p.tsb]);
-  const min = Math.min(...allVals);
-  const max = Math.max(...allVals);
-  const range = max - min || 1;
-  const pad = 4;
-  const w = width - pad * 2;
-  const h = height - pad * 2 - 24;
-
-  const toPath = (vals: number[]) => vals.map((v, i) => {
-    const x = pad + (i / (vals.length - 1)) * w;
-    const y = pad + 24 + h - ((v - min) / range) * h;
-    return `${x},${y}`;
-  }).join(" ");
-
-  const ctlPath = toPath(last42.map((p) => p.ctl));
-  const atlPath = toPath(last42.map((p) => p.atl));
-  const tsbPath = toPath(last42.map((p) => p.tsb));
-  const lastP = last42[last42.length - 1];
-
-  return (
-    <div>
-      <div style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", marginBottom: 4, display: "flex", gap: 12 }}>
-        <span>Fitness / Fatigue / Form</span>
-        <span style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
-          <span style={{ color: "#3b82f6" }}>CTL {lastP.ctl}</span>
-          <span style={{ color: "#f97316" }}>ATL {lastP.atl}</span>
-          <span style={{ color: lastP.tsb >= 0 ? "#22c55e" : "#ef4444" }}>TSB {lastP.tsb}</span>
-        </span>
-      </div>
-      <svg width={width} height={height} style={{ display: "block" }}>
-        {/* Zero line if visible */}
-        {min < 0 && max > 0 && (
-          <line x1={pad} x2={pad + w} y1={pad + 24 + h - ((0 - min) / range) * h} y2={pad + 24 + h - ((0 - min) / range) * h} stroke="#e5e7eb" strokeDasharray="3 3" />
-        )}
-        <polyline points={ctlPath} fill="none" stroke="#3b82f6" strokeWidth="1.5" />
-        <polyline points={atlPath} fill="none" stroke="#f97316" strokeWidth="1.5" />
-        <polyline points={tsbPath} fill="none" stroke={lastP.tsb >= 0 ? "#22c55e" : "#ef4444"} strokeWidth="1.5" strokeDasharray="4 2" />
-      </svg>
-    </div>
-  );
 }
 
 /* ═══════════════════════════════════════════════
@@ -346,9 +196,7 @@ function HrZoneBar({ avgHr }: { avgHr: number | null }) {
   if (!zone) return null;
   return (
     <div style={{ display: "flex", gap: 1, height: 4, borderRadius: 2, overflow: "hidden", marginTop: 3 }}>
-      {ZONE_COLORS.map((c, i) => (
-        <div key={i} style={{ flex: 1, background: i < zone ? c : "#e5e7eb", opacity: i < zone ? 1 : 0.3 }} />
-      ))}
+      {ZONE_COLORS.map((c, i) => <div key={i} style={{ flex: 1, background: i < zone ? c : "#e5e7eb", opacity: i < zone ? 1 : 0.3 }} />)}
     </div>
   );
 }
@@ -361,36 +209,20 @@ function WorkoutCard({ w }: { w: WorkoutLog }) {
     <div style={{ background: c.bg, borderLeft: `3px solid ${c.border}`, borderRadius: 5, padding: "6px 8px", fontSize: 10, lineHeight: 1.5 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
         <span style={{ fontSize: 12 }}>{c.icon}</span>
-        <span style={{ fontWeight: 700, color: c.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}>
-          {w.name || "Workout"}
-        </span>
+        <span style={{ fontWeight: 700, color: c.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}>{w.name || "Workout"}</span>
       </div>
       <div style={{ fontWeight: 800, color: c.text, fontSize: 12 }}>{fmtMin(w.duration_minutes)}</div>
-      <div style={{ color: "#6b7280", marginTop: 1 }}>
-        {totalSets > 0 && <span>Load <b style={{ color: c.text }}>{load}</b> · {totalSets} sets</span>}
-      </div>
-      {avgRpe != null && (
-        <div style={{ marginTop: 2 }}>
-          <span style={{ background: c.border, color: "#fff", borderRadius: 3, padding: "1px 5px", fontSize: 9, fontWeight: 800 }}>
-            RPE {avgRpe}
-          </span>
-        </div>
-      )}
-      {topExercises.length > 0 && (
-        <div style={{ color: "#9ca3af", marginTop: 3, fontSize: 9, lineHeight: 1.4 }}>
-          {topExercises.join(" · ")}
-        </div>
-      )}
+      <div style={{ color: "#6b7280", marginTop: 1 }}>{totalSets > 0 && <span>Load <b style={{ color: c.text }}>{load}</b> · {totalSets} sets</span>}</div>
+      {avgRpe != null && <div style={{ marginTop: 2 }}><span style={{ background: c.border, color: "#fff", borderRadius: 3, padding: "1px 5px", fontSize: 9, fontWeight: 800 }}>RPE {avgRpe}</span></div>}
+      {topExercises.length > 0 && <div style={{ color: "#9ca3af", marginTop: 3, fontSize: 9, lineHeight: 1.4 }}>{topExercises.join(" · ")}</div>}
       <div style={{ marginTop: 3, fontSize: 9, color: "#9ca3af" }}>{c.label}</div>
     </div>
   );
 }
 
 function CardioCard({ c: a }: { c: CardioLog }) {
-  const t = cType(a.type);
-  const cl = TYPE_COLORS[t];
-  const load = estimateLoad(a.avg_hr, a.duration);
-  const zone = hrZone(a.avg_hr);
+  const t = cType(a.type); const cl = TYPE_COLORS[t];
+  const load = estimateLoad(a.avg_hr, a.duration); const zone = hrZone(a.avg_hr);
   return (
     <div style={{ background: cl.bg, borderLeft: `3px solid ${cl.border}`, borderRadius: 5, padding: "6px 8px", fontSize: 10, lineHeight: 1.5 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
@@ -398,9 +230,7 @@ function CardioCard({ c: a }: { c: CardioLog }) {
         <span style={{ fontWeight: 700, color: cl.text, fontSize: 11, flex: 1 }}>{fmtSec(a.duration)}</span>
         {zone > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: ZONE_COLORS[zone - 1], background: "rgba(0,0,0,0.05)", borderRadius: 3, padding: "1px 4px" }}>Z{zone}</span>}
       </div>
-      {a.distance > 0 && (
-        <div style={{ fontWeight: 800, color: cl.text, fontSize: 12 }}>{fmtDist(a.distance)} km</div>
-      )}
+      {a.distance > 0 && <div style={{ fontWeight: 800, color: cl.text, fontSize: 12 }}>{fmtDist(a.distance)} km</div>}
       <HrZoneBar avgHr={a.avg_hr} />
       <div style={{ color: "#6b7280", display: "flex", flexWrap: "wrap", gap: "0 6px", marginTop: 2 }}>
         {load > 0 && <span>Load <b style={{ color: cl.text }}>{load}</b></span>}
@@ -420,11 +250,7 @@ function CardioCard({ c: a }: { c: CardioLog }) {
 
 function RecoveryBar({ r }: { r: RecoveryLog }) {
   return (
-    <div style={{
-      background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 4,
-      padding: "4px 6px", fontSize: 9, color: "#0369a1",
-      display: "flex", flexWrap: "wrap", gap: "0 6px", lineHeight: 1.6,
-    }}>
+    <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 4, padding: "4px 6px", fontSize: 9, color: "#0369a1", display: "flex", flexWrap: "wrap", gap: "0 6px", lineHeight: 1.6 }}>
       {r.hrv !== null && <span><b>HRV</b> {r.hrv}</span>}
       {r.sleep_hours !== null && <span><b>Sleep</b> {r.sleep_hours}h</span>}
       {r.resting_hr !== null && <span><b>RHR</b> {r.resting_hr}</span>}
@@ -435,128 +261,58 @@ function RecoveryBar({ r }: { r: RecoveryLog }) {
 }
 
 /* ═══════════════════════════════════════════════
-   DAY COLUMN
+   DAY COLUMN & WEEK ROW
    ═══════════════════════════════════════════════ */
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-function DayColumn({ day, dayIndex, isHeader }: { day: DayData; dayIndex: number; isHeader?: boolean }) {
+function DayColumn({ day, dayIndex }: { day: DayData; dayIndex: number }) {
   const isToday = day.date === toDS(new Date());
-  const d = day.dateObj;
-  const dayNum = d.getDate();
+  const dayNum = day.dateObj.getDate();
   const hasActivity = day.workouts.length > 0 || day.cardio.length > 0;
-
   return (
-    <div style={{
-      display: "flex", flexDirection: "column", gap: 4,
-      minHeight: hasActivity ? 120 : 60,
-      padding: "0 2px",
-    }}>
-      {/* Date number */}
-      <div style={{
-        textAlign: "center", padding: "4px 0 2px",
-        borderBottom: isToday ? "2px solid #3b82f6" : "1px solid #f3f4f6",
-      }}>
-        {isHeader && (
-          <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#9ca3af" }}>
-            {DAY_NAMES[dayIndex]}
-          </div>
-        )}
-        <div style={{
-          fontSize: 13, fontWeight: 800,
-          color: isToday ? "#fff" : "#374151",
-          background: isToday ? "#3b82f6" : "transparent",
-          width: 24, height: 24, borderRadius: "50%",
-          display: "inline-flex", alignItems: "center", justifyContent: "center",
-        }}>
-          {dayNum}
-        </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, minHeight: hasActivity ? 120 : 60, padding: "0 2px" }}>
+      <div style={{ textAlign: "center", padding: "4px 0 2px", borderBottom: isToday ? "2px solid #3b82f6" : "1px solid #f3f4f6" }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: isToday ? "#fff" : "#374151", background: isToday ? "#3b82f6" : "transparent", width: 24, height: 24, borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{dayNum}</div>
       </div>
-
-      {/* Recovery */}
       {day.recovery && <RecoveryBar r={day.recovery} />}
-
-      {/* Activities */}
       {day.workouts.map((w, i) => <WorkoutCard key={`w-${i}`} w={w} />)}
       {day.cardio.map((c, i) => <CardioCard key={`c-${i}`} c={c} />)}
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════
-   WEEK ROW (totals + 7 days)
-   ═══════════════════════════════════════════════ */
-
-function WeekRow({ days, weekNum, isFirstWeek }: { days: DayData[]; weekNum: number; isFirstWeek: boolean }) {
+function WeekRow({ days, weekNum }: { days: DayData[]; weekNum: number }) {
   const t = weekTotals(days);
   const typeKeys = Object.keys(t.byType).sort();
-
   return (
     <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #e5e7eb" }}>
-      {/* Week totals column */}
-      <div style={{
-        width: 140, flexShrink: 0, padding: "8px 10px",
-        borderRight: "1px solid #e5e7eb",
-        fontSize: 9, lineHeight: 1.6, background: "#fafafa",
-      }}>
+      <div style={{ width: 140, flexShrink: 0, padding: "8px 10px", borderRight: "1px solid #e5e7eb", fontSize: 9, lineHeight: 1.6, background: "#fafafa" }}>
         <div style={{ fontWeight: 800, fontSize: 11, color: "#374151", marginBottom: 4 }}>Week {weekNum}</div>
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <span style={{ color: "#6b7280" }}>Total</span>
-          <span style={{ fontWeight: 700 }}>{fmtSec(t.timeSec)}</span>
-        </div>
-        {t.kcal > 0 && (
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "#6b7280" }}>kcal</span>
-            <span style={{ fontWeight: 700 }}>{t.kcal.toLocaleString()}</span>
-          </div>
-        )}
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <span style={{ color: "#6b7280" }}>Load</span>
-          <span style={{ fontWeight: 700 }}>{t.load}</span>
-        </div>
-        {t.distKm > 0 && (
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "#6b7280" }}>Dist</span>
-            <span style={{ fontWeight: 700 }}>{t.distKm} km</span>
-          </div>
-        )}
-
-        {/* Per-type breakdown */}
+        <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#6b7280" }}>Total</span><span style={{ fontWeight: 700 }}>{fmtSec(t.timeSec)}</span></div>
+        {t.kcal > 0 && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#6b7280" }}>kcal</span><span style={{ fontWeight: 700 }}>{t.kcal.toLocaleString()}</span></div>}
+        <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#6b7280" }}>Load</span><span style={{ fontWeight: 700 }}>{t.load}</span></div>
+        {t.distKm > 0 && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#6b7280" }}>Dist</span><span style={{ fontWeight: 700 }}>{t.distKm} km</span></div>}
         {typeKeys.length > 0 && (
           <div style={{ marginTop: 6, borderTop: "1px solid #e5e7eb", paddingTop: 4 }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ fontSize: 8, color: "#9ca3af", fontWeight: 700 }}>
-                  <td></td><td style={{ textAlign: "right" }}>Time</td><td style={{ textAlign: "right" }}>Dist</td><td style={{ textAlign: "right" }}>Load</td>
-                </tr>
-              </thead>
+              <thead><tr style={{ fontSize: 8, color: "#9ca3af", fontWeight: 700 }}><td></td><td style={{ textAlign: "right" }}>Time</td><td style={{ textAlign: "right" }}>Dist</td><td style={{ textAlign: "right" }}>Load</td></tr></thead>
               <tbody>
-                {typeKeys.map((k) => {
-                  const bt = t.byType[k];
-                  const c = TYPE_COLORS[k];
-                  return (
-                    <tr key={k}>
-                      <td style={{ color: c?.text || "#374151", fontWeight: 600 }}>
-                        <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: 2, background: c?.border || "#999", marginRight: 3 }} />
-                        {c?.label || k}
-                      </td>
-                      <td style={{ textAlign: "right", fontWeight: 600 }}>{fmtSec(bt.timeSec)}</td>
-                      <td style={{ textAlign: "right", fontWeight: 600 }}>{bt.distKm > 0 ? `${Math.round(bt.distKm * 10) / 10}` : "—"}</td>
-                      <td style={{ textAlign: "right", fontWeight: 600 }}>{bt.load}</td>
-                    </tr>
-                  );
-                })}
+                {typeKeys.map((k) => { const bt = t.byType[k]; const c = TYPE_COLORS[k]; return (
+                  <tr key={k}><td style={{ color: c?.text || "#374151", fontWeight: 600 }}><span style={{ display: "inline-block", width: 6, height: 6, borderRadius: 2, background: c?.border || "#999", marginRight: 3 }} />{c?.label || k}</td>
+                  <td style={{ textAlign: "right", fontWeight: 600 }}>{fmtSec(bt.timeSec)}</td>
+                  <td style={{ textAlign: "right", fontWeight: 600 }}>{bt.distKm > 0 ? `${Math.round(bt.distKm * 10) / 10}` : "—"}</td>
+                  <td style={{ textAlign: "right", fontWeight: 600 }}>{bt.load}</td></tr>
+                ); })}
               </tbody>
             </table>
           </div>
         )}
       </div>
-
-      {/* 7 day columns */}
       <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 0, minWidth: 0 }}>
         {days.map((day, i) => (
           <div key={day.date} style={{ borderRight: i < 6 ? "1px solid #f3f4f6" : "none", padding: "0 1px" }}>
-            <DayColumn day={day} dayIndex={i} isHeader={isFirstWeek} />
+            <DayColumn day={day} dayIndex={i} />
           </div>
         ))}
       </div>
@@ -565,44 +321,52 @@ function WeekRow({ days, weekNum, isFirstWeek }: { days: DayData[]; weekNum: num
 }
 
 /* ═══════════════════════════════════════════════
-   MONTH NAVIGATION
+   CLICKABLE CHART CARD (compact + expand)
    ═══════════════════════════════════════════════ */
 
-function MonthNav({ monthDate, onPrev, onNext, onToday }: {
-  monthDate: Date;
-  onPrev: () => void;
-  onNext: () => void;
-  onToday: () => void;
+function ChartCard({ title, description, onClick, children }: {
+  title: string; description: string; onClick: () => void; children: React.ReactNode;
 }) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10,
+        padding: 14, cursor: "pointer", transition: "box-shadow .15s",
+        overflow: "hidden",
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)")}
+      onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: "#374151" }}>{title}</span>
+        <span style={{ fontSize: 9, color: "#9ca3af", background: "#f3f4f6", borderRadius: 4, padding: "2px 6px" }}>Click to expand</span>
+      </div>
+      <div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 8, lineHeight: 1.4 }}>{description}</div>
+      {children}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════
+   MONTH NAV & CONNECTION BAR
+   ═══════════════════════════════════════════════ */
+
+function MonthNav({ monthDate, onPrev, onNext, onToday }: { monthDate: Date; onPrev: () => void; onNext: () => void; onToday: () => void }) {
   const label = monthDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0 12px" }}>
-      <button onClick={onPrev} style={navBtn}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M15 6l-6 6 6 6" /></svg>
-      </button>
-      <button onClick={onNext} style={navBtn}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M9 6l6 6-6 6" /></svg>
-      </button>
+      <button onClick={onPrev} style={navBtn}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M15 6l-6 6 6 6" /></svg></button>
+      <button onClick={onNext} style={navBtn}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M9 6l6 6-6 6" /></svg></button>
       <button onClick={onToday} style={{ ...navBtn, padding: "4px 12px", fontSize: 11, fontWeight: 700 }}>Today</button>
       <span style={{ fontSize: 18, fontWeight: 800, color: "#111827", letterSpacing: "-0.02em", marginLeft: 8 }}>{label}</span>
     </div>
   );
 }
 
-const navBtn: React.CSSProperties = {
-  background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6,
-  padding: "4px 8px", cursor: "pointer", display: "flex", alignItems: "center", color: "#374151",
-};
+const navBtn: React.CSSProperties = { background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6, padding: "4px 8px", cursor: "pointer", display: "flex", alignItems: "center", color: "#374151" };
 
-/* ═══════════════════════════════════════════════
-   CONNECTION STATUS BAR
-   ═══════════════════════════════════════════════ */
-
-function ConnectionBar({ integrations, syncing, onSync }: {
-  integrations: Integration[];
-  syncing: string | null;
-  onSync: (p: string) => void;
-}) {
+function ConnectionBar({ integrations, syncing, onSync }: { integrations: Integration[]; syncing: string | null; onSync: (p: string) => void }) {
   const providers = [
     { key: "hevy", label: "Hevy", color: "#0F1B22" },
     { key: "strava", label: "Strava", color: "#FC4C02" },
@@ -617,20 +381,8 @@ function ConnectionBar({ integrations, syncing, onSync }: {
           <div key={p.key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ width: 8, height: 8, borderRadius: "50%", background: connected ? p.color : "#d1d5db", display: "inline-block" }} />
             <span style={{ fontWeight: 600, color: connected ? "#374151" : "#9ca3af" }}>{p.label}</span>
-            {connected && int.last_synced_at && (
-              <span style={{ color: "#9ca3af", fontSize: 10 }}>
-                {new Date(int.last_synced_at).toLocaleDateString()}
-              </span>
-            )}
-            {connected && (
-              <button
-                onClick={() => onSync(p.key)}
-                disabled={syncing === p.key}
-                style={{ background: "#f3f4f6", border: "none", borderRadius: 4, padding: "2px 8px", fontSize: 10, fontWeight: 600, cursor: "pointer", color: "#6b7280" }}
-              >
-                {syncing === p.key ? "..." : "Sync"}
-              </button>
-            )}
+            {connected && int.last_synced_at && <span style={{ color: "#9ca3af", fontSize: 10 }}>{new Date(int.last_synced_at).toLocaleDateString()}</span>}
+            {connected && <button onClick={() => onSync(p.key)} disabled={syncing === p.key} style={{ background: "#f3f4f6", border: "none", borderRadius: 4, padding: "2px 8px", fontSize: 10, fontWeight: 600, cursor: "pointer", color: "#6b7280" }}>{syncing === p.key ? "..." : "Sync"}</button>}
           </div>
         );
       })}
@@ -642,11 +394,16 @@ function ConnectionBar({ integrations, syncing, onSync }: {
    MAIN PAGE
    ═══════════════════════════════════════════════ */
 
+type ModalKey = "fitness" | "hrv" | "sleep" | "rhr" | "bb" | "stress" | "hrzones" | "load" | null;
+
 export default function DashboardPage() {
   const [data, setData] = useState<ApiData | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [monthOffset, setMonthOffset] = useState(0);
+  const [modal, setModal] = useState<ModalKey>(null);
+  const [insights, setInsights] = useState<Record<string, string>>({});
+  const [insightLoading, setInsightLoading] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -657,15 +414,33 @@ export default function DashboardPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Month calculation
-  const monthDate = useMemo(() => {
-    const d = new Date();
-    d.setDate(1);
-    d.setMonth(d.getMonth() + monthOffset);
-    return d;
-  }, [monthOffset]);
+  // Fetch AI insight when modal opens
+  const fetchInsight = useCallback(async (section: string) => {
+    if (insights[section]) return;
+    setInsightLoading(section);
+    try {
+      const res = await fetch("/api/insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ section }),
+      });
+      if (res.ok) {
+        const { insight } = await res.json();
+        setInsights((prev) => ({ ...prev, [section]: insight }));
+      }
+    } catch { /* ignore */ }
+    setInsightLoading(null);
+  }, [insights]);
 
-  // Build weeks for this month view (include partial weeks at start/end)
+  useEffect(() => {
+    if (modal === "fitness") fetchInsight("fitness");
+    else if (modal === "hrzones" || modal === "load") fetchInsight("training");
+    else if (modal && ["hrv", "sleep", "rhr", "bb", "stress"].includes(modal)) fetchInsight("recovery");
+  }, [modal, fetchInsight]);
+
+  // Month
+  const monthDate = useMemo(() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + monthOffset); return d; }, [monthOffset]);
+
   const weeks = useMemo(() => {
     if (!data) return [];
     const firstOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
@@ -676,32 +451,28 @@ export default function DashboardPage() {
     return buildMonthWeeks(firstMonday, weekCount, data);
   }, [data, monthDate]);
 
-  // Fitness curve
-  const fitnessCurve = useMemo(() => {
+  const fitnessCurve = useMemo(() => data ? computeFitnessCurve(data, 90) : [], [data]);
+
+  const recoveryData: RecoveryPoint[] = useMemo(() => {
     if (!data) return [];
-    return computeFitnessCurve(data, 90);
+    return [...data.recovery].sort((a, b) => a.date.localeCompare(b.date));
   }, [data]);
 
-  // Recovery trends (last 30 days)
-  const recoveryTrends = useMemo(() => {
-    if (!data) return { hrv: [] as number[], sleep: [] as number[], bb: [] as number[], rhr: [] as number[] };
-    const sorted = [...data.recovery].sort((a, b) => a.date.localeCompare(b.date)).slice(-30);
-    return {
-      hrv: sorted.filter((r) => r.hrv !== null).map((r) => r.hrv!),
-      sleep: sorted.filter((r) => r.sleep_hours !== null).map((r) => r.sleep_hours!),
-      bb: sorted.filter((r) => r.body_battery !== null).map((r) => r.body_battery!),
-      rhr: sorted.filter((r) => r.resting_hr !== null).map((r) => r.resting_hr!),
-    };
+  const hrZones = useMemo(() => data ? computeHrZones(data.cardio) : [], [data]);
+
+  const loadData: LoadPoint[] = useMemo(() => {
+    if (!data) return [];
+    const points: LoadPoint[] = [];
+    for (const c of data.cardio) points.push({ date: c.date, load: estimateLoad(c.avg_hr, c.duration), type: cType(c.type) });
+    for (const w of data.workouts) points.push({ date: w.date, load: Math.round((w.duration_minutes || 0) * 0.8), type: "lift" });
+    return points;
   }, [data]);
 
-  // Week numbers
-  const weekNumbers = useMemo(() => {
-    return weeks.map((w) => {
-      const thu = addDays(w[0].dateObj, 3);
-      const yearStart = new Date(thu.getFullYear(), 0, 1);
-      return Math.ceil(((thu.getTime() - yearStart.getTime()) / 86400000 + yearStart.getDay() + 1) / 7);
-    });
-  }, [weeks]);
+  const weekNumbers = useMemo(() => weeks.map((w) => {
+    const thu = addDays(w[0].dateObj, 3);
+    const yearStart = new Date(thu.getFullYear(), 0, 1);
+    return Math.ceil(((thu.getTime() - yearStart.getTime()) / 86400000 + yearStart.getDay() + 1) / 7);
+  }), [weeks]);
 
   const triggerSync = async (provider: string) => {
     setSyncing(provider);
@@ -709,76 +480,138 @@ export default function DashboardPage() {
     setTimeout(() => { fetchData(); setSyncing(null); }, 3000);
   };
 
-  if (loading) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", paddingTop: 120 }}>
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-black" />
-      </div>
-    );
-  }
+  if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", paddingTop: 120 }}><div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-black" /></div>;
   if (!data) return <p style={{ padding: 32, color: "#6b7280" }}>Failed to load data.</p>;
+
+  const insightFor = (section: string) => insights[section] || null;
+  const isLoadingInsight = (section: string) => insightLoading === section;
 
   return (
     <div style={{ padding: "12px 20px 40px", maxWidth: 1600, margin: "0 auto" }}>
-      {/* Connection bar */}
       <ConnectionBar integrations={data.integrations} syncing={syncing} onSync={triggerSync} />
 
-      {/* Graphs row */}
-      <div style={{
-        display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr",
-        gap: 12, marginBottom: 16,
-        background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 14,
-      }}>
-        <FitnessChart curve={fitnessCurve} width={320} height={90} />
-        <MiniLineChart points={recoveryTrends.hrv} width={150} height={90} color="#8b5cf6" label="HRV" unit="" />
-        <MiniLineChart points={recoveryTrends.sleep} width={150} height={90} color="#3b82f6" label="Sleep" unit="h" />
-        <MiniLineChart points={recoveryTrends.bb} width={150} height={90} color="#22c55e" label="Body Battery" unit="" />
-        <MiniLineChart points={recoveryTrends.rhr} width={150} height={90} color="#ef4444" label="Resting HR" unit="" />
+      {/* ─── CHARTS GRID ─── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
+        {/* Fitness / Fatigue / Form — spans 2 cols */}
+        <div style={{ gridColumn: "span 2" }}>
+          <ChartCard title="Fitness / Fatigue / Form" description="CTL (42-day), ATL (7-day), TSB. Shows if you're building fitness or overreaching." onClick={() => setModal("fitness")}>
+            <FitnessChart data={fitnessCurve} compact />
+          </ChartCard>
+        </div>
+
+        {/* HR Zone Distribution */}
+        <ChartCard title="HR Zone Distribution" description="Time spent in each HR zone across all cardio (last 90 days)." onClick={() => setModal("hrzones")}>
+          <HrZoneChart zones={hrZones} compact />
+        </ChartCard>
+
+        {/* Training Load */}
+        <ChartCard title="Weekly Training Load" description="Estimated weekly load from HR and duration. Consistency matters more than peaks." onClick={() => setModal("load")}>
+          <TrainingLoadChart data={loadData} compact />
+        </ChartCard>
       </div>
 
-      {/* Month navigation */}
-      <MonthNav
-        monthDate={monthDate}
-        onPrev={() => setMonthOffset((o) => o - 1)}
-        onNext={() => setMonthOffset((o) => o + 1)}
-        onToday={() => setMonthOffset(0)}
-      />
+      {/* ─── RECOVERY TREND CARDS ─── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
+        <ChartCard title="HRV" description="Heart rate variability — higher is better. Tracks nervous system recovery." onClick={() => setModal("hrv")}>
+          <RecoveryTrendChart data={recoveryData} dataKey="hrv" color="#8b5cf6" label="HRV" unit="" compact />
+        </ChartCard>
+        <ChartCard title="Sleep" description="Total sleep hours per night. 7-9h is optimal for recovery." onClick={() => setModal("sleep")}>
+          <RecoveryTrendChart data={recoveryData} dataKey="sleep_hours" color="#3b82f6" label="Sleep" unit="h" compact />
+        </ChartCard>
+        <ChartCard title="Resting HR" description="Lower resting HR indicates better cardiovascular fitness." onClick={() => setModal("rhr")}>
+          <RecoveryTrendChart data={recoveryData} dataKey="resting_hr" color="#ef4444" label="RHR" unit=" bpm" compact />
+        </ChartCard>
+        <ChartCard title="Body Battery" description="Garmin's energy reserve estimate. Starts high after sleep, drops with activity." onClick={() => setModal("bb")}>
+          <RecoveryTrendChart data={recoveryData} dataKey="body_battery" color="#22c55e" label="Body Battery" unit="" compact />
+        </ChartCard>
+        <ChartCard title="Stress" description="Average daily stress level from Garmin. Lower is better, high values signal overtraining." onClick={() => setModal("stress")}>
+          <RecoveryTrendChart data={recoveryData} dataKey="stress_level" color="#f97316" label="Stress" unit="" compact />
+        </ChartCard>
+      </div>
 
-      {/* Day-of-week headers */}
+      {/* ─── MONTH CALENDAR ─── */}
+      <MonthNav monthDate={monthDate} onPrev={() => setMonthOffset((o) => o - 1)} onNext={() => setMonthOffset((o) => o + 1)} onToday={() => setMonthOffset(0)} />
+
       <div style={{ display: "flex" }}>
         <div style={{ width: 140, flexShrink: 0 }} />
         <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 0 }}>
-          {DAY_NAMES.map((d) => (
-            <div key={d} style={{ textAlign: "center", fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", padding: "4px 0" }}>
-              {d}
-            </div>
-          ))}
+          {DAY_NAMES.map((d) => <div key={d} style={{ textAlign: "center", fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", padding: "4px 0" }}>{d}</div>)}
         </div>
       </div>
 
-      {/* Scrollable calendar */}
-      <div style={{
-        background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10,
-        overflow: "auto",
-      }}>
-        {weeks.map((weekDays, wi) => (
-          <WeekRow key={weekDays[0].date} days={weekDays} weekNum={weekNumbers[wi]} isFirstWeek={false} />
-        ))}
+      <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "auto" }}>
+        {weeks.map((weekDays, wi) => <WeekRow key={weekDays[0].date} days={weekDays} weekNum={weekNumbers[wi]} />)}
       </div>
 
       {/* Legend */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 12, fontSize: 10, color: "#9ca3af" }}>
         {Object.entries(TYPE_COLORS).map(([type, c]) => (
           <span key={type} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 2, background: c.bg, border: `1.5px solid ${c.border}`, display: "inline-block" }} />
-            {c.label}
+            <span style={{ width: 10, height: 10, borderRadius: 2, background: c.bg, border: `1.5px solid ${c.border}`, display: "inline-block" }} />{c.label}
           </span>
         ))}
         <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          {ZONE_COLORS.map((c, i) => <span key={i} style={{ width: 8, height: 4, borderRadius: 1, background: c, display: "inline-block" }} />)}
-          HR Zones 1-5
+          {ZONE_COLORS.map((c, i) => <span key={i} style={{ width: 8, height: 4, borderRadius: 1, background: c, display: "inline-block" }} />)} HR Zones 1-5
         </span>
       </div>
+
+      {/* ═══ MODALS ═══ */}
+
+      <ChartModal open={modal === "fitness"} onClose={() => setModal(null)} title="Fitness / Fatigue / Form (CTL / ATL / TSB)" insight={insightFor("fitness")} insightLoading={isLoadingInsight("fitness")}>
+        <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
+          <b>Fitness (CTL)</b> is your 42-day rolling average training load — it represents your chronic training capacity. <b>Fatigue (ATL)</b> is the 7-day average — your acute tiredness. <b>Form (TSB = CTL - ATL)</b> tells you if you{"'"}re fresh (positive) or fatigued (negative). The sweet spot for racing is TSB between +5 and +25.
+        </p>
+        <FitnessChart data={fitnessCurve} />
+      </ChartModal>
+
+      <ChartModal open={modal === "hrzones"} onClose={() => setModal(null)} title="Heart Rate Zone Distribution" insight={insightFor("training")} insightLoading={isLoadingInsight("training")}>
+        <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
+          <b>Z1 Recovery</b> (&lt;120 bpm): Easy recovery, warm-up. <b>Z2 Aerobic</b> (120-140): Base building, fat burning — aim for 80% of training here. <b>Z3 Tempo</b> (140-155): Sustainable hard effort. <b>Z4 Threshold</b> (155-170): Race pace, lactate threshold. <b>Z5 Anaerobic</b> (170+): Max effort intervals. The 80/20 rule suggests 80% Z1-Z2, 20% Z3-Z5.
+        </p>
+        <HrZoneChart zones={hrZones} />
+      </ChartModal>
+
+      <ChartModal open={modal === "load"} onClose={() => setModal(null)} title="Weekly Training Load" insight={insightFor("training")} insightLoading={isLoadingInsight("training")}>
+        <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
+          Training load is estimated from heart rate intensity and duration (TRIMP). Consistent weekly load with gradual increases ({"<"}10% per week) builds fitness safely. Big spikes increase injury risk. Dips are OK for recovery weeks.
+        </p>
+        <TrainingLoadChart data={loadData} />
+      </ChartModal>
+
+      <ChartModal open={modal === "hrv"} onClose={() => setModal(null)} title="Heart Rate Variability (HRV)" insight={insightFor("recovery")} insightLoading={isLoadingInsight("recovery")}>
+        <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
+          HRV measures the variation between heartbeats — higher values indicate better autonomic nervous system recovery. A downward trend over several days may signal overtraining, poor sleep, or illness. Your personal baseline matters more than absolute numbers.
+        </p>
+        <RecoveryTrendChart data={recoveryData} dataKey="hrv" color="#8b5cf6" label="HRV" unit="" />
+      </ChartModal>
+
+      <ChartModal open={modal === "sleep"} onClose={() => setModal(null)} title="Sleep Duration" insight={insightFor("recovery")} insightLoading={isLoadingInsight("recovery")}>
+        <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
+          Sleep is the #1 recovery tool. Athletes need 7-9 hours for optimal recovery, hormone production, and muscle repair. Consistency in sleep timing matters as much as duration.
+        </p>
+        <RecoveryTrendChart data={recoveryData} dataKey="sleep_hours" color="#3b82f6" label="Sleep" unit="h" domain={[4, 10]} />
+      </ChartModal>
+
+      <ChartModal open={modal === "rhr"} onClose={() => setModal(null)} title="Resting Heart Rate" insight={insightFor("recovery")} insightLoading={isLoadingInsight("recovery")}>
+        <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
+          Resting heart rate trends downward as cardiovascular fitness improves. A sudden spike (5+ bpm above baseline) can indicate illness, stress, dehydration, or overtraining. Track the 7-day average rather than individual readings.
+        </p>
+        <RecoveryTrendChart data={recoveryData} dataKey="resting_hr" color="#ef4444" label="Resting HR" unit=" bpm" />
+      </ChartModal>
+
+      <ChartModal open={modal === "bb"} onClose={() => setModal(null)} title="Body Battery" insight={insightFor("recovery")} insightLoading={isLoadingInsight("recovery")}>
+        <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
+          Garmin{"'"}s Body Battery estimates your energy reserves on a 0-100 scale using HRV, stress, sleep, and activity data. It charges during sleep and drains during activity and stress. Starting a hard session above 50 is ideal.
+        </p>
+        <RecoveryTrendChart data={recoveryData} dataKey="body_battery" color="#22c55e" label="Body Battery" unit="" domain={[0, 100]} />
+      </ChartModal>
+
+      <ChartModal open={modal === "stress"} onClose={() => setModal(null)} title="Stress Level" insight={insightFor("recovery")} insightLoading={isLoadingInsight("recovery")}>
+        <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
+          Garmin{"'"}s stress score (0-100) is derived from HRV analysis. Under 25 is resting, 26-50 is low stress, 51-75 is medium, and 76+ is high. Chronically elevated stress without recovery days signals overtraining risk.
+        </p>
+        <RecoveryTrendChart data={recoveryData} dataKey="stress_level" color="#f97316" label="Stress" unit="" domain={[0, 100]} />
+      </ChartModal>
     </div>
   );
 }

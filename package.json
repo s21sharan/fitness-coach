@@ -13,6 +13,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.74",
     "@ai-sdk/react": "^3.0.179",
+    "@anthropic-ai/sdk": "^0.95.2",
     "@base-ui/react": "^1.4.1",
     "@clerk/nextjs": "^7.2.7",
     "@supabase/supabase-js": "^2.104.1",
@@ -24,6 +25,7 @@
     "next": "16.2.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "recharts": "^3.8.1",
     "shadcn": "^4.5.0",
     "svix": "^1.92.2",
     "tailwind-merge": "^3.5.0",
