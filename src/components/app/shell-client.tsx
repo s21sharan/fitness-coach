@@ -4,12 +4,9 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/sidebar";
 
-type ActiveKey = "home" | "plan" | "chat" | "review" | "settings";
+type ActiveKey = "home" | "settings";
 
 function getActiveKey(pathname: string): ActiveKey {
-  if (pathname.startsWith("/dashboard/plan")) return "plan";
-  if (pathname.startsWith("/dashboard/chat")) return "chat";
-  if (pathname.startsWith("/dashboard/review")) return "review";
   if (pathname.startsWith("/dashboard/settings")) return "settings";
   return "home";
 }

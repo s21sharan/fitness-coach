@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { Icon } from "@/components/app/icon";
-import { PulsePill } from "@/components/app/pulse-pill";
 
-type ActiveKey = "home" | "plan" | "chat" | "review" | "settings";
+type ActiveKey = "home" | "settings";
 
 interface SidebarProps {
   active?: ActiveKey;
@@ -13,10 +12,7 @@ interface SidebarProps {
 }
 
 const items: { key: ActiveKey; label: string; icon: string; href: string; badge?: string }[] = [
-  { key: "home", label: "Today", icon: "home", href: "/dashboard" },
-  { key: "plan", label: "My Plan", icon: "plan", href: "/dashboard/plan" },
-  { key: "chat", label: "Coach", icon: "chat", href: "/dashboard/chat", badge: "AI" },
-  { key: "review", label: "Weekly Review", icon: "review", href: "/dashboard/review" },
+  { key: "home", label: "Dashboard", icon: "home", href: "/dashboard" },
   { key: "settings", label: "Settings", icon: "settings", href: "/dashboard/settings" },
 ];
 
@@ -75,12 +71,6 @@ export function Sidebar({ active = "home", open = false, onClose }: SidebarProps
           )}
         </Link>
       ))}
-      <div className="sb-section">Today&apos;s pulse</div>
-      <div style={{ padding: "8px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
-        <PulsePill label="Recovery" value="78" tone="mint" />
-        <PulsePill label="Calories" value="1,847" tone="coral" />
-        <PulsePill label="Sleep" value="7h 12m" tone="sky" />
-      </div>
       <div className="sb-foot">
         <div className="ava"></div>
         <div className="info">

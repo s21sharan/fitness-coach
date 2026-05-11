@@ -32,6 +32,11 @@ export function TodayCard({ sessionType, aiNotes, date, readiness, hrv, recovery
   const recoveryScore = resolvedHrv != null ? Math.round(resolvedHrv) : null;
   const dateLabel = formatDateLabel(date);
 
+  const readinessMap = { good: 0.85, fair: 0.55, low: 0.25 } as const;
+  const readinessLabelMap = { good: "Good", fair: "Fair", low: "Low" } as const;
+  const readinessValue = readiness ? readinessMap[readiness] : 0.5;
+  const readinessLabel = readiness ? readinessLabelMap[readiness] : "—";
+
   let sessionLabel: string;
   let notes: string;
 
@@ -124,9 +129,6 @@ export function TodayCard({ sessionType, aiNotes, date, readiness, hrv, recovery
               flexWrap: "wrap",
             }}
           >
-            <button className="btn-ink">
-              <Icon name="play" size={14} /> Start workout
-            </button>
             <button
               className="btn-ghost"
               style={{ background: "rgba(255,255,255,0.5)" }}
@@ -152,16 +154,22 @@ export function TodayCard({ sessionType, aiNotes, date, readiness, hrv, recovery
           </div>
         </div>
         <div style={{ display: "grid", placeItems: "center" }}>
-          <Ring size={140} stroke={14} value={0.64} color="var(--ink)" track="rgba(255,255,255,0.4)">
+          <Ring
+            size={140}
+            stroke={14}
+            value={readinessValue}
+            color="var(--ink)"
+            track="rgba(255,255,255,0.4)"
+          >
             <div style={{ textAlign: "center" }}>
               <div
                 style={{
-                  fontSize: 30,
+                  fontSize: 26,
                   fontWeight: 800,
                   letterSpacing: "-0.02em",
                 }}
               >
-                8/12
+                {readinessLabel}
               </div>
               <div
                 style={{
@@ -172,7 +180,7 @@ export function TodayCard({ sessionType, aiNotes, date, readiness, hrv, recovery
                   textTransform: "uppercase",
                 }}
               >
-                sets
+                readiness
               </div>
             </div>
           </Ring>

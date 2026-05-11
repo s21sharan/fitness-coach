@@ -157,12 +157,12 @@ function HeroSection() {
 
         {/* Right — Phone mockups */}
         <div className="landing-phone-stage">
-          {/* Phone 1: Run */}
+          {/* Phone 1: Weekly Review */}
           <div className="landing-phone landing-phone-1">
             <div className="landing-p2">
               <div className="landing-p2-top">
                 <div className="landing-p2-back">‹</div>
-                <h4>Today&apos;s run</h4>
+                <h4>Weekly Review</h4>
                 <div style={{ width: 28 }} />
               </div>
               <div className="landing-p2-ring-wrap">
@@ -171,7 +171,7 @@ function HeroSection() {
                     <div className="landing-p2-icon">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                         <path
-                          d="M13 4a2 2 0 100 4 2 2 0 000-4zM6 22l3-7 4 2 2 5M11 13l-2 2-3-3 4-3 3 1 2 4-2 1"
+                          d="M3 12l4-7 5 9 4-5 5 8"
                           stroke="currentColor"
                           strokeWidth="2"
                           strokeLinecap="round"
@@ -179,29 +179,29 @@ function HeroSection() {
                         />
                       </svg>
                     </div>
-                    <small>Easy zone 2</small>
+                    <small>This week</small>
                     <h2>
-                      5.2<span className="landing-unit">km</span>
+                      92<span className="landing-unit">%</span>
                     </h2>
                   </div>
                 </div>
               </div>
               <div className="landing-p2-stats">
                 <div className="landing-p2-stat">
-                  <p>Pace</p>
-                  <h4>5&apos;42&quot;</h4>
+                  <p>Sessions</p>
+                  <h4>5/5</h4>
                 </div>
                 <div className="landing-p2-stat">
-                  <p>Time</p>
-                  <h4>32:14</h4>
+                  <p>Volume</p>
+                  <h4>+8%</h4>
                 </div>
                 <div className="landing-p2-stat">
-                  <p>HR</p>
-                  <h4>138</h4>
+                  <p>HRV</p>
+                  <h4>62</h4>
                 </div>
               </div>
               <div className="landing-p2-cta">
-                <span className="landing-play">▶</span> Start run
+                <span className="landing-play">↑</span> Trending up
               </div>
             </div>
           </div>
@@ -232,12 +232,12 @@ function HeroSection() {
 
               <div className="landing-ring-card">
                 <div className="landing-ring">
-                  <span>64%</span>
+                  <span>87%</span>
                 </div>
                 <div className="landing-ring-meta">
                   <p>Today</p>
                   <h3>Push Day</h3>
-                  <span className="landing-delta">8 of 12 sets</span>
+                  <span className="landing-delta">Recovery: Ready</span>
                 </div>
               </div>
 

@@ -35,7 +35,7 @@ export async function GET() {
   // Get active plan
   const { data: plan } = await supabase
     .from("training_plans")
-    .select("id")
+    .select("id, split_type")
     .eq("user_id", userId)
     .eq("status", "active")
     .single();
@@ -149,11 +149,22 @@ export async function GET() {
     .eq("user_id", userId)
     .single();
 
+  // Count sessions for the week (non-rest)
+  const totalSessions = (weekWorkouts as { session_type?: string }[]).filter(
+    (w) => w.session_type && !["rest", "recovery", "off"].includes(w.session_type.toLowerCase())
+  ).length;
+  const completedSessions = Object.keys(weekCompletions).length;
+
   return NextResponse.json({
     today: todaySession,
     weekWorkouts,
     weekCompletions,
     weekStart: weekStartStr,
+    plan: plan ? {
+      splitType: plan.split_type,
+      sessionsCompleted: completedSessions,
+      sessionsTotal: totalSessions,
+    } : null,
     nutrition: todayNutrition ? {
       calories: todayNutrition.calories,
       protein: todayNutrition.protein,
