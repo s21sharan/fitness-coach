@@ -6,6 +6,7 @@ import { CredentialsModal } from "@/components/settings/credentials-modal";
 import { ApiKeyModal } from "@/components/settings/api-key-modal";
 import { Topbar } from "@/components/topbar";
 import { Icon } from "@/components/app/icon";
+import { getUnitPreferences, saveUnitPreferences, type DistanceUnit, type WeightUnit, type UnitPreferences } from "@/lib/units";
 
 interface IntegrationStatus {
   provider: string;
@@ -25,6 +26,7 @@ const INTEGRATIONS = [
 
 const NAV_ITEMS = [
   { id: "integrations", label: "Integrations" },
+  { id: "preferences", label: "Preferences" },
   { id: "account", label: "Account" },
   { id: "goals", label: "Goals & body" },
   { id: "notifications", label: "Notifications" },
@@ -37,6 +39,7 @@ export default function SettingsPage() {
   const [modal, setModal] = useState<{ provider: string; type: string } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeNav, setActiveNav] = useState("integrations");
+  const [unitPrefs, setUnitPrefs] = useState<UnitPreferences>({ distance: "mi", weight: "lbs" });
 
   const fetchStatuses = useCallback(async () => {
     const res = await fetch("/api/integrations/status");
@@ -47,6 +50,7 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
+    setUnitPrefs(getUnitPreferences());
     fetchStatuses();
 
     const params = new URLSearchParams(window.location.search);
@@ -101,6 +105,13 @@ export default function SettingsPage() {
     }
     await fetchStatuses();
     setToastMessage(`${provider} connected!`);
+  };
+
+  const handleUnitChange = (key: keyof UnitPreferences, value: string) => {
+    const updated = { ...unitPrefs, [key]: value };
+    setUnitPrefs(updated);
+    saveUnitPreferences(updated);
+    setToastMessage("Preferences saved!");
   };
 
   const connectedCount = INTEGRATIONS.filter((i) => {
@@ -193,62 +204,200 @@ export default function SettingsPage() {
 
           {/* Right content */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {/* Header card */}
-            <div
-              className="card"
-              style={{
-                background: "linear-gradient(135deg, var(--sky-soft) 0%, var(--surface) 100%)",
-                display: "flex",
-                alignItems: "center",
-                gap: 16,
-              }}
-            >
-              <div
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 14,
-                  background: "var(--ink)",
-                  display: "grid",
-                  placeItems: "center",
-                  flexShrink: 0,
-                  color: "var(--coral)",
-                }}
-              >
-                <Icon name="plug" size={22} />
+            {activeNav === "integrations" && (
+              <>
+                {/* Header card */}
+                <div
+                  className="card"
+                  style={{
+                    background: "linear-gradient(135deg, var(--sky-soft) 0%, var(--surface) 100%)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 16,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 14,
+                      background: "var(--ink)",
+                      display: "grid",
+                      placeItems: "center",
+                      flexShrink: 0,
+                      color: "var(--coral)",
+                    }}
+                  >
+                    <Icon name="plug" size={22} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: "var(--ink)", marginBottom: 2 }}>
+                      Your connected apps
+                    </div>
+                    <div style={{ fontSize: 13, color: "var(--muted)" }}>
+                      The more Hybro sees, the better it coaches. {connectedCount} of 6 connected.
+                    </div>
+                  </div>
+                  <button type="button" className="btn-ink" style={{ flexShrink: 0 }}>
+                    <Icon name="plus" size={15} />
+                    Add
+                  </button>
+                </div>
+
+                {/* Integration cards */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {INTEGRATIONS.map((integration) => {
+                    const status = statuses.find((s) => s.provider === integration.provider);
+                    return (
+                      <IntegrationCard
+                        key={integration.provider}
+                        provider={integration.provider}
+                        name={integration.name}
+                        category={integration.category}
+                        connected={status?.connected ?? false}
+                        lastSyncedAt={status?.lastSyncedAt ?? null}
+                        onConnect={() => handleConnect(integration.provider, integration.type)}
+                        onDisconnect={() => handleDisconnect(integration.provider)}
+                      />
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {activeNav === "preferences" && (
+              <>
+                <div className="card" style={{ padding: 24 }}>
+                  <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>Units & Display</div>
+                  <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20 }}>
+                    Choose how distances and weights are displayed throughout the app.
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                    {/* Distance unit */}
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Distance</div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        {([["mi", "Miles"], ["km", "Kilometers"]] as const).map(([value, label]) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => handleUnitChange("distance", value)}
+                            style={{
+                              padding: "10px 20px",
+                              borderRadius: 10,
+                              border: unitPrefs.distance === value ? "2px solid var(--ink)" : "1px solid var(--line)",
+                              background: unitPrefs.distance === value ? "var(--ink)" : "var(--surface)",
+                              color: unitPrefs.distance === value ? "#fff" : "var(--ink)",
+                              fontSize: 13,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              transition: "all 0.15s",
+                            }}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>
+                        Affects pace ({unitPrefs.distance === "mi" ? "min/mi" : "min/km"}) and distance display
+                      </div>
+                    </div>
+
+                    {/* Weight unit */}
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Weight</div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        {([["lbs", "Pounds (lbs)"], ["kg", "Kilograms (kg)"]] as const).map(([value, label]) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => handleUnitChange("weight", value)}
+                            style={{
+                              padding: "10px 20px",
+                              borderRadius: 10,
+                              border: unitPrefs.weight === value ? "2px solid var(--ink)" : "1px solid var(--line)",
+                              background: unitPrefs.weight === value ? "var(--ink)" : "var(--surface)",
+                              color: unitPrefs.weight === value ? "#fff" : "var(--ink)",
+                              fontSize: 13,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              transition: "all 0.15s",
+                            }}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>
+                        Affects body weight and lifting weight display
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {activeNav === "account" && (
+              <div className="card" style={{ padding: 24 }}>
+                <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>Account</div>
+                <div style={{ fontSize: 13, color: "var(--muted)" }}>
+                  Manage your account through Clerk. Your profile and authentication are handled securely.
+                </div>
+                <div style={{ marginTop: 16 }}>
+                  <a href="/sign-in" style={{ fontSize: 13, fontWeight: 600, color: "var(--coral-deep)", textDecoration: "none" }}>
+                    Manage account →
+                  </a>
+                </div>
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 17, fontWeight: 800, color: "var(--ink)", marginBottom: 2 }}>
-                  Your connected apps
+            )}
+
+            {activeNav === "goals" && (
+              <div className="card" style={{ padding: 24 }}>
+                <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>Goals & Body</div>
+                <div style={{ fontSize: 13, color: "var(--muted)" }}>
+                  Your goals and body profile were set during onboarding. To update them, go through onboarding again.
+                </div>
+                <div style={{ marginTop: 16 }}>
+                  <a href="/onboarding" style={{ fontSize: 13, fontWeight: 600, color: "var(--coral-deep)", textDecoration: "none" }}>
+                    Re-do onboarding →
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {activeNav === "notifications" && (
+              <div className="card" style={{ padding: 24 }}>
+                <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>Notifications</div>
+                <div style={{ fontSize: 13, color: "var(--muted)" }}>
+                  Notification preferences coming soon. Hybro will be able to alert you about weekly check-ins, recovery concerns, and plan adjustments.
+                </div>
+              </div>
+            )}
+
+            {activeNav === "privacy" && (
+              <div className="card" style={{ padding: 24 }}>
+                <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>Privacy & Data</div>
+                <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
+                  Your fitness data is stored securely in Supabase with row-level security. Integration credentials are encrypted with AES-256-GCM. Hybro never shares your data with third parties.
+                </div>
+                <div style={{ marginTop: 16, fontSize: 13, color: "var(--muted)" }}>
+                  To delete your account and all associated data, contact support.
+                </div>
+              </div>
+            )}
+
+            {activeNav === "subscription" && (
+              <div className="card" style={{ padding: 24 }}>
+                <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>Subscription</div>
+                <div style={{ display: "inline-block", background: "var(--mint-soft)", color: "var(--mint-deep)", padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 800, marginBottom: 12 }}>
+                  Free Plan
                 </div>
                 <div style={{ fontSize: 13, color: "var(--muted)" }}>
-                  The more Hybro sees, the better it coaches. {connectedCount} of 6 connected.
+                  You're on the free plan. All features are currently available during the MVP period.
                 </div>
               </div>
-              <button type="button" className="btn-ink" style={{ flexShrink: 0 }}>
-                <Icon name="plus" size={15} />
-                Add
-              </button>
-            </div>
-
-            {/* Integration cards */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {INTEGRATIONS.map((integration) => {
-                const status = statuses.find((s) => s.provider === integration.provider);
-                return (
-                  <IntegrationCard
-                    key={integration.provider}
-                    provider={integration.provider}
-                    name={integration.name}
-                    category={integration.category}
-                    connected={status?.connected ?? false}
-                    lastSyncedAt={status?.lastSyncedAt ?? null}
-                    onConnect={() => handleConnect(integration.provider, integration.type)}
-                    onDisconnect={() => handleDisconnect(integration.provider)}
-                  />
-                );
-              })}
-            </div>
+            )}
           </div>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { FitnessChart, type FitnessPoint } from "@/components/charts/fitness-chart";
 import { RecoveryTrendChart, HrZoneChart, TrainingLoadChart, computeHrZones, type RecoveryPoint, type LoadPoint } from "@/components/charts/recovery-charts";
 import { ChartModal } from "@/components/charts/chart-modal";
+import { getUnitPreferences, fmtDist as fmtDistUnit, fmtPace as fmtPaceUnit, distanceLabel, type UnitPreferences } from "@/lib/units";
 
 /* ═══════════════════════════════════════════════
    DATA INTERFACES
@@ -86,8 +87,11 @@ function addDays(d: Date, n: number): Date { const r = new Date(d); r.setDate(r.
 function toDS(d: Date): string { return d.toISOString().slice(0, 10); }
 function fmtSec(s: number): string { const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); return h > 0 ? `${h}h${m > 0 ? String(m).padStart(2, "0") + "m" : ""}` : `${m}m`; }
 function fmtMin(m: number): string { const h = Math.floor(m / 60); const mm = m % 60; return h > 0 ? `${h}h${mm > 0 ? String(mm).padStart(2, "0") + "m" : ""}` : `${m}m`; }
-function fmtPace(p: number): string { const m = Math.floor(p); const s = Math.round((p - m) * 60); return `${m}:${String(s).padStart(2, "0")}/km`; }
-function fmtDist(km: number): string { return km >= 10 ? `${(Math.round(km * 10) / 10).toFixed(1)}` : `${(Math.round(km * 100) / 100).toFixed(2)}`; }
+// Unit-aware formatters — updated by component state
+let _units: UnitPreferences = { distance: "mi", weight: "lbs" };
+function fmtPace(p: number): string { return fmtPaceUnit(p, _units.distance); }
+function fmtDist(km: number): string { return fmtDistUnit(km, _units.distance); }
+function distUnit(): string { return distanceLabel(_units.distance); }
 function cType(t: string): string { return t === "run" ? "run" : t === "bike" ? "bike" : t === "swim" ? "swim" : "other"; }
 
 function estimateLoad(avgHr: number | null, durationSec: number): number {
@@ -231,11 +235,11 @@ function CardioCard({ c: a }: { c: CardioLog }) {
         <span style={{ fontWeight: 700, color: cl.text, fontSize: 11, flex: 1 }}>{fmtSec(a.duration)}</span>
         {zone > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: ZONE_COLORS[zone - 1], background: "rgba(0,0,0,0.05)", borderRadius: 3, padding: "1px 4px" }}>Z{zone}</span>}
       </div>
-      {a.distance > 0 && <div style={{ fontWeight: 800, color: cl.text, fontSize: 12 }}>{fmtDist(a.distance)} km</div>}
+      {a.distance > 0 && <div style={{ fontWeight: 800, color: cl.text, fontSize: 12 }}>{fmtDist(a.distance)} {distUnit()}</div>}
       <HrZoneBar avgHr={a.avg_hr} />
       <div style={{ color: "#6b7280", display: "flex", flexWrap: "wrap", gap: "0 6px", marginTop: 2 }}>
         {load > 0 && <span>Load <b style={{ color: cl.text }}>{load}</b></span>}
-        {a.pace_or_speed != null && a.pace_or_speed > 0 && <span>GAP {fmtPace(a.pace_or_speed)}</span>}
+        {a.pace_or_speed != null && a.pace_or_speed > 0 && <span>Pace {fmtPace(a.pace_or_speed)}</span>}
         {a.avg_hr != null && <span><span style={{ color: "#ef4444" }}>♥</span> {a.avg_hr}</span>}
       </div>
       {(a.calories != null || a.elevation != null) && (
@@ -337,7 +341,7 @@ function WeekRow({ days, weekNum, fitnessCurve }: { days: DayData[]; weekNum: nu
             <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#6b7280" }}>Total</span><span style={{ fontWeight: 700 }}>{fmtSec(t.timeSec)}</span></div>
             <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#6b7280" }}>Load</span><span style={{ fontWeight: 700 }}>{t.load}</span></div>
             {t.kcal > 0 && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#6b7280" }}>kcal</span><span style={{ fontWeight: 700 }}>{t.kcal.toLocaleString()}</span></div>}
-            {t.distKm > 0 && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#6b7280" }}>Dist</span><span style={{ fontWeight: 700 }}>{t.distKm} km</span></div>}
+            {t.distKm > 0 && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#6b7280" }}>Dist</span><span style={{ fontWeight: 700 }}>{fmtDist(t.distKm)} {distUnit()}</span></div>}
             {t.elevation > 0 && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#6b7280" }}>Elev</span><span style={{ fontWeight: 700 }}>↑{t.elevation}m</span></div>}
 
             {/* Fitness / Fatigue / Form */}
@@ -364,7 +368,7 @@ function WeekRow({ days, weekNum, fitnessCurve }: { days: DayData[]; weekNum: nu
                     {typeKeys.map((k) => { const bt = t.byType[k]; const c = TYPE_COLORS[k]; return (
                       <tr key={k}><td style={{ color: c?.text || "#374151", fontWeight: 600 }}><span style={{ display: "inline-block", width: 6, height: 6, borderRadius: 2, background: c?.border || "#999", marginRight: 3 }} />{c?.label || k}</td>
                       <td style={{ textAlign: "right", fontWeight: 600 }}>{fmtSec(bt.timeSec)}</td>
-                      <td style={{ textAlign: "right", fontWeight: 600 }}>{bt.distKm > 0 ? `${Math.round(bt.distKm * 10) / 10}` : "—"}</td>
+                      <td style={{ textAlign: "right", fontWeight: 600 }}>{bt.distKm > 0 ? fmtDist(bt.distKm) : "—"}</td>
                       <td style={{ textAlign: "right", fontWeight: 600 }}>{bt.load}</td></tr>
                     ); })}
                   </tbody>
@@ -473,6 +477,14 @@ export default function DashboardPage() {
   const [modal, setModal] = useState<ModalKey>(null);
   const [insights, setInsights] = useState<Record<string, string>>({});
   const [insightLoading, setInsightLoading] = useState<string | null>(null);
+  const [units, setUnits] = useState<UnitPreferences>({ distance: "mi", weight: "lbs" });
+
+  // Load unit preferences
+  useEffect(() => {
+    const prefs = getUnitPreferences();
+    setUnits(prefs);
+    _units = prefs;
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
