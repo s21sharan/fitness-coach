@@ -35,7 +35,7 @@ export function normalizeActivity(userId: string, activity: StravaActivity) {
     type,
     distance: Math.round(distanceKm * 100) / 100,
     duration: activity.moving_time,
-    avg_hr: activity.has_heartrate ? (activity.average_heartrate ?? null) : null,
+    avg_hr: activity.has_heartrate && activity.average_heartrate ? Math.round(activity.average_heartrate) : null,
     calories: activity.calories ?? null,
     pace_or_speed: paceOrSpeed ? Math.round(paceOrSpeed * 100) / 100 : null,
     elevation: activity.total_elevation_gain ?? null,
