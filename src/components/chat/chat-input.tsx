@@ -70,7 +70,7 @@ export function ChatInput({ input, onChange, onSubmit, isLoading }: ChatInputPro
         </button>
         <button
           type="submit"
-          disabled={isLoading || !input.trim()}
+          disabled={isLoading || !(input ?? "").trim()}
           className="btn-coral"
           style={{ padding: "9px 14px", fontSize: 13, flexShrink: 0 }}
         >
