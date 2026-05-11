@@ -12,26 +12,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Email and password required" }, { status: 400 });
   }
 
-  const garminUrl = process.env.GARMIN_SERVICE_URL || process.env.RAILWAY_BACKEND_URL;
-  if (!garminUrl) {
-    return NextResponse.json({ error: "Garmin service not configured" }, { status: 500 });
+  const encryptionKey = process.env.ENCRYPTION_KEY;
+  if (!encryptionKey) {
+    return NextResponse.json({ error: "Encryption not configured" }, { status: 500 });
   }
 
-  const validateRes = await fetch(`${garminUrl}/auth/validate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-
-  const validateData = await validateRes.json();
-  if (!validateData.valid) {
-    return NextResponse.json(
-      { error: validateData.error || "Invalid Garmin credentials" },
-      { status: 401 },
-    );
-  }
-
-  const encryptionKey = process.env.ENCRYPTION_KEY!;
   const encryptedCreds = {
     email: encrypt(email, encryptionKey),
     password: encrypt(password, encryptionKey),
@@ -53,19 +38,9 @@ export async function POST(request: NextRequest) {
     { onConflict: "user_id,provider" },
   );
 
-  if (error) return NextResponse.json({ error: "Failed to save" }, { status: 500 });
-
-  const backendUrl = process.env.RAILWAY_BACKEND_URL;
-  if (backendUrl) {
-    fetch(`${backendUrl}/sync/backfill`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-API-Key": process.env.RAILWAY_API_SECRET! },
-      body: JSON.stringify({
-        provider: "garmin",
-        userId,
-        since: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-      }),
-    }).catch(() => {});
+  if (error) {
+    console.error("Failed to save Garmin credentials:", error);
+    return NextResponse.json({ error: "Failed to save" }, { status: 500 });
   }
 
   return NextResponse.json({ status: "connected" });

@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+
 interface SparklineProps {
   points?: number[];
   width?: number;
@@ -20,7 +22,7 @@ export function Sparkline({
   const ys = points.map((p) => height - ((p - min) / span) * (height - 8) - 4);
   const path = points.map((p, i) => `${i ? 'L' : 'M'}${i * step},${ys[i]}`).join(' ');
   const fill = `${path} L${width},${height} L0,${height} Z`;
-  const id = 'sg' + Math.random().toString(36).slice(2, 7);
+  const id = 'sg' + useId().replace(/:/g, '');
   return (
     <svg
       width={width}

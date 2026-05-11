@@ -2,7 +2,9 @@
 
 ## Project Overview
 
-Hybro is a web-based AI fitness coaching platform that connects users' existing fitness data sources (MacroFactor, Hevy, Strava, Garmin) into a unified intelligence layer. It generates personalized training splits, auto-adjusts weekly based on progress/recovery, and provides a 24/7 AI chatbot coach.
+Hybro is a **review-and-advise** platform that connects users' existing fitness data sources (MacroFactor, Hevy, Strava, Garmin) into a unified intelligence layer. Users review synced activity, view insights, and get AI coaching advice on how to adjust their training plan.
+
+**Hybro is NOT a workout tracker or launcher.** Users log/track workouts in their dedicated apps (Hevy, Strava, etc.). Hybro's value is the intelligence layer on top — all UI should be oriented around reviewing, analyzing, and advising.
 
 - **App name:** Hybro (use everywhere in UI, commits, docs)
 - **Target user:** Serious fitness enthusiasts (lifters, runners, hybrid athletes)
@@ -32,8 +34,8 @@ Hybro is a web-based AI fitness coaching platform that connects users' existing 
 - Clerk auth (sign-up, sign-in, middleware, webhook user sync)
 - Supabase database: 13 tables, RLS policies, indexes (migration applied)
 - Type-safe Supabase clients (browser + server)
-- App shell: sidebar navigation, topbar, dashboard layout
-- Dashboard with placeholder cards + placeholder pages (Plan, Chat, Review, Settings)
+- App shell: sidebar navigation (Dashboard + Settings), topbar, dashboard layout
+- Dashboard shows integration test page (connections, 30-day calendar, synced data)
 
 **Phase 2: Onboarding** — all 9 tasks done
 - Onboarding data types with conditional step visibility
@@ -58,15 +60,18 @@ Hybro is a web-based AI fitness coaching platform that connects users' existing 
 - Dashboard sync status + onboarding integrations wiring
 - 81 tests passing (57 frontend + 24 server) across 27 test files
 
+### Current State
+
+- Dashboard is the integration test page (connections, data calendar, raw tables)
+- Plan, Chat, Review pages removed — will be rebuilt as review/insights features
+- Sidebar: Dashboard + Settings only
+- Landing page mockups updated to reflect review-only philosophy
+
 ### Next Up
 
-**Phase 4: Training Plan Engine** — not started
-- AI split generation, weekly training view
-
-**Remaining phases:**
-- Phase 5: AI Chat Coach (Claude agent with tools, chat UI)
-- Phase 6: Weekly Check-in & Calendar (auto-adjust, Google Cal)
-- Phase 7: Dashboard & Polish (wire real data, landing page)
+- Google Calendar OAuth integration
+- AI-powered insights and coaching advice (review-oriented, not workout execution)
+- Training plan visibility (read-only view of AI-generated plan)
 
 ## Development Rules
 
