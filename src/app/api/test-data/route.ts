@@ -11,9 +11,9 @@ export async function GET() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
 
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const sinceStr = thirtyDaysAgo.toISOString().slice(0, 10);
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+  const sinceStr = ninetyDaysAgo.toISOString().slice(0, 10);
 
   const [integrationsRes, nutritionRes, workoutsRes, cardioRes, recoveryRes] = await Promise.all([
     supabase
