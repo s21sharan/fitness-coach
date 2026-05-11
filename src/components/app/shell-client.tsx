@@ -23,9 +23,18 @@ function SyncIcon() {
   );
 }
 
+function CoachIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+    </svg>
+  );
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isSettings = pathname.startsWith("/dashboard/settings");
+  const isCoach = pathname.startsWith("/dashboard/coach");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "var(--bg, #f5f7f8)" }}>
@@ -61,11 +70,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             style={{
               padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600,
               textDecoration: "none",
-              color: !isSettings ? "#0F1B22" : "#6b7280",
-              background: !isSettings ? "#f3f4f6" : "transparent",
+              color: !isSettings && !isCoach ? "#0F1B22" : "#6b7280",
+              background: !isSettings && !isCoach ? "#f3f4f6" : "transparent",
             }}
           >
             Calendar
+          </Link>
+          <Link
+            href="/dashboard/coach"
+            style={{
+              padding: "6px 10px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+              textDecoration: "none", display: "flex", alignItems: "center", gap: 6,
+              color: isCoach ? "#0F1B22" : "#6b7280",
+              background: isCoach ? "#f3f4f6" : "transparent",
+            }}
+          >
+            <CoachIcon /> Coach
           </Link>
           <Link
             href="/dashboard/settings"
