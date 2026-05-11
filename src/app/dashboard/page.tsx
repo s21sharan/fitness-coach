@@ -65,17 +65,11 @@ interface DayData {
   recovery: RecoveryLog | null;
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  active: "bg-green-500",
-  error: "bg-red-500",
-  expired: "bg-yellow-500",
-};
-
-const PROVIDER_LABELS: Record<string, string> = {
-  macrofactor: "MacroFactor",
-  hevy: "Hevy",
-  strava: "Strava",
-  garmin: "Garmin",
+const PROVIDERS: Record<string, { label: string; bg: string; text: string; dot: string }> = {
+  macrofactor: { label: "MacroFactor", bg: "bg-orange-400", text: "text-orange-600", dot: "bg-orange-400" },
+  hevy:        { label: "Hevy",        bg: "bg-green-500",  text: "text-green-600",  dot: "bg-green-500" },
+  strava:      { label: "Strava",      bg: "bg-blue-500",   text: "text-blue-600",   dot: "bg-blue-500" },
+  garmin:      { label: "Garmin",      bg: "bg-purple-500", text: "text-purple-600", dot: "bg-purple-500" },
 };
 
 function formatPace(pace: number): string {
@@ -127,10 +121,10 @@ function DayCell({ day }: { day: DayData }) {
           <span className={`ml-1 text-sm font-semibold ${isToday ? "text-blue-700" : ""}`}>{dayNum}</span>
         </div>
         <div className="flex gap-1">
-          {day.nutrition && <span className="h-2 w-2 rounded-full bg-orange-400" title="Nutrition" />}
-          {day.workouts.length > 0 && <span className="h-2 w-2 rounded-full bg-green-500" title="Workout" />}
-          {day.cardio.length > 0 && <span className="h-2 w-2 rounded-full bg-blue-500" title="Cardio" />}
-          {day.recovery && <span className="h-2 w-2 rounded-full bg-purple-500" title="Recovery" />}
+          {day.nutrition && <span className={`h-2 w-2 rounded-full ${PROVIDERS.macrofactor.dot}`} title="MacroFactor" />}
+          {day.workouts.length > 0 && <span className={`h-2 w-2 rounded-full ${PROVIDERS.hevy.dot}`} title="Hevy" />}
+          {day.cardio.length > 0 && <span className={`h-2 w-2 rounded-full ${PROVIDERS.strava.dot}`} title="Strava" />}
+          {day.recovery && <span className={`h-2 w-2 rounded-full ${PROVIDERS.garmin.dot}`} title="Garmin" />}
         </div>
       </div>
 
@@ -138,7 +132,7 @@ function DayCell({ day }: { day: DayData }) {
         <div className="mt-2 space-y-2 border-t pt-2 text-xs">
           {day.nutrition && (
             <div className="space-y-0.5">
-              <p className="font-semibold text-orange-600">MacroFactor</p>
+              <p className={`font-semibold ${PROVIDERS.macrofactor.text}`}>MacroFactor</p>
               <p>{day.nutrition.calories} cal · {day.nutrition.protein}g P · {day.nutrition.carbs}g C · {day.nutrition.fat}g F</p>
               {day.nutrition.fiber && <p className="text-gray-400">Fiber: {day.nutrition.fiber}g</p>}
             </div>
@@ -146,14 +140,14 @@ function DayCell({ day }: { day: DayData }) {
 
           {day.workouts.map((w, i) => (
             <div key={i} className="space-y-0.5">
-              <p className="font-semibold text-green-600">Hevy: {w.name}</p>
+              <p className={`font-semibold ${PROVIDERS.hevy.text}`}>Hevy: {w.name}</p>
               <p>{w.duration_minutes} min · {Array.isArray(w.exercises) ? w.exercises.length : 0} exercises</p>
             </div>
           ))}
 
           {day.cardio.map((c, i) => (
             <div key={i} className="space-y-0.5">
-              <p className="font-semibold text-blue-600">Strava: {c.type}</p>
+              <p className={`font-semibold ${PROVIDERS.strava.text}`}>Strava: {c.type}</p>
               <p>
                 {c.distance} km · {Math.round(c.duration / 60)} min
                 {c.avg_hr ? ` · ${c.avg_hr} bpm` : ""}
@@ -165,7 +159,7 @@ function DayCell({ day }: { day: DayData }) {
 
           {day.recovery && (
             <div className="space-y-0.5">
-              <p className="font-semibold text-purple-600">Garmin</p>
+              <p className={`font-semibold ${PROVIDERS.garmin.text}`}>Garmin</p>
               <div className="flex flex-wrap gap-2">
                 {day.recovery.hrv !== null && <span>HRV {day.recovery.hrv}</span>}
                 {day.recovery.sleep_hours !== null && <span>Sleep {day.recovery.sleep_hours}h</span>}
@@ -228,16 +222,19 @@ export default function DashboardPage() {
               <h2 className="text-sm font-semibold text-gray-700 mb-3">Connections</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 {allProviders.map((provider) => {
+                  const p = PROVIDERS[provider];
                   const integration = data.integrations.find((i) => i.provider === provider);
                   const connected = !!integration;
-                  const statusColor = connected ? STATUS_COLORS[integration.status] || "bg-gray-400" : "bg-gray-300";
+                  const dotColor = connected
+                    ? integration.status === "error" ? "bg-red-500" : integration.status === "expired" ? "bg-yellow-500" : p.dot
+                    : "bg-gray-300";
 
                   return (
                     <div key={provider} className="flex items-center justify-between rounded-lg border p-3">
                       <div className="flex items-center gap-2">
-                        <div className={`h-2.5 w-2.5 rounded-full ${statusColor}`} />
+                        <div className={`h-2.5 w-2.5 rounded-full ${dotColor}`} />
                         <div>
-                          <p className="text-sm font-medium">{PROVIDER_LABELS[provider]}</p>
+                          <p className="text-sm font-medium">{p.label}</p>
                           {connected && integration.last_synced_at && (
                             <p className="text-[10px] text-gray-400">
                               Synced {new Date(integration.last_synced_at).toLocaleDateString()}
@@ -262,30 +259,27 @@ export default function DashboardPage() {
 
             {/* Data Summary */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="rounded-lg border bg-white p-4 text-center">
-                <p className="text-2xl font-bold text-orange-500">{data.nutrition.length}</p>
-                <p className="text-xs text-gray-500">Nutrition Days</p>
-              </div>
-              <div className="rounded-lg border bg-white p-4 text-center">
-                <p className="text-2xl font-bold text-green-500">{data.workouts.length}</p>
-                <p className="text-xs text-gray-500">Workouts</p>
-              </div>
-              <div className="rounded-lg border bg-white p-4 text-center">
-                <p className="text-2xl font-bold text-blue-500">{data.cardio.length}</p>
-                <p className="text-xs text-gray-500">Cardio Sessions</p>
-              </div>
-              <div className="rounded-lg border bg-white p-4 text-center">
-                <p className="text-2xl font-bold text-purple-500">{data.recovery.length}</p>
-                <p className="text-xs text-gray-500">Recovery Days</p>
-              </div>
+              {([
+                { key: "macrofactor", count: data.nutrition.length, label: "Nutrition Days" },
+                { key: "hevy",        count: data.workouts.length,  label: "Workouts" },
+                { key: "strava",      count: data.cardio.length,    label: "Cardio Sessions" },
+                { key: "garmin",      count: data.recovery.length,  label: "Recovery Days" },
+              ] as const).map((item) => (
+                <div key={item.key} className="rounded-lg border bg-white p-4 text-center">
+                  <p className={`text-2xl font-bold ${PROVIDERS[item.key].text}`}>{item.count}</p>
+                  <p className="text-xs text-gray-500">{item.label}</p>
+                </div>
+              ))}
             </div>
 
             {/* Legend */}
             <div className="flex flex-wrap gap-4 text-xs text-gray-500">
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-400" /> MacroFactor</span>
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" /> Hevy</span>
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-blue-500" /> Strava</span>
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-purple-500" /> Garmin</span>
+              {allProviders.map((key) => (
+                <span key={key} className="flex items-center gap-1">
+                  <span className={`h-2 w-2 rounded-full ${PROVIDERS[key].dot}`} />
+                  {PROVIDERS[key].label}
+                </span>
+              ))}
               <span className="text-gray-400">· Click a day to expand</span>
             </div>
 
@@ -302,7 +296,7 @@ export default function DashboardPage() {
             {/* Raw MacroFactor Data Table */}
             {data.nutrition.length > 0 && (
               <div className="rounded-lg border bg-white p-4">
-                <h2 className="text-sm font-semibold text-gray-700 mb-3">MacroFactor Data</h2>
+                <h2 className={`text-sm font-semibold mb-3 ${PROVIDERS.macrofactor.text}`}>MacroFactor Data</h2>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
