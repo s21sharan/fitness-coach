@@ -1,8 +1,9 @@
 import { generateObject } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
+import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@/lib/supabase/server";
 import { planGenerationSchema, type PlanGeneration, type DayLayout } from "./schemas";
-import { PLAN_SYSTEM_PROMPT, buildUserPrompt } from "./prompts";
+import { PLAN_SYSTEM_PROMPT, buildUserPrompt, type RecentActivity } from "./prompts";
 
 interface GeneratePlanInput {
   userId: string;
@@ -73,6 +74,44 @@ export function generatePlannedWorkouts(
   }
 
   return workouts;
+}
+
+export async function getRecentActivityStats(userId: string): Promise<RecentActivity | null> {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const since = thirtyDaysAgo.toISOString().slice(0, 10);
+
+  const [cardioRes, workoutRes, recoveryRes] = await Promise.all([
+    supabase.from("cardio_logs").select("type, distance, duration, avg_hr").eq("user_id", userId).gte("date", since),
+    supabase.from("workout_logs").select("duration_minutes").eq("user_id", userId).gte("date", since),
+    supabase.from("recovery_logs").select("hrv, sleep_hours").eq("user_id", userId).gte("date", since),
+  ]);
+
+  const cardio = cardioRes.data || [];
+  const workouts = workoutRes.data || [];
+  const recovery = recoveryRes.data || [];
+
+  if (cardio.length === 0 && workouts.length === 0 && recovery.length === 0) return null;
+
+  const runs = cardio.filter((c) => c.type === "run");
+  const runsWithDist = runs.filter((r) => r.distance > 0);
+  const weeks = 30 / 7;
+
+  return {
+    avgRunPaceMinKm: runsWithDist.length > 0 ? Math.round(runsWithDist.reduce((s, r) => s + r.duration / 60 / r.distance, 0) / runsWithDist.length * 10) / 10 : null,
+    avgRunDistanceKm: runs.length > 0 ? Math.round(runs.reduce((s, r) => s + (r.distance || 0), 0) / runs.length * 10) / 10 : null,
+    avgRunHr: runs.filter((r) => r.avg_hr).length > 0 ? Math.round(runs.filter((r) => r.avg_hr).reduce((s, r) => s + r.avg_hr!, 0) / runs.filter((r) => r.avg_hr).length) : null,
+    weeklyRunCount: Math.round(runs.length / weeks * 10) / 10,
+    weeklyLiftCount: Math.round(workouts.length / weeks * 10) / 10,
+    avgLiftDurationMin: workouts.length > 0 ? Math.round(workouts.reduce((s, w) => s + (w.duration_minutes || 0), 0) / workouts.length) : null,
+    avgHrv: recovery.filter((r) => r.hrv).length > 0 ? Math.round(recovery.filter((r) => r.hrv).reduce((s, r) => s + r.hrv!, 0) / recovery.filter((r) => r.hrv).length) : null,
+    avgSleepHours: recovery.filter((r) => r.sleep_hours).length > 0 ? Math.round(recovery.filter((r) => r.sleep_hours).reduce((s, r) => s + r.sleep_hours!, 0) / recovery.filter((r) => r.sleep_hours).length * 10) / 10 : null,
+  };
 }
 
 export async function generateTrainingPlan(input: GeneratePlanInput): Promise<{
