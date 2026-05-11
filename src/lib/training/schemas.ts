@@ -13,10 +13,22 @@ export const SPLIT_TYPES = [
 
 export type SplitType = (typeof SPLIT_TYPES)[number];
 
-const dayLayoutSchema = z.object({
+export const workoutTargetsSchema = z.object({
+  target_distance_km: z.number().nullable().optional(),
+  target_duration_min: z.number().nullable().optional(),
+  target_pace_min_km: z.number().nullable().optional(),
+  target_hr_zone: z.number().int().min(1).max(5).nullable().optional(),
+  target_hr_max: z.number().int().nullable().optional(),
+  muscle_focus: z.string().nullable().optional(),
+});
+
+export type WorkoutTargets = z.infer<typeof workoutTargetsSchema>;
+
+export const dayLayoutSchema = z.object({
   day_of_week: z.number().int().min(0).max(6),
   session_type: z.string().min(1),
   ai_notes: z.string().nullable(),
+  targets: workoutTargetsSchema.optional(),
 });
 
 export type DayLayout = z.infer<typeof dayLayoutSchema>;
