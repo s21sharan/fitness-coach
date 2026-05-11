@@ -148,10 +148,10 @@ function buildMonthWeeks(firstMonday: Date, weekCount: number, data: ApiData): D
   return weeks;
 }
 
-interface WeekTotals { timeSec: number; distKm: number; kcal: number; load: number; workouts: number; cardioSessions: number; byType: Record<string, { timeSec: number; distKm: number; load: number; count: number }>; }
+interface WeekTotals { timeSec: number; distKm: number; kcal: number; load: number; elevation: number; workouts: number; cardioSessions: number; byType: Record<string, { timeSec: number; distKm: number; load: number; count: number }>; }
 
 function weekTotals(days: DayData[]): WeekTotals {
-  const t: WeekTotals = { timeSec: 0, distKm: 0, kcal: 0, load: 0, workouts: 0, cardioSessions: 0, byType: {} };
+  const t: WeekTotals = { timeSec: 0, distKm: 0, kcal: 0, load: 0, elevation: 0, workouts: 0, cardioSessions: 0, byType: {} };
   for (const day of days) {
     for (const w of day.workouts) {
       const sec = (w.duration_minutes || 0) * 60; t.timeSec += sec; t.workouts++;
@@ -162,13 +162,14 @@ function weekTotals(days: DayData[]): WeekTotals {
     for (const c of day.cardio) {
       t.timeSec += c.duration || 0; t.distKm += c.distance || 0;
       if (c.calories) t.kcal += c.calories;
+      if (c.elevation) t.elevation += c.elevation;
       const load = estimateLoad(c.avg_hr, c.duration); t.load += load; t.cardioSessions++;
       const k = cType(c.type);
       if (!t.byType[k]) t.byType[k] = { timeSec: 0, distKm: 0, load: 0, count: 0 };
       t.byType[k].timeSec += c.duration || 0; t.byType[k].distKm += c.distance || 0; t.byType[k].load += load; t.byType[k].count++;
     }
   }
-  t.distKm = Math.round(t.distKm * 100) / 100; t.kcal = Math.round(t.kcal);
+  t.distKm = Math.round(t.distKm * 100) / 100; t.kcal = Math.round(t.kcal); t.elevation = Math.round(t.elevation);
   return t;
 }
 
@@ -249,13 +250,39 @@ function CardioCard({ c: a }: { c: CardioLog }) {
 }
 
 function RecoveryBar({ r }: { r: RecoveryLog }) {
+  const metrics: { icon: string; value: string; label: string; color: string }[] = [];
+  if (r.sleep_hours !== null) {
+    const c = r.sleep_hours >= 7 ? "#16a34a" : r.sleep_hours >= 6 ? "#ca8a04" : "#dc2626";
+    metrics.push({ icon: "😴", value: `${r.sleep_hours}h`, label: "Sleep", color: c });
+  }
+  if (r.sleep_score !== null) {
+    const c = r.sleep_score >= 75 ? "#16a34a" : r.sleep_score >= 50 ? "#ca8a04" : "#dc2626";
+    metrics.push({ icon: "💤", value: `${r.sleep_score}`, label: "Score", color: c });
+  }
+  if (r.resting_hr !== null) {
+    const c = r.resting_hr <= 55 ? "#16a34a" : r.resting_hr <= 65 ? "#ca8a04" : "#dc2626";
+    metrics.push({ icon: "♥", value: `${r.resting_hr}`, label: "RHR", color: c });
+  }
+  if (r.hrv !== null) {
+    const c = r.hrv >= 50 ? "#16a34a" : r.hrv >= 35 ? "#ca8a04" : "#dc2626";
+    metrics.push({ icon: "📊", value: `${r.hrv}`, label: "HRV", color: c });
+  }
+  if (r.steps !== null && r.steps > 0) {
+    metrics.push({ icon: "👟", value: r.steps >= 1000 ? `${(r.steps / 1000).toFixed(1)}k` : `${r.steps}`, label: "Steps", color: "#6b7280" });
+  }
+  if (metrics.length === 0) return null;
   return (
-    <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 4, padding: "4px 6px", fontSize: 9, color: "#0369a1", display: "flex", flexWrap: "wrap", gap: "0 6px", lineHeight: 1.6 }}>
-      {r.hrv !== null && <span><b>HRV</b> {r.hrv}</span>}
-      {r.sleep_hours !== null && <span><b>Sleep</b> {r.sleep_hours}h</span>}
-      {r.resting_hr !== null && <span><b>RHR</b> {r.resting_hr}</span>}
-      {r.body_battery !== null && <span><b>BB</b> {r.body_battery}</span>}
-      {r.steps !== null && <span>{r.steps.toLocaleString()} steps</span>}
+    <div style={{
+      display: "grid", gridTemplateColumns: `repeat(${Math.min(metrics.length, 4)}, 1fr)`, gap: 1,
+      background: "#f0f9ff", borderRadius: 4, padding: 3, border: "1px solid #e0f2fe",
+    }}>
+      {metrics.slice(0, 4).map((m, i) => (
+        <div key={i} style={{ textAlign: "center", fontSize: 8, lineHeight: 1.2, padding: "2px 0" }}>
+          <div style={{ fontSize: 10 }}>{m.icon}</div>
+          <div style={{ fontWeight: 800, color: m.color, fontSize: 10 }}>{m.value}</div>
+          <div style={{ color: "#94a3b8", fontSize: 7, fontWeight: 600 }}>{m.label}</div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -282,31 +309,73 @@ function DayColumn({ day, dayIndex }: { day: DayData; dayIndex: number }) {
   );
 }
 
-function WeekRow({ days, weekNum }: { days: DayData[]; weekNum: number }) {
-  const t = weekTotals(days);
-  const typeKeys = Object.keys(t.byType).sort();
+function WeekRow({ days, weekNum, fitnessCurve }: { days: DayData[]; weekNum: number; fitnessCurve: FitnessPoint[] }) {
+  const todayStr = toDS(new Date());
+  // A week is "future" if its first day is after today
+  const isFutureWeek = days[0].date > todayStr;
+  // A week is "current" if today falls within it
+  const isCurrentWeek = days[0].date <= todayStr && days[6].date >= todayStr;
+  // Only show totals for past weeks and current week (with partial data)
+  const hasData = !isFutureWeek;
+
+  const t = hasData ? weekTotals(days) : null;
+  const typeKeys = t ? Object.keys(t.byType).sort() : [];
+
+  // Get fitness/fatigue/form for the last day of this week (or today if current week)
+  const refDate = isCurrentWeek ? todayStr : days[6]?.date || days[days.length - 1]?.date;
+  const weekPoint = hasData ? (fitnessCurve.find((p) => p.date === refDate) || [...fitnessCurve].reverse().find((p) => p.date <= refDate)) : null;
+  const ctl = weekPoint?.ctl ?? 0;
+  const atl = weekPoint?.atl ?? 0;
+  const tsb = weekPoint?.tsb ?? 0;
+
   return (
     <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #e5e7eb" }}>
-      <div style={{ width: 140, flexShrink: 0, padding: "8px 10px", borderRight: "1px solid #e5e7eb", fontSize: 9, lineHeight: 1.6, background: "#fafafa" }}>
+      <div style={{ width: 150, flexShrink: 0, padding: "8px 10px", borderRight: "1px solid #e5e7eb", fontSize: 9, lineHeight: 1.6, background: "#fafafa" }}>
         <div style={{ fontWeight: 800, fontSize: 11, color: "#374151", marginBottom: 4 }}>Week {weekNum}</div>
-        <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#6b7280" }}>Total</span><span style={{ fontWeight: 700 }}>{fmtSec(t.timeSec)}</span></div>
-        {t.kcal > 0 && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#6b7280" }}>kcal</span><span style={{ fontWeight: 700 }}>{t.kcal.toLocaleString()}</span></div>}
-        <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#6b7280" }}>Load</span><span style={{ fontWeight: 700 }}>{t.load}</span></div>
-        {t.distKm > 0 && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#6b7280" }}>Dist</span><span style={{ fontWeight: 700 }}>{t.distKm} km</span></div>}
-        {typeKeys.length > 0 && (
-          <div style={{ marginTop: 6, borderTop: "1px solid #e5e7eb", paddingTop: 4 }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr style={{ fontSize: 8, color: "#9ca3af", fontWeight: 700 }}><td></td><td style={{ textAlign: "right" }}>Time</td><td style={{ textAlign: "right" }}>Dist</td><td style={{ textAlign: "right" }}>Load</td></tr></thead>
-              <tbody>
-                {typeKeys.map((k) => { const bt = t.byType[k]; const c = TYPE_COLORS[k]; return (
-                  <tr key={k}><td style={{ color: c?.text || "#374151", fontWeight: 600 }}><span style={{ display: "inline-block", width: 6, height: 6, borderRadius: 2, background: c?.border || "#999", marginRight: 3 }} />{c?.label || k}</td>
-                  <td style={{ textAlign: "right", fontWeight: 600 }}>{fmtSec(bt.timeSec)}</td>
-                  <td style={{ textAlign: "right", fontWeight: 600 }}>{bt.distKm > 0 ? `${Math.round(bt.distKm * 10) / 10}` : "—"}</td>
-                  <td style={{ textAlign: "right", fontWeight: 600 }}>{bt.load}</td></tr>
-                ); })}
-              </tbody>
-            </table>
-          </div>
+        {t && t.timeSec > 0 ? (
+          <>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#6b7280" }}>Total</span><span style={{ fontWeight: 700 }}>{fmtSec(t.timeSec)}</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#6b7280" }}>Load</span><span style={{ fontWeight: 700 }}>{t.load}</span></div>
+            {t.kcal > 0 && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#6b7280" }}>kcal</span><span style={{ fontWeight: 700 }}>{t.kcal.toLocaleString()}</span></div>}
+            {t.distKm > 0 && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#6b7280" }}>Dist</span><span style={{ fontWeight: 700 }}>{t.distKm} km</span></div>}
+            {t.elevation > 0 && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#6b7280" }}>Elev</span><span style={{ fontWeight: 700 }}>↑{t.elevation}m</span></div>}
+
+            {/* Fitness / Fatigue / Form */}
+            <div style={{ marginTop: 6, borderTop: "1px solid #e5e7eb", paddingTop: 4 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "#3b82f6", fontWeight: 700 }}>Fitness</span>
+                <span style={{ fontWeight: 800, color: "#3b82f6" }}>{ctl}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "#f97316", fontWeight: 700 }}>Fatigue</span>
+                <span style={{ fontWeight: 800, color: "#f97316" }}>{atl}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: tsb >= 0 ? "#22c55e" : "#ef4444", fontWeight: 700 }}>Form</span>
+                <span style={{ fontWeight: 800, color: tsb >= 0 ? "#22c55e" : "#ef4444" }}>{tsb}</span>
+              </div>
+            </div>
+
+            {typeKeys.length > 0 && (
+              <div style={{ marginTop: 6, borderTop: "1px solid #e5e7eb", paddingTop: 4 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead><tr style={{ fontSize: 8, color: "#9ca3af", fontWeight: 700 }}><td></td><td style={{ textAlign: "right" }}>Time</td><td style={{ textAlign: "right" }}>Dist</td><td style={{ textAlign: "right" }}>Load</td></tr></thead>
+                  <tbody>
+                    {typeKeys.map((k) => { const bt = t.byType[k]; const c = TYPE_COLORS[k]; return (
+                      <tr key={k}><td style={{ color: c?.text || "#374151", fontWeight: 600 }}><span style={{ display: "inline-block", width: 6, height: 6, borderRadius: 2, background: c?.border || "#999", marginRight: 3 }} />{c?.label || k}</td>
+                      <td style={{ textAlign: "right", fontWeight: 600 }}>{fmtSec(bt.timeSec)}</td>
+                      <td style={{ textAlign: "right", fontWeight: 600 }}>{bt.distKm > 0 ? `${Math.round(bt.distKm * 10) / 10}` : "—"}</td>
+                      <td style={{ textAlign: "right", fontWeight: 600 }}>{bt.load}</td></tr>
+                    ); })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        ) : isFutureWeek ? (
+          <div style={{ color: "#d1d5db", fontSize: 10, fontStyle: "italic", marginTop: 4 }}>—</div>
+        ) : (
+          <div style={{ color: "#9ca3af", fontSize: 10, marginTop: 4 }}>No activity</div>
         )}
       </div>
       <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 0, minWidth: 0 }}>
@@ -540,7 +609,7 @@ export default function DashboardPage() {
       </div>
 
       <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "auto" }}>
-        {weeks.map((weekDays, wi) => <WeekRow key={weekDays[0].date} days={weekDays} weekNum={weekNumbers[wi]} />)}
+        {weeks.map((weekDays, wi) => <WeekRow key={weekDays[0].date} days={weekDays} weekNum={weekNumbers[wi]} fitnessCurve={fitnessCurve} />)}
       </div>
 
       {/* Legend */}
