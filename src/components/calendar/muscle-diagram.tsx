@@ -15,7 +15,7 @@ const BASE = "#dce1e8";
 // Front body SVG paths (simplified anatomical outline)
 function FrontBody({ m }: { m: (group: string) => string }) {
   return (
-    <svg viewBox="0 0 120 260" width="55" height="120" fill="none">
+    <svg viewBox="0 0 120 260" width="38" height="82" fill="none">
       {/* Head */}
       <ellipse cx="60" cy="18" rx="12" ry="14" fill="#c9cfd8" />
       {/* Neck */}
@@ -54,7 +54,7 @@ function FrontBody({ m }: { m: (group: string) => string }) {
 // Back body SVG paths
 function BackBody({ m }: { m: (group: string) => string }) {
   return (
-    <svg viewBox="0 0 120 260" width="55" height="120" fill="none">
+    <svg viewBox="0 0 120 260" width="38" height="82" fill="none">
       {/* Head */}
       <ellipse cx="60" cy="18" rx="12" ry="14" fill="#c9cfd8" />
       {/* Neck */}
