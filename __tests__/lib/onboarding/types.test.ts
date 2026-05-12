@@ -1,113 +1,139 @@
 import { describe, it, expect } from "vitest";
 import {
-  type OnboardingData,
-  BODY_GOALS,
-  EMPHASIS_OPTIONS,
-  RACE_TYPES,
-  EXPERIENCE_LEVELS,
-  CARDIO_TYPES,
-  getDefaultOnboardingData,
+  type AthleteContextProfile,
+  getDefaultAthleteProfile,
   getVisibleSteps,
+  hasLifting,
+  hasAnySport,
+  plannedSports,
+  GOAL_OPTIONS,
+  SPORTS,
+  ATHLETE_IDENTITIES,
+  AGGRESSIVENESS_OPTIONS,
 } from "@/lib/onboarding/types";
 
-describe("OnboardingData", () => {
-  it("provides correct default values", () => {
-    const data = getDefaultOnboardingData();
-    expect(data.height).toBe(null);
-    expect(data.weight).toBe(null);
-    expect(data.age).toBe(null);
-    expect(data.sex).toBe(null);
-    expect(data.bodyGoal).toBe(null);
-    expect(data.emphasis).toBe(null);
-    expect(data.trainingForRace).toBe(false);
-    expect(data.raceType).toBe(null);
-    expect(data.raceDate).toBe(null);
-    expect(data.goalTime).toBe(null);
-    expect(data.doesCardio).toBe(false);
-    expect(data.cardioTypes).toEqual([]);
-    expect(data.experience).toBe(null);
-    expect(data.daysPerWeek).toBe(null);
-    expect(data.liftingDays).toBe(null);
+function planSports(p: AthleteContextProfile, ids: Array<keyof AthleteContextProfile["sports"]>): AthleteContextProfile {
+  const sports = { ...p.sports };
+  for (const id of ids) {
+    sports[id] = { ...sports[id], is_planned: true, enabled: true };
+  }
+  return { ...p, sports };
+}
+
+describe("getDefaultAthleteProfile", () => {
+  it("starts every sport disabled", () => {
+    const p = getDefaultAthleteProfile();
+    for (const s of SPORTS) {
+      expect(p.sports[s.value].enabled).toBe(false);
+      expect(p.sports[s.value].is_planned).toBe(false);
+    }
+  });
+
+  it("starts with empty arrays for goals, events, windows", () => {
+    const p = getDefaultAthleteProfile();
+    expect(p.goal_keys).toEqual([]);
+    expect(p.goal_rank).toEqual([]);
+    expect(p.events).toEqual([]);
+    expect(p.availability_windows).toEqual([]);
+    expect(p.availability_rules).toEqual([]);
+    expect(p.injuries).toEqual([]);
+    expect(p.equipment).toEqual([]);
+    expect(p.chat_notes).toEqual([]);
+  });
+
+  it("body, recovery, coach default to nulls", () => {
+    const p = getDefaultAthleteProfile();
+    expect(p.body_nutrition.body_goal).toBe(null);
+    expect(p.recovery.avg_sleep_hours).toBe(null);
+    expect(p.coach.aggressiveness).toBe(null);
+    expect(p.basic.height_cm).toBe(null);
   });
 });
 
 describe("getVisibleSteps", () => {
-  it("shows emphasis step when body goal is gain_muscle", () => {
-    const data = getDefaultOnboardingData();
-    data.bodyGoal = "gain_muscle";
-    const steps = getVisibleSteps(data);
-    expect(steps).toContain("emphasis");
+  it("hides events screen when no_event is true", () => {
+    const p = { ...getDefaultAthleteProfile(), no_event: true };
+    expect(getVisibleSteps(p)).not.toContain("events");
   });
 
-  it("shows emphasis step when body goal is maintain", () => {
-    const data = getDefaultOnboardingData();
-    data.bodyGoal = "maintain";
-    const steps = getVisibleSteps(data);
-    expect(steps).toContain("emphasis");
+  it("shows events screen by default", () => {
+    expect(getVisibleSteps(getDefaultAthleteProfile())).toContain("events");
   });
 
-  it("hides emphasis step when body goal is lose_weight", () => {
-    const data = getDefaultOnboardingData();
-    data.bodyGoal = "lose_weight";
-    const steps = getVisibleSteps(data);
-    expect(steps).not.toContain("emphasis");
+  it("hides strength screen when lifting is not planned", () => {
+    const p = planSports(getDefaultAthleteProfile(), ["run"]);
+    expect(getVisibleSteps(p)).not.toContain("strength");
   });
 
-  it("shows race details when training for a race", () => {
-    const data = getDefaultOnboardingData();
-    data.trainingForRace = true;
-    const steps = getVisibleSteps(data);
-    expect(steps).toContain("race_details");
-    expect(steps).not.toContain("cardio");
+  it("shows strength screen when lifting is planned", () => {
+    const p = planSports(getDefaultAthleteProfile(), ["lift"]);
+    expect(getVisibleSteps(p)).toContain("strength");
   });
 
-  it("shows cardio step when not training for a race", () => {
-    const data = getDefaultOnboardingData();
-    data.trainingForRace = false;
-    const steps = getVisibleSteps(data);
-    expect(steps).toContain("cardio");
-    expect(steps).not.toContain("race_details");
+  it("hides equipment screen when no sports planned", () => {
+    expect(getVisibleSteps(getDefaultAthleteProfile())).not.toContain("equipment");
   });
 
-  it("always includes profile, body_goal, race, experience, availability, integrations, split_result", () => {
-    const data = getDefaultOnboardingData();
-    const steps = getVisibleSteps(data);
-    expect(steps).toContain("profile");
-    expect(steps).toContain("body_goal");
-    expect(steps).toContain("race");
-    expect(steps).toContain("experience");
-    expect(steps).toContain("availability");
-    expect(steps).toContain("integrations");
-    expect(steps).toContain("split_result");
+  it("shows equipment screen when at least one sport is planned", () => {
+    const p = planSports(getDefaultAthleteProfile(), ["run"]);
+    expect(getVisibleSteps(p)).toContain("equipment");
+  });
+
+  it("always includes welcome, connect, sports, identity, goals, coach_style, plan_preview", () => {
+    const steps = getVisibleSteps(getDefaultAthleteProfile());
+    for (const s of ["welcome", "connect", "sports", "identity", "goals", "coach_style", "plan_preview"] as const) {
+      expect(steps).toContain(s);
+    }
+  });
+
+  it("order is welcome first, plan_preview last", () => {
+    const steps = getVisibleSteps(getDefaultAthleteProfile());
+    expect(steps[0]).toBe("welcome");
+    expect(steps[steps.length - 1]).toBe("plan_preview");
+  });
+});
+
+describe("plannedSports / hasLifting / hasAnySport", () => {
+  it("plannedSports returns only planned sports", () => {
+    const p = planSports(getDefaultAthleteProfile(), ["run", "lift"]);
+    expect(plannedSports(p).sort()).toEqual(["lift", "run"]);
+  });
+
+  it("hasLifting is true only when lift is planned", () => {
+    expect(hasLifting(getDefaultAthleteProfile())).toBe(false);
+    expect(hasLifting(planSports(getDefaultAthleteProfile(), ["run"]))).toBe(false);
+    expect(hasLifting(planSports(getDefaultAthleteProfile(), ["lift"]))).toBe(true);
+  });
+
+  it("hasAnySport reflects any planned sport", () => {
+    expect(hasAnySport(getDefaultAthleteProfile())).toBe(false);
+    expect(hasAnySport(planSports(getDefaultAthleteProfile(), ["swim"]))).toBe(true);
   });
 });
 
 describe("Constants", () => {
-  it("has all body goal options", () => {
-    expect(BODY_GOALS).toEqual([
-      { value: "gain_muscle", label: "Gain Muscle" },
-      { value: "lose_weight", label: "Lose Weight" },
-      { value: "maintain", label: "Maintain / Recomp" },
-      { value: "other", label: "Other" },
-    ]);
+  it("exports a curated list of sports", () => {
+    const ids = SPORTS.map((s) => s.value).sort();
+    expect(ids).toEqual(["bike", "lift", "other", "run", "swim"]);
   });
 
-  it("has all emphasis options", () => {
-    expect(EMPHASIS_OPTIONS.map((o) => o.value)).toEqual([
-      "shoulders", "chest", "back", "arms", "legs", "glutes", "none",
-    ]);
+  it("exports athlete identities", () => {
+    expect(ATHLETE_IDENTITIES.length).toBeGreaterThan(5);
+    expect(ATHLETE_IDENTITIES.map((i) => i.value)).toContain("hybrid_athlete");
   });
 
-  it("has all race types grouped by category", () => {
-    const runningValues = RACE_TYPES.filter((r) => r.category === "running").map((r) => r.value);
-    expect(runningValues).toEqual(["5k", "10k", "half_marathon", "marathon", "ultra"]);
-    const triValues = RACE_TYPES.filter((r) => r.category === "triathlon").map((r) => r.value);
-    expect(triValues).toEqual(["sprint_tri", "olympic_tri", "half_ironman", "ironman"]);
+  it("exports goal options with emojis", () => {
+    expect(GOAL_OPTIONS.length).toBeGreaterThan(10);
+    expect(GOAL_OPTIONS.every((g) => g.emoji.length > 0)).toBe(true);
   });
 
-  it("has experience levels", () => {
-    expect(EXPERIENCE_LEVELS.map((e) => e.value)).toEqual([
-      "beginner", "intermediate", "advanced",
+  it("exports aggressiveness scale", () => {
+    expect(AGGRESSIVENESS_OPTIONS.map((a) => a.value)).toEqual([
+      "conservative",
+      "balanced",
+      "balanced_aggressive",
+      "push_hard",
+      "consistency_first",
     ]);
   });
 });
