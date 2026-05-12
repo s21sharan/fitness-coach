@@ -3,9 +3,30 @@
 import { auth } from "@clerk/nextjs/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { generateTrainingPlan } from "@/lib/training/generate-plan";
-import type { OnboardingData } from "@/lib/onboarding/types";
 
-export async function generatePlanFromOnboarding(data: OnboardingData) {
+// Legacy generator input — kept for compatibility with code paths that
+// still use the prior onboarding shape. The redesigned onboarding flow
+// commits via commitOnboardingData in app/onboarding/actions.ts and uses
+// /api/coach/preview-plan for the first-week preview instead.
+export interface LegacyOnboardingInput {
+  age: number | null;
+  height: number | null;
+  weight: number | null;
+  sex: "M" | "F" | "Other" | null;
+  experience: "beginner" | "intermediate" | "advanced" | null;
+  bodyGoal: "gain_muscle" | "lose_weight" | "maintain" | "other" | null;
+  emphasis: string | null;
+  daysPerWeek: number | null;
+  liftingDays: number | null;
+  trainingForRace: boolean;
+  raceType: string | null;
+  raceDate: string | null;
+  goalTime: string | null;
+  doesCardio: boolean;
+  cardioTypes: string[];
+}
+
+export async function generatePlanFromOnboarding(data: LegacyOnboardingInput) {
   const { userId } = await auth();
   if (!userId) return { success: false, error: "Not authenticated" };
 
