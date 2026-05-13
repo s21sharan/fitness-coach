@@ -824,6 +824,7 @@ export default function DashboardPage() {
         open={!!selectedActivity}
         onClose={() => setSelectedActivity(null)}
         activity={selectedActivity}
+        distanceUnit={units.distance}
       />
     </div>
   );

@@ -14,6 +14,15 @@ import {
   Bar,
   Cell,
 } from "recharts";
+import {
+  type DistanceUnit,
+  fmtDist as fmtDistUnit,
+  fmtPace as fmtPaceUnit,
+  convertPace,
+  convertDistance,
+  distanceLabel,
+  paceLabel,
+} from "@/lib/units";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -61,6 +70,7 @@ interface ActivityDetailModalProps {
   open: boolean;
   onClose: () => void;
   activity: ActivityData | null;
+  distanceUnit?: DistanceUnit;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -95,11 +105,12 @@ function fmtSec(s: number): string {
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
-function fmtPace(p: number): string {
-  const totalSec = Math.round(p * 60);
-  const m = Math.floor(totalSec / 60);
-  const sec = totalSec % 60;
-  return `${m}:${String(sec).padStart(2, "0")}`;
+/** Format pace as M:SS (no unit suffix — used for chart axis/tooltip where label is separate) */
+function fmtPaceRaw(minPerKm: number, du: DistanceUnit): string {
+  const pace = convertPace(minPerKm, du);
+  const mins = Math.floor(pace);
+  const secs = Math.round((pace - mins) * 60);
+  return `${mins}:${String(secs).padStart(2, "0")}`;
 }
 
 function fmtZoneTime(mins: number): string {
@@ -158,7 +169,7 @@ function EmptyState({ message }: { message: string }) {
 
 // ─── Timeline Tab ─────────────────────────────────────────────────────────────
 
-function TimelineTab({ splits }: { splits: Split[] | null }) {
+function TimelineTab({ splits, du }: { splits: Split[] | null; du: DistanceUnit }) {
   if (!splits || splits.length < 2) {
     return <EmptyState message="No split data available" />;
   }
@@ -170,7 +181,7 @@ function TimelineTab({ splits }: { splits: Split[] | null }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {/* Pace Chart */}
       <div>
-        <SectionLabel>Pace per km</SectionLabel>
+        <SectionLabel>Pace per {distanceLabel(du)}</SectionLabel>
         <ResponsiveContainer width="100%" height={160}>
           <ComposedChart data={splits} margin={{ top: 4, right: 4, bottom: 4, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -179,20 +190,20 @@ function TimelineTab({ splits }: { splits: Split[] | null }) {
               tick={{ fontSize: 10, fill: "#9ca3af" }}
               axisLine={false}
               tickLine={false}
-              tickFormatter={(v: number) => `${v}km`}
+              tickFormatter={(v: number) => `${v}`}
             />
             <YAxis
               reversed
               tick={{ fontSize: 10, fill: "#9ca3af" }}
               axisLine={false}
               tickLine={false}
-              tickFormatter={(v: number) => fmtPace(v)}
+              tickFormatter={(v: number) => fmtPaceRaw(v, du)}
               domain={["auto", "auto"]}
             />
             <Tooltip
               contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e5e7eb" }}
-              labelFormatter={(v: number) => `km ${v}`}
-              formatter={(val: number) => [fmtPace(val) + "/km", "Pace"]}
+              labelFormatter={(v: number) => `Lap ${v}`}
+              formatter={(val: number) => [fmtPaceRaw(val, du) + paceLabel(du), "Pace"]}
             />
             <Line
               dataKey="pace_min_km"
@@ -207,7 +218,7 @@ function TimelineTab({ splits }: { splits: Split[] | null }) {
 
       {/* HR Chart */}
       <div>
-        <SectionLabel>Heart Rate per km</SectionLabel>
+        <SectionLabel>Heart Rate per {distanceLabel(du)}</SectionLabel>
         <ResponsiveContainer width="100%" height={140}>
           <ComposedChart data={splits} margin={{ top: 4, right: 4, bottom: 4, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -216,7 +227,7 @@ function TimelineTab({ splits }: { splits: Split[] | null }) {
               tick={{ fontSize: 10, fill: "#9ca3af" }}
               axisLine={false}
               tickLine={false}
-              tickFormatter={(v: number) => `${v}km`}
+              tickFormatter={(v: number) => `${v}`}
             />
             <YAxis
               tick={{ fontSize: 10, fill: "#9ca3af" }}
@@ -226,7 +237,7 @@ function TimelineTab({ splits }: { splits: Split[] | null }) {
             />
             <Tooltip
               contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e5e7eb" }}
-              labelFormatter={(v: number) => `km ${v}`}
+              labelFormatter={(v: number) => `Lap ${v}`}
               formatter={(val: number) => [`${val} bpm`, "HR"]}
             />
             <defs>
@@ -250,7 +261,7 @@ function TimelineTab({ splits }: { splits: Split[] | null }) {
       {/* Cadence Chart (only if data exists) */}
       {hasCadence && (
         <div>
-          <SectionLabel>Cadence per km</SectionLabel>
+          <SectionLabel>Cadence per {distanceLabel(du)}</SectionLabel>
           <ResponsiveContainer width="100%" height={120}>
             <ComposedChart data={splits} margin={{ top: 4, right: 4, bottom: 4, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -259,7 +270,7 @@ function TimelineTab({ splits }: { splits: Split[] | null }) {
                 tick={{ fontSize: 10, fill: "#9ca3af" }}
                 axisLine={false}
                 tickLine={false}
-                tickFormatter={(v: number) => `${v}km`}
+                tickFormatter={(v: number) => `${v}`}
               />
               <YAxis
                 tick={{ fontSize: 10, fill: "#9ca3af" }}
@@ -269,7 +280,7 @@ function TimelineTab({ splits }: { splits: Split[] | null }) {
               />
               <Tooltip
                 contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e5e7eb" }}
-                labelFormatter={(v: number) => `km ${v}`}
+                labelFormatter={(v: number) => `Lap ${v}`}
                 formatter={(val: number) => [`${val} spm`, "Cadence"]}
               />
               <Line
@@ -287,7 +298,7 @@ function TimelineTab({ splits }: { splits: Split[] | null }) {
       {/* Elevation Chart (only if data exists) */}
       {hasElevation && (
         <div>
-          <SectionLabel>Elevation per km</SectionLabel>
+          <SectionLabel>Elevation per lap</SectionLabel>
           <ResponsiveContainer width="100%" height={120}>
             <ComposedChart data={splits} margin={{ top: 4, right: 4, bottom: 4, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -296,7 +307,7 @@ function TimelineTab({ splits }: { splits: Split[] | null }) {
                 tick={{ fontSize: 10, fill: "#9ca3af" }}
                 axisLine={false}
                 tickLine={false}
-                tickFormatter={(v: number) => `${v}km`}
+                tickFormatter={(v: number) => `${v}`}
               />
               <YAxis
                 tick={{ fontSize: 10, fill: "#9ca3af" }}
@@ -306,7 +317,7 @@ function TimelineTab({ splits }: { splits: Split[] | null }) {
               />
               <Tooltip
                 contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e5e7eb" }}
-                labelFormatter={(v: number) => `km ${v}`}
+                labelFormatter={(v: number) => `Lap ${v}`}
                 formatter={(val: number) => [`${val} m`, "Elevation"]}
               />
               <defs>
@@ -456,9 +467,11 @@ function HrTab({ zones }: { zones: HrZone[] | null }) {
 function DataTab({
   activity,
   splits,
+  du,
 }: {
   activity: ActivityData;
   splits: Split[] | null;
+  du: DistanceUnit;
 }) {
   const stats: { label: string; value: string | null }[] = [
     {
@@ -594,7 +607,7 @@ function DataTab({
                   borderBottom: "1px solid #f3f4f6",
                 }}
               >
-                <td style={{ padding: "5px 0" }}>km</td>
+                <td style={{ padding: "5px 0" }}>Lap</td>
                 <td>Pace</td>
                 <td>HR</td>
                 <td>Elevation</td>
@@ -620,7 +633,7 @@ function DataTab({
                     {s.km}
                   </td>
                   <td style={{ color: "#374151" }}>
-                    {s.pace_min_km != null ? fmtPace(s.pace_min_km) + "/km" : "—"}
+                    {s.pace_min_km != null ? fmtPaceRaw(s.pace_min_km, du) + paceLabel(du) : "—"}
                   </td>
                   <td style={{ color: "#374151" }}>
                     {s.avg_hr != null ? `${s.avg_hr} bpm` : "—"}
@@ -647,6 +660,7 @@ export function ActivityDetailModal({
   open,
   onClose,
   activity,
+  distanceUnit: du = "mi",
 }: ActivityDetailModalProps) {
   const [activeTab, setActiveTab] = useState<"timeline" | "hr" | "data">(
     "timeline"
@@ -680,7 +694,7 @@ export function ActivityDetailModal({
   const icon = getActivityIcon(activity.type);
   const typeName =
     activity.type.charAt(0).toUpperCase() + activity.type.slice(1).toLowerCase();
-  const distanceKm = (activity.distance / 1000).toFixed(2);
+  const distFormatted = fmtDistUnit(activity.distance, du);
 
   const tabs: { key: "timeline" | "hr" | "data"; label: string }[] = [
     { key: "timeline", label: "Timeline" },
@@ -689,13 +703,13 @@ export function ActivityDetailModal({
   ];
 
   const metrics: { label: string; value: string | null }[] = [
-    { label: "Distance", value: `${distanceKm} km` },
+    { label: "Distance", value: `${distFormatted} ${distanceLabel(du)}` },
     { label: "Duration", value: fmtSec(activity.duration) },
     {
       label: "Pace",
       value:
         activity.pace_or_speed != null
-          ? fmtPace(activity.pace_or_speed) + "/km"
+          ? fmtPaceUnit(activity.pace_or_speed, du)
           : null,
     },
     {
@@ -859,11 +873,11 @@ export function ActivityDetailModal({
 
         {/* ── Tab Content ── */}
         {activeTab === "timeline" && (
-          <TimelineTab splits={activity.splits} />
+          <TimelineTab splits={activity.splits} du={du} />
         )}
         {activeTab === "hr" && <HrTab zones={activity.hr_zones} />}
         {activeTab === "data" && (
-          <DataTab activity={activity} splits={activity.splits} />
+          <DataTab activity={activity} splits={activity.splits} du={du} />
         )}
       </div>
     </div>
