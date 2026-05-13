@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from garmin_client import create_client, fetch_data
+from garmin_client import create_client, fetch_data, fetch_activities
 from garminconnect import GarminConnectAuthenticationError, GarminConnectTooManyRequestsError
 
 app = FastAPI(title="Hybro Garmin Service")
@@ -104,6 +104,20 @@ def sync(req: SyncRequest):
     try:
         data = fetch_garmin_data(req.email, req.password, req.since)
         return data
+    except GarminConnectAuthenticationError:
+        raise HTTPException(status_code=401, detail={"error": "auth_failed"})
+    except GarminConnectTooManyRequestsError:
+        raise HTTPException(status_code=429, detail={"error": "rate_limited"})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"error": str(e)})
+
+
+@app.post("/sync-activities")
+def sync_activities(req: SyncRequest):
+    try:
+        client = create_client(req.email, req.password)
+        activities = fetch_activities(client, req.since)
+        return {"activities": activities}
     except GarminConnectAuthenticationError:
         raise HTTPException(status_code=401, detail={"error": "auth_failed"})
     except GarminConnectTooManyRequestsError:

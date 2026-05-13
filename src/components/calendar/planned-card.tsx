@@ -8,6 +8,7 @@ interface PlannedCardProps {
   variant?: PlannedCardVariant;
   sessionType: string;
   aiNotes: string | null;
+  slot?: "am" | "pm" | null;
   targets: {
     contract?: WorkoutContractV1 | null;
     target_distance_km?: number | null;
@@ -51,13 +52,12 @@ const VARIANT_STYLES: Record<
 
 function getSessionIcon(sessionType: string): string {
   const lower = sessionType.toLowerCase();
-  if (/run|jog/.test(lower)) return "🏃";
-  if (/bike|ride|cycling/.test(lower)) return "🚴";
-  if (/swim|pool/.test(lower)) return "🏊";
-  if (/lift|push|pull|legs|upper|lower|full.body|arms|shoulders|back|chest|strength/.test(lower))
-    return "🏋️";
-  if (/rest|recovery|off/.test(lower)) return "😴";
-  return "🏋️";
+  if (/run|jog|tempo|threshold|marathon|mile|track|easy run|long run/.test(lower)) return "\u{1F3C3}";
+  if (/bike|ride|cycling|trainer|zwift|spin/.test(lower)) return "\u{1F6B4}";
+  if (/swim|pool|css|drill|stroke/.test(lower)) return "\u{1F3CA}";
+  if (/lift|push|pull|legs|upper|lower|full.body|arms|shoulders|back|chest|strength|hypertrophy|squat|dead|bench/.test(lower)) return "\u{1F3CB}\uFE0F";
+  if (/rest|recovery|off/.test(lower)) return "\u{1F634}";
+  return "\u{1F3CB}\uFE0F";
 }
 
 function formatPace(minPerKm: number): string {
@@ -75,7 +75,80 @@ function isContractV1(x: unknown): x is WorkoutContractV1 {
   );
 }
 
-export function PlannedCard({ variant = "future", sessionType, aiNotes, targets }: PlannedCardProps) {
+/**
+ * Splits a combined "AM: X · PM: Y" session_type into separate sessions.
+ * Returns an array of { slot, label, aiNotes } objects.
+ */
+export function splitAmPmSessions(
+  sessionType: string,
+  aiNotes: string | null,
+  targets: PlannedCardProps["targets"]
+): Array<{ slot: "am" | "pm" | null; label: string; aiNotes: string | null; targets: PlannedCardProps["targets"] }> {
+  const amPmPattern = /^AM:\s*(.+?)\s*·\s*PM:\s*(.+)$/i;
+  const match = sessionType.match(amPmPattern);
+
+  if (!match) {
+    return [{ slot: null, label: sessionType, aiNotes, targets }];
+  }
+
+  const amLabel = match[1].trim();
+  const pmLabel = match[2].trim();
+
+  // Split ai_notes by AM/PM markers if present
+  let amNotes: string | null = null;
+  let pmNotes: string | null = null;
+  if (aiNotes) {
+    const lines = aiNotes.split("\n");
+    for (const line of lines) {
+      if (/^AM\s*[—–-]/i.test(line)) amNotes = line.replace(/^AM\s*[—–-]\s*/i, "");
+      else if (/^PM\s*[—–-]/i.test(line)) pmNotes = line.replace(/^PM\s*[—–-]\s*/i, "");
+    }
+    if (!amNotes && !pmNotes) {
+      amNotes = aiNotes;
+      pmNotes = aiNotes;
+    }
+  }
+
+  // Split contract targets by slot if both exist
+  let amTargets: PlannedCardProps["targets"] = null;
+  let pmTargets: PlannedCardProps["targets"] = null;
+
+  if (targets?.contract && isContractV1(targets.contract)) {
+    const contract = targets.contract;
+    const amSteps = contract.steps.filter(s => s.label?.startsWith("AM"));
+    const pmSteps = contract.steps.filter(s => s.label?.startsWith("PM"));
+
+    if (amSteps.length > 0) {
+      amTargets = {
+        ...targets,
+        contract: { ...contract, slot: "am", name: amLabel, steps: amSteps.map(s => ({ ...s, label: s.label?.replace(/^AM\s*[—–-]\s*/i, "") })) },
+      };
+    }
+    if (pmSteps.length > 0) {
+      pmTargets = {
+        ...targets,
+        contract: { ...contract, slot: "pm", name: pmLabel, steps: pmSteps.map(s => ({ ...s, label: s.label?.replace(/^PM\s*[—–-]\s*/i, "") })) },
+      };
+    }
+  }
+
+  // If no contract splitting happened, just pass targets to whichever is relevant
+  if (!amTargets && !pmTargets && targets) {
+    const isCardio = /run|jog|bike|ride|cycling|swim|pool/i.test(amLabel);
+    if (isCardio) {
+      amTargets = targets;
+    } else {
+      pmTargets = targets;
+    }
+  }
+
+  return [
+    { slot: "am", label: amLabel, aiNotes: amNotes, targets: amTargets },
+    { slot: "pm", label: pmLabel, aiNotes: pmNotes, targets: pmTargets },
+  ];
+}
+
+export function PlannedCard({ variant = "future", sessionType, aiNotes, slot, targets }: PlannedCardProps) {
   const icon = getSessionIcon(sessionType);
   const v = VARIANT_STYLES[variant];
   const contract = targets?.contract && isContractV1(targets.contract) ? targets.contract : null;
@@ -96,6 +169,11 @@ export function PlannedCard({ variant = "future", sessionType, aiNotes, targets 
           {icon}
         </span>
         <span style={{ fontWeight: 700, color: v.text, fontSize: 11 }}>{sessionType}</span>
+        {slot && (
+          <span style={{ fontSize: 8, fontWeight: 700, color: v.sub, opacity: 0.7, textTransform: "uppercase", marginLeft: "auto" }}>
+            {slot}
+          </span>
+        )}
       </div>
 
       {outline && (

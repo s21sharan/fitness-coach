@@ -7,6 +7,7 @@ import { MonthView } from "@/components/calendar/month-view";
 import { WeekView } from "@/components/calendar/week-view";
 import { WorkoutModal } from "@/components/calendar/workout-modal";
 import { useDashboardData, type WorkoutLog } from "@/lib/hooks/use-dashboard-data";
+import { DailySummaryCard } from "@/components/dashboard/daily-summary-card";
 
 type CalendarView = "month" | "week";
 
@@ -44,6 +45,8 @@ function DashboardPageInner() {
         fixingDates={fixingDates}
         onFixDates={triggerFixDates}
       />
+
+      <DailySummaryCard />
 
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
         <ViewToggle view={view} onChange={setView} />

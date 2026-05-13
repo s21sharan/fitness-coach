@@ -18,7 +18,7 @@ Trainer is a **review-and-advise** platform that connects users' existing fitnes
 - **AI:** Claude API via Vercel AI SDK (`@ai-sdk/anthropic`, `@ai-sdk/react`)
 - **Backend API:** Express on Railway (`server/` directory)
 - **Garmin:** Python FastAPI microservice (`services/garmin/`)
-- **Charts:** Custom SVG chart components (`src/components/charts/`)
+- **Charts:** recharts + custom SVG components (`src/components/charts/`)
 
 ## App Structure
 
@@ -26,7 +26,7 @@ Trainer is a **review-and-advise** platform that connects users' existing fitnes
 Top nav bar with three tabs: **Calendar** | **Coach** | **Settings**
 
 ### Pages
-- `/dashboard` — Calendar page: month view with workout/cardio/recovery cards, fitness/fatigue/form charts, HR zone distribution, training load, recovery trend sparklines, weekly muscle body diagram (SVG), clickable workout cards with detail modal
+- `/dashboard` — Calendar page: month view with workout/cardio/recovery cards, fitness/fatigue/form charts, HR zone distribution, training load, recovery trend sparklines, weekly muscle body diagram (SVG), clickable workout cards with detail modal, clickable cardio cards with activity detail modal (timeline/HR/data tabs)
 - `/dashboard/coach` — AI Coach chat: streaming Claude responses with 7 data tools, conversation history, suggested prompts
 - `/dashboard/settings` — Settings: Integrations (connect/disconnect providers), Preferences (distance mi/km, weight lbs/kg), Account, Goals, Notifications, Privacy, Subscription tabs
 
@@ -36,11 +36,16 @@ Top nav bar with three tabs: **Calendar** | **Coach** | **Settings**
 - Monthly training calendar with week rows showing daily workout/cardio/recovery data
 - Week sidebar: total time, load, distance, kcal, elevation, fitness/fatigue/form (CTL/ATL/TSB), per-type breakdown, anatomical muscle diagram (front + back SVG)
 - Clickable workout cards → detail modal with: total volume/tonnage, working sets, exercises, avg RPE, exercise breakdown table (best set, volume, e1RM via Epley), muscle groups hit
+- Clickable cardio cards → activity detail modal with 3 tabs:
+  - **Timeline**: pace/HR/cadence/elevation charts per split (recharts)
+  - **HR**: zone table (time + %, progress bars) + zone histogram
+  - **Data**: stats grid (TE aerobic/anaerobic, VO2 max, recovery time, respiration, cadence, stride, GCT) + splits table + source badge
+- Cardio cards show: Training Effect badge (color-coded 1-5), max HR, VO2 max, source indicator dot (orange=Strava, blue=Garmin, purple=Merged)
 - Chart cards (click to expand): Fitness/Fatigue/Form, HR Zone Distribution, Training Load, HRV, Sleep, Resting HR, Body Battery, Stress
-- AI insights in expanded chart modals
+- AI insights in expanded chart modals (via `/api/insights` using Anthropic SDK)
 - Planned workout cards for future dates with compliance badges
 - Connection bar with sync buttons per provider
-- Unit-aware display (mi/km, lbs/kg from user preferences)
+- Unit-aware display throughout (mi/km, lbs/kg from user preferences — including activity detail modal)
 
 ### AI Coach
 - Streaming chat via Vercel AI SDK v6 `streamText` + `useChat` from `@ai-sdk/react` + `DefaultChatTransport`
@@ -56,8 +61,13 @@ Top nav bar with three tabs: **Calendar** | **Coach** | **Settings**
 
 ### Integrations
 - **Hevy** — Workout logs (exercises, sets, reps, weight, RPE) via API key
-- **Strava** — Cardio logs (runs, rides, swims) via OAuth
-- **Garmin** — Recovery data (HRV, sleep, RHR, body battery, stress, steps) via Python FastAPI microservice on port 8001 (port 8000 is used by scraper)
+- **Strava** — Cardio logs (runs, rides, swims) via OAuth. Populates `start_time` and `source: "strava"` on cardio_logs
+- **Garmin** — Two sync types:
+  - **Recovery**: HRV, sleep, RHR, body battery, stress, steps → `recovery_logs`
+  - **Activities**: Runs, rides, swims with training effect, VO2 max, HR zones, per-lap splits, running dynamics (cadence, stride length, ground contact time), recovery time → `cardio_logs`
+  - Uses Python FastAPI microservice on port 8001 with endpoints: `/sync` (recovery), `/sync-activities` (activities), `/debug` (raw API inspection)
+  - Activity sync uses `get_activity_splits()` for per-lap data and `get_activity_hr_in_timezones()` for HR zone breakdown
+- **Strava + Garmin Dedup**: When both sources have the same activity, they are merged. Matching criteria: same date + same type + start times within 10min + duration within 20%. Strava keeps GPS data (distance, pace, elevation), Garmin adds enrichment (TE, VO2, HR zones, splits, dynamics). Merged rows have `source: "merged"`. Unmatched rows keep `source: "strava"` or `source: "garmin"`
 - **MacroFactor** — Nutrition logs (calories, macros) via Firebase auth (API key: `AIzaSyA17Uwy37irVEQSwz6PIyX3wnkHrDBeleA` — extracted from MCP package)
 - Dashboard shows 3 integrations: Hevy, Strava, Garmin (MacroFactor removed from dashboard)
 - Encrypted credential storage (AES-256-GCM)
@@ -87,6 +97,8 @@ Top nav bar with three tabs: **Calendar** | **Coach** | **Settings**
 - **Phase 3 plan:** `docs/superpowers/plans/2026-04-29-phase3-integrations.md`
 - **Phase 4 plan:** `docs/superpowers/plans/2026-05-01-phase4-training-engine.md`
 - **Phase 5 plan:** `docs/superpowers/plans/2026-05-01-phase5-ai-chat-coach.md`
+- **AI training plan spec:** `docs/superpowers/specs/2026-05-11-ai-training-plan-design.md`
+- **Garmin activities spec:** `docs/superpowers/specs/2026-05-12-garmin-activities-dedup-design.md`
 
 ## Development Status
 
@@ -103,20 +115,24 @@ Top nav bar with three tabs: **Calendar** | **Coach** | **Settings**
 **Phase 5: AI Chat Coach** — Streaming chat with 7 tools, coach personality, conversation persistence, plan regeneration via chat
 
 **Post-phase polish:**
-- Unit preferences (mi/km, lbs/kg) in settings
+- Unit preferences (mi/km, lbs/kg) in settings — respected throughout all modals and cards
 - Mobile responsiveness (collapsible sidebar, scrollable grids, full-width chat panel)
 - Workout detail modal (volume, e1RM, RPE, muscle breakdown)
+- Activity detail modal (timeline charts, HR zone analysis, splits table, running dynamics)
 - Anatomical muscle body diagram (SVG front + back view per week)
 - Exercise-to-muscle-group mapping utility
 - App renamed from Hybro to Trainer
-- Calendar page with charts, fitness curves, recovery trends
-- AI insights in chart modals
+- Calendar page with recharts: fitness curves, recovery trends, HR zone distribution, training load
+- AI insights in expanded chart modals (Anthropic SDK, personalized to user's data)
 - Landing page redesigned with pastel aesthetic (powder-blue, coral/mint/sky/lemon)
 - Dashboard wired to real API data (recovery, workouts, cardio from Supabase)
 - Day columns show sleep, RHR, HRV, steps with color-coded thresholds
 - Week totals include fitness/fatigue/form (CTL/ATL/TSB), elevation, kcal
 - Future weeks show no totals
-- Garmin backfill working (30 days of recovery data synced)
+- Garmin activity sync with Strava dedup (time-based matching, field-level merge)
+- Garmin backfill working (30 days recovery + 90 days activities with splits/HR zones)
+- Cardio cards enriched: Training Effect badge, max HR, VO2 max, source indicator
+- Recovery bar shows Garmin recovery time estimate
 - AI SDK v6 migration: useChat, DefaultChatTransport, inputSchema, toUIMessageStreamResponse, parts-based messages
 - PlanProposalCard in chat with accept/modify flow
 
@@ -140,7 +156,8 @@ cd services/garmin && source .venv/bin/activate && uvicorn main:app --port 8001 
 ## Database
 
 - Supabase project ref: `anjthenupycxzkvihzyf`
-- Migrations: `supabase/migrations/001_initial_schema.sql` through `004_planned_workouts_time.sql`
+- Migrations: `supabase/migrations/001_initial_schema.sql` through `008_garmin_activities.sql`
+- `008_garmin_activities.sql` adds 13 columns to `cardio_logs`: start_time, max_hr, training_effect_aerobic/anaerobic, vo2_max, recovery_time_min, avg_respiration, avg_cadence, avg_stride_length, ground_contact_time, hr_zones (jsonb), splits (jsonb), source
 - Supabase CLI linked: `npx supabase db push` to apply new migrations
 
 ## Environment Variables

@@ -1,4 +1,5 @@
 import { OpenAIProvider } from "./openai";
+import { AnthropicProvider } from "./anthropic";
 import type { LLMProvider } from "./types";
 
 export type { LLMProvider, CompleteOptions, ExtractOptions } from "./types";
@@ -7,29 +8,33 @@ let cached: LLMProvider | null = null;
 let cachedKey = "";
 
 export function getLLMProvider(): LLMProvider {
-  const providerName = process.env.LLM_PROVIDER ?? "openai";
-  const apiKey = process.env.OPENAI_API_KEY ?? "";
-  const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+  const anthropicKey = process.env.ANTHROPIC_API_KEY ?? "";
+  const openaiKey = process.env.OPENAI_API_KEY ?? "";
 
-  const key = `${providerName}::${model}::${apiKey.slice(-6)}`;
-  if (cached && cachedKey === key) return cached;
-
-  if (providerName !== "openai") {
-    throw new Error(
-      `Unsupported LLM_PROVIDER "${providerName}". Only "openai" is implemented today.`
-    );
-  }
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not set");
+  // Prefer Anthropic if configured
+  if (anthropicKey) {
+    const model = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";
+    const key = `anthropic::${model}::${anthropicKey.slice(-6)}`;
+    if (cached && cachedKey === key) return cached;
+    cached = new AnthropicProvider({ apiKey: anthropicKey, model });
+    cachedKey = key;
+    return cached;
   }
 
-  cached = new OpenAIProvider({ apiKey, model });
-  cachedKey = key;
-  return cached;
+  if (openaiKey) {
+    const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+    const key = `openai::${model}::${openaiKey.slice(-6)}`;
+    if (cached && cachedKey === key) return cached;
+    cached = new OpenAIProvider({ apiKey: openaiKey, model });
+    cachedKey = key;
+    return cached;
+  }
+
+  throw new Error("No LLM API key configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.");
 }
 
 export function isLLMConfigured(): boolean {
-  return Boolean(process.env.OPENAI_API_KEY);
+  return Boolean(process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY);
 }
 
 // Test-only: swap the provider used by getLLMProvider.

@@ -114,6 +114,12 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   lines.push("- When the user wants to change their entire training split or restructure their plan, use the regenerate_plan tool. This generates a new 2-week plan and adds it to their calendar.");
   lines.push("- After regenerating a plan, present the new weekly layout clearly with day-by-day breakdown so the user can review it.");
   lines.push("- For small changes (swapping one day, adding a rest day), use update_planned_workout instead.");
+  lines.push("- You have access to exercise science research papers via the search_research tool");
+  lines.push("- When making training, nutrition, or recovery recommendations, search for supporting evidence");
+  lines.push("- Present your recommendation first, then add a Sources: section at the end with 1-3 citations");
+  lines.push('- Format citations as: Author et al. (Year) — "Paper Title", Journal');
+  lines.push("- Don't over-cite — only cite when the evidence meaningfully supports your advice");
+  lines.push("- Don't cite for obvious or basic advice like drinking water or sleeping 8 hours");
 
   return lines.join("\n");
 }

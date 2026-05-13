@@ -40,6 +40,8 @@ export function normalizeActivity(userId: string, activity: StravaActivity) {
     calories: activity.calories ?? null,
     pace_or_speed: paceOrSpeed ? Math.round(paceOrSpeed * 100) / 100 : null,
     elevation: activity.total_elevation_gain ?? null,
+    start_time: activity.start_date || null,
+    source: "strava" as const,
     synced_at: new Date().toISOString(),
   };
 }
