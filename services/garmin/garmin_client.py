@@ -250,77 +250,85 @@ def map_garmin_activity_type(activity_type: str) -> str:
     return "other"
 
 
-def extract_hr_zones(activity_detail: dict) -> list[dict] | None:
-    """Extract HR zone breakdown from activity detail."""
-    zones_raw = activity_detail.get("heartRateZones")
-    if not zones_raw:
-        summary_dto = activity_detail.get("summaryDTO", {})
-        if isinstance(summary_dto, dict):
-            zones_raw = summary_dto.get("heartRateZones")
+def extract_hr_zones(client: Garmin, activity_id) -> list[dict] | None:
+    """Fetch HR zone breakdown via dedicated API call."""
+    try:
+        zones_raw = client.get_activity_hr_in_timezones(activity_id)
+        if not zones_raw or not isinstance(zones_raw, list):
+            return None
 
-    if not zones_raw or not isinstance(zones_raw, list):
+        zones = []
+        for z in zones_raw:
+            if not isinstance(z, dict):
+                continue
+            zone_num = z.get("zoneNumber")
+            low = z.get("zoneLowBoundary")
+            secs = z.get("secsInZone", 0) or 0
+            minutes = round(secs / 60, 1)
+            if zone_num is not None:
+                zones.append({
+                    "zone": zone_num,
+                    "low": low,
+                    "high": None,  # filled in below
+                    "minutes": minutes,
+                })
+
+        # Fill in high boundaries from next zone's low
+        for i in range(len(zones) - 1):
+            zones[i]["high"] = zones[i + 1]["low"]
+        if zones:
+            zones[-1]["high"] = 220  # max HR cap for last zone
+
+        return zones if zones else None
+    except Exception as e:
+        log(f"  HR zones fetch failed for {activity_id}: {e}")
         return None
 
-    zones = []
-    for z in zones_raw:
-        if not isinstance(z, dict):
-            continue
-        zone_num = z.get("zoneNumber") or z.get("zone")
-        low = z.get("zoneLowBoundary") or z.get("startBpm")
-        high = z.get("zoneHighBoundary") or z.get("endBpm")
-        secs = z.get("secsInZone", 0) or 0
-        minutes = round(secs / 60, 1)
-        if zone_num is not None:
-            zones.append({
-                "zone": zone_num,
-                "low": low,
-                "high": high,
-                "minutes": minutes,
+
+def extract_splits(client: Garmin, activity_id) -> list[dict] | None:
+    """Fetch per-lap splits via dedicated API call."""
+    try:
+        splits_data = client.get_activity_splits(activity_id)
+        if not splits_data or not isinstance(splits_data, dict):
+            return None
+
+        laps = splits_data.get("lapDTOs", [])
+        if not laps or not isinstance(laps, list):
+            return None
+
+        splits = []
+        for i, lap in enumerate(laps):
+            if not isinstance(lap, dict):
+                continue
+
+            distance = lap.get("distance", 0) or 0
+            if distance < 50:
+                continue
+
+            duration_sec = lap.get("movingDuration") or lap.get("duration", 0) or 0
+            distance_km = distance / 1000
+
+            pace = None
+            if distance_km > 0 and duration_sec > 0:
+                pace = round((duration_sec / 60) / distance_km, 2)
+
+            avg_hr = lap.get("averageHR")
+            elevation = lap.get("elevationGain")
+            cadence = lap.get("averageRunCadence") or lap.get("averageBikingCadenceInRevPerMinute")
+
+            splits.append({
+                "km": i + 1,
+                "distance_m": round(distance),
+                "pace_min_km": pace,
+                "avg_hr": round(avg_hr) if avg_hr else None,
+                "elevation": round(elevation, 1) if elevation is not None else None,
+                "cadence": round(cadence) if cadence else None,
             })
 
-    return zones if zones else None
-
-
-def extract_splits(activity_detail: dict) -> list[dict] | None:
-    """Extract per-km splits from activity detail."""
-    splits_raw = activity_detail.get("splitSummaries") or activity_detail.get("splits")
-    if not splits_raw or not isinstance(splits_raw, list):
+        return splits if splits else None
+    except Exception as e:
+        log(f"  Splits fetch failed for {activity_id}: {e}")
         return None
-
-    splits = []
-    for i, s in enumerate(splits_raw):
-        if not isinstance(s, dict):
-            continue
-
-        split_type = s.get("splitType", "")
-        if split_type not in ("distance", "DISTANCE", ""):
-            continue
-
-        distance = s.get("distance") or s.get("totalDistance") or 0
-        if distance < 100:
-            continue
-
-        duration_sec = s.get("duration") or s.get("totalElapsedTime") or 0
-        km_index = i + 1
-
-        pace = None
-        if distance and duration_sec:
-            pace = round((duration_sec / 60) / (distance / 1000), 2)
-
-        avg_hr = s.get("averageHR") or s.get("avgHeartRate")
-        elevation = s.get("elevationGain") or s.get("totalAscent")
-        cadence = s.get("averageRunCadence") or s.get("avgRunCadence") or s.get("averageCadence")
-
-        splits.append({
-            "km": km_index,
-            "distance_m": round(distance),
-            "pace_min_km": pace,
-            "avg_hr": avg_hr,
-            "elevation": elevation,
-            "cadence": cadence,
-        })
-
-    return splits if splits else None
 
 
 def fetch_activities(client: Garmin, since: str) -> list[dict]:
@@ -408,8 +416,8 @@ def fetch_activities(client: Garmin, since: str) -> list[dict]:
                     detail.get("recoveryTime")
                     or summary_dto.get("recoveryTimeInHours")
                 )
-                record["hr_zones"] = extract_hr_zones(detail)
-                record["splits"] = extract_splits(detail)
+                record["hr_zones"] = extract_hr_zones(client, activity_id)
+                record["splits"] = extract_splits(client, activity_id)
         except Exception as e:
             log(f"  Detail fetch failed for activity {activity_id}: {e}")
 
