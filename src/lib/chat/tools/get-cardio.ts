@@ -18,6 +18,7 @@ export function getCardioTool(userId: string) {
           "date, type, distance, duration, avg_hr, pace_or_speed, calories, elevation"
         )
         .eq("user_id", userId)
+        .eq("is_suppressed", false)
         .gte("date", start_date)
         .lte("date", end_date)
         .order("date");

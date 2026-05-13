@@ -1,6 +1,5 @@
 import os
 import sys
-import tempfile
 from datetime import date, datetime, timedelta
 from garminconnect import (
     Garmin,
@@ -14,13 +13,51 @@ def log(msg: str):
     print(f"[garmin] {msg}", file=sys.stderr, flush=True)
 
 
-def create_client(email: str, password: str) -> Garmin:
-    """Create and authenticate a Garmin client."""
-    token_dir = os.path.join(tempfile.gettempdir(), "garmin_tokens", email.replace("@", "_at_"))
-    os.makedirs(token_dir, exist_ok=True)
+class GarminMFARequired(Exception):
+    """Raised when Garmin login needs an MFA code we don't have."""
 
-    client = Garmin(email=email, password=password)
-    client.login(token_dir)
+
+def _token_dir_for(email: str) -> str:
+    """Per-account token directory that survives reboots.
+
+    Garmin login is heavily IP-rate-limited; tokens persist for weeks once
+    obtained, so storing them anywhere outside of /tmp dramatically cuts the
+    number of times we hit the SSO login endpoint. Defaults to ~/.garmin_tokens;
+    set GARMIN_TOKEN_DIR to override (e.g. for a Railway volume mount).
+    """
+    base = os.environ.get("GARMIN_TOKEN_DIR") or os.path.expanduser("~/.garmin_tokens")
+    path = os.path.join(base, email.replace("@", "_at_"))
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def create_client(email: str, password: str, mfa_code: str | None = None) -> Garmin:
+    """Authenticate a Garmin client, preferring persisted tokens.
+
+    Flow:
+      1. Try to load existing tokens from disk (no network hit if valid).
+      2. On miss/expiry, fall back to credential login.
+      3. If credential login triggers MFA and mfa_code was supplied,
+         feed it through prompt_mfa; otherwise raise GarminMFARequired
+         so callers can surface a 'needs_mfa' response.
+    """
+    token_dir = _token_dir_for(email)
+
+    prompt_mfa = None
+    if mfa_code:
+        # Garmin's lib invokes prompt_mfa() at exactly the right moment in the
+        # SSO flow, so wrapping our pre-supplied code in a lambda matches its
+        # interface without needing interactive stdin.
+        prompt_mfa = lambda: mfa_code  # noqa: E731
+
+    client = Garmin(email=email, password=password, prompt_mfa=prompt_mfa)
+    try:
+        client.login(token_dir)
+    except GarminConnectAuthenticationError as e:
+        msg = str(e).lower()
+        if "mfa" in msg and not mfa_code:
+            raise GarminMFARequired(str(e)) from e
+        raise
     return client
 
 
@@ -236,10 +273,11 @@ def fetch_data(client: Garmin, since: str) -> dict:
 GARMIN_RUN_TYPES = {"running", "trail_running", "treadmill_running", "track_running"}
 GARMIN_BIKE_TYPES = {"cycling", "mountain_biking", "indoor_cycling", "gravel_cycling", "e_bike_cycling"}
 GARMIN_SWIM_TYPES = {"lap_swimming", "open_water_swimming"}
+GARMIN_STRENGTH_TYPES = {"strength_training", "indoor_climbing", "bouldering"}
 
 
 def map_garmin_activity_type(activity_type: str) -> str:
-    """Map a Garmin activity type string to run/bike/swim/other."""
+    """Map a Garmin activity type string to run/bike/swim/strength/other."""
     normalized = (activity_type or "").lower()
     if normalized in GARMIN_RUN_TYPES:
         return "run"
@@ -247,6 +285,8 @@ def map_garmin_activity_type(activity_type: str) -> str:
         return "bike"
     if normalized in GARMIN_SWIM_TYPES:
         return "swim"
+    if normalized in GARMIN_STRENGTH_TYPES:
+        return "strength"
     return "other"
 
 

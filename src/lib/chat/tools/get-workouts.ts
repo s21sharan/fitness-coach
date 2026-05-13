@@ -16,6 +16,7 @@ export function getWorkoutsTool(userId: string) {
         .from("workout_logs")
         .select("date, name, duration_minutes, exercises")
         .eq("user_id", userId)
+        .eq("is_suppressed", false)
         .gte("date", start_date)
         .lte("date", end_date)
         .order("date");

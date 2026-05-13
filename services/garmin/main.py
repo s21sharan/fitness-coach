@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from garmin_client import create_client, fetch_data, fetch_activities
+from garmin_client import create_client, fetch_data, fetch_activities, GarminMFARequired
 from garminconnect import GarminConnectAuthenticationError, GarminConnectTooManyRequestsError
 
 app = FastAPI(title="Hybro Garmin Service")
@@ -9,23 +9,25 @@ app = FastAPI(title="Hybro Garmin Service")
 class AuthRequest(BaseModel):
     email: str
     password: str
+    mfa_code: str | None = None
 
 
 class SyncRequest(BaseModel):
     email: str
     password: str
     since: str  # YYYY-MM-DD
+    mfa_code: str | None = None
 
 
-def validate_credentials(email: str, password: str) -> bool:
+def validate_credentials(email: str, password: str, mfa_code: str | None = None) -> bool:
     """Attempt login to validate credentials."""
-    client = create_client(email, password)
+    create_client(email, password, mfa_code=mfa_code)
     return True
 
 
-def fetch_garmin_data(email: str, password: str, since: str) -> dict:
+def fetch_garmin_data(email: str, password: str, since: str, mfa_code: str | None = None) -> dict:
     """Authenticate and fetch data."""
-    client = create_client(email, password)
+    client = create_client(email, password, mfa_code=mfa_code)
     return fetch_data(client, since)
 
 
@@ -37,9 +39,11 @@ def health():
 @app.post("/auth/validate")
 def auth_validate(req: AuthRequest):
     try:
-        validate_credentials(req.email, req.password)
+        validate_credentials(req.email, req.password, mfa_code=req.mfa_code)
         return {"valid": True}
-    except GarminConnectAuthenticationError as e:
+    except GarminMFARequired:
+        return {"valid": False, "error": "needs_mfa"}
+    except GarminConnectAuthenticationError:
         return {"valid": False, "error": "auth_failed"}
     except GarminConnectTooManyRequestsError:
         return {"valid": False, "error": "rate_limited"}
@@ -51,13 +55,14 @@ class DebugRequest(BaseModel):
     email: str
     password: str
     date: str  # YYYY-MM-DD, single day
+    mfa_code: str | None = None
 
 
 @app.post("/debug")
 def debug_day(req: DebugRequest):
     """Fetch raw Garmin API responses for a single day to debug field structures."""
     try:
-        client = create_client(req.email, req.password)
+        client = create_client(req.email, req.password, mfa_code=req.mfa_code)
         results = {}
 
         try:
@@ -102,8 +107,10 @@ def debug_day(req: DebugRequest):
 @app.post("/sync")
 def sync(req: SyncRequest):
     try:
-        data = fetch_garmin_data(req.email, req.password, req.since)
+        data = fetch_garmin_data(req.email, req.password, req.since, mfa_code=req.mfa_code)
         return data
+    except GarminMFARequired:
+        raise HTTPException(status_code=401, detail={"error": "needs_mfa"})
     except GarminConnectAuthenticationError:
         raise HTTPException(status_code=401, detail={"error": "auth_failed"})
     except GarminConnectTooManyRequestsError:
@@ -115,9 +122,11 @@ def sync(req: SyncRequest):
 @app.post("/sync-activities")
 def sync_activities(req: SyncRequest):
     try:
-        client = create_client(req.email, req.password)
+        client = create_client(req.email, req.password, mfa_code=req.mfa_code)
         activities = fetch_activities(client, req.since)
         return {"activities": activities}
+    except GarminMFARequired:
+        raise HTTPException(status_code=401, detail={"error": "needs_mfa"})
     except GarminConnectAuthenticationError:
         raise HTTPException(status_code=401, detail={"error": "auth_failed"})
     except GarminConnectTooManyRequestsError:

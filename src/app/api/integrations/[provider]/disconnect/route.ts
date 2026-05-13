@@ -29,5 +29,20 @@ export async function DELETE(
 
   if (error) return NextResponse.json({ error: "Failed to disconnect" }, { status: 500 });
 
+  // Removing a provider may un-shadow rows from a lower-priority provider
+  // (e.g. disconnect Hevy → Strava strength activities re-surface). Fire and
+  // forget — reconciliation is idempotent and the integration is already gone.
+  const backendUrl = process.env.RAILWAY_BACKEND_URL;
+  if (backendUrl) {
+    fetch(`${backendUrl}/sync/reconcile`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": process.env.RAILWAY_API_SECRET!,
+      },
+      body: JSON.stringify({ userId }),
+    }).catch(() => {});
+  }
+
   return NextResponse.json({ status: "disconnected" });
 }

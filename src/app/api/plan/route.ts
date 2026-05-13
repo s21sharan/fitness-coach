@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
     .from("workout_logs")
     .select("date, name, duration_minutes, exercises")
     .eq("user_id", userId)
+    .eq("is_suppressed", false)
     .gte("date", startStr)
     .lte("date", endStr);
 
@@ -57,6 +58,7 @@ export async function GET(request: NextRequest) {
     .from("cardio_logs")
     .select("date, type, distance, duration, avg_hr, pace_or_speed, calories")
     .eq("user_id", userId)
+    .eq("is_suppressed", false)
     .gte("date", startStr)
     .lte("date", endStr);
 

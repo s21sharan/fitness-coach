@@ -2,9 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { WeekRow } from "./week-row";
+import { WeekSummaryModal } from "./week-summary-modal";
 import {
   DAY_NAMES, TYPE_COLORS,
-  buildMonthWeeks, getMonday, addDays, weekNumberFor,
+  buildMonthWeeks, getMonday, weekNumberFor,
+  type DayData,
 } from "@/lib/training/calendar-data";
 import type { ApiData, CardioLog, WorkoutLog } from "@/lib/hooks/use-dashboard-data";
 import type { UnitPreferences } from "@/lib/units";
@@ -27,6 +29,7 @@ const SIDEBAR_WIDTH = 110;
 
 export function MonthView({ data, units, onWorkoutClick, onCardioClick }: MonthViewProps) {
   const [monthOffset, setMonthOffset] = useState(0);
+  const [summaryWeek, setSummaryWeek] = useState<{ days: DayData[]; weekNum: number } | null>(null);
 
   const monthDate = useMemo(() => {
     const d = new Date();
@@ -39,8 +42,11 @@ export function MonthView({ data, units, onWorkoutClick, onCardioClick }: MonthV
     const firstOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
     const lastOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
     const firstMonday = getMonday(firstOfMonth);
-    const lastSunday = addDays(getMonday(lastOfMonth), 6);
-    const weekCount = Math.round((lastSunday.getTime() - firstMonday.getTime()) / (7 * 86400000)) + 1;
+    const lastMonday = getMonday(lastOfMonth);
+    // Number of Mondays from firstMonday through lastMonday (inclusive).
+    // Counting Monday-to-Monday avoids over-counting weeks whose first day
+    // is in the next month (e.g. a Jun 1–7 row in May).
+    const weekCount = Math.round((lastMonday.getTime() - firstMonday.getTime()) / (7 * 86400000)) + 1;
     return buildMonthWeeks(firstMonday, weekCount, data);
   }, [data, monthDate]);
 
@@ -87,11 +93,20 @@ export function MonthView({ data, units, onWorkoutClick, onCardioClick }: MonthV
             days={weekDays}
             weekNum={weekNumbers[wi]}
             units={units}
+            hrZoneBoundaries={data.hrZones?.boundaries ?? null}
             onWorkoutClick={onWorkoutClick}
             onCardioClick={onCardioClick}
+            onSummaryClick={(days, weekNum) => setSummaryWeek({ days, weekNum })}
           />
         ))}
       </div>
+
+      <WeekSummaryModal
+        days={summaryWeek?.days ?? null}
+        weekNum={summaryWeek?.weekNum ?? 0}
+        units={units}
+        onClose={() => setSummaryWeek(null)}
+      />
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 14, fontSize: 11, color: "#6b7280" }}>
         {Object.entries(TYPE_COLORS).map(([type, c]) => (

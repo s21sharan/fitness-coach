@@ -3,7 +3,7 @@
 import { DayCell } from "./day-cell";
 import {
   weekTotals, toDS, fmtSec,
-  type DayData,
+  type DayData, type ZoneBoundary,
 } from "@/lib/training/calendar-data";
 import type { CardioLog, WorkoutLog } from "@/lib/hooks/use-dashboard-data";
 import { fmtDist as fmtDistUnit, distanceLabel, type UnitPreferences } from "@/lib/units";
@@ -12,11 +12,13 @@ interface WeekRowProps {
   days: DayData[];
   weekNum: number;
   units: UnitPreferences;
+  hrZoneBoundaries?: ZoneBoundary[] | null;
   onWorkoutClick?: (w: WorkoutLog) => void;
   onCardioClick?: (c: CardioLog) => void;
+  onSummaryClick?: (days: DayData[], weekNum: number) => void;
 }
 
-export function WeekRow({ days, weekNum, units, onWorkoutClick, onCardioClick }: WeekRowProps) {
+export function WeekRow({ days, weekNum, units, hrZoneBoundaries, onWorkoutClick, onCardioClick, onSummaryClick }: WeekRowProps) {
   const todayStr = toDS(new Date());
   const isFutureWeek = days[0].date > todayStr;
   const hasData = !isFutureWeek;
@@ -24,15 +26,29 @@ export function WeekRow({ days, weekNum, units, onWorkoutClick, onCardioClick }:
   const t = hasData ? weekTotals(days) : null;
   const fmtDist = (km: number) => fmtDistUnit(km, units.distance);
   const distUnit = distanceLabel(units.distance);
+  const clickable = !!onSummaryClick && !!t && t.timeSec > 0;
 
   return (
     <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #e5e7eb" }}>
-      <div style={{
-        width: 110, flexShrink: 0, padding: "10px 12px",
-        borderRight: "1px solid #e5e7eb",
-        background: "#fafafa",
-        display: "flex", flexDirection: "column", justifyContent: "flex-start", gap: 4,
-      }}>
+      <button
+        type="button"
+        onClick={clickable ? () => onSummaryClick!(days, weekNum) : undefined}
+        disabled={!clickable}
+        style={{
+          width: 110, flexShrink: 0, padding: "10px 12px",
+          borderTop: "none", borderBottom: "none", borderLeft: "none",
+          borderRight: "1px solid #e5e7eb",
+          background: "#fafafa",
+          display: "flex", flexDirection: "column", justifyContent: "flex-start", gap: 4,
+          textAlign: "left",
+          font: "inherit",
+          color: "inherit",
+          cursor: clickable ? "pointer" : "default",
+          transition: "background .15s",
+        }}
+        onMouseEnter={(e) => { if (clickable) (e.currentTarget as HTMLButtonElement).style.background = "#f3f4f6"; }}
+        onMouseLeave={(e) => { if (clickable) (e.currentTarget as HTMLButtonElement).style.background = "#fafafa"; }}
+      >
         <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em" }}>
           Week {weekNum}
         </div>
@@ -55,11 +71,11 @@ export function WeekRow({ days, weekNum, units, onWorkoutClick, onCardioClick }:
         ) : (
           <div style={{ color: "#9ca3af", fontSize: 11 }}>No activity</div>
         )}
-      </div>
+      </button>
       <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 0, minWidth: 0 }}>
         {days.map((day, i) => (
           <div key={day.date} style={{ borderRight: i < 6 ? "1px solid #f3f4f6" : "none", padding: "0 2px" }}>
-            <DayCell day={day} variant="compact" units={units} onWorkoutClick={onWorkoutClick} onCardioClick={onCardioClick} />
+            <DayCell day={day} variant="compact" units={units} hrZoneBoundaries={hrZoneBoundaries} onWorkoutClick={onWorkoutClick} onCardioClick={onCardioClick} />
           </div>
         ))}
       </div>

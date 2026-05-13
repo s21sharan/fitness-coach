@@ -31,9 +31,15 @@ describe("Strava sync", () => {
       expect(mapSportType("Swim")).toBe("swim");
     });
 
+    it("maps strength-coded sport_types to 'strength' for cross-platform dedup", () => {
+      expect(mapSportType("WeightTraining")).toBe("strength");
+      expect(mapSportType("Crossfit")).toBe("strength");
+      expect(mapSportType("Workout")).toBe("strength");
+    });
+
     it("maps unknown types to 'other'", () => {
       expect(mapSportType("Yoga")).toBe("other");
-      expect(mapSportType("WeightTraining")).toBe("other");
+      expect(mapSportType("Hiking")).toBe("other");
     });
   });
 

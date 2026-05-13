@@ -3,18 +3,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FitnessChart } from "@/components/charts/fitness-chart";
 import {
-  RecoveryTrendChart, HrZoneChart, TrainingLoadChart,
-  computeHrZones,
-  type RecoveryPoint, type LoadPoint,
+  RecoveryTrendChart, TrainingLoadChart,
+  type RecoveryPoint,
 } from "@/components/charts/recovery-charts";
+import { HrZoneTabs } from "@/components/charts/hr-zone-tabs";
+import { Vo2Chart } from "@/components/charts/vo2-chart";
 import { ChartModal } from "@/components/charts/chart-modal";
 import { ChartCard } from "@/components/charts/chart-card";
 import { ConnectionBar } from "@/components/app/connection-bar";
 import { chartColors } from "@/components/charts/chart-theme";
 import { useDashboardData } from "@/lib/hooks/use-dashboard-data";
-import { computeFitnessCurve, estimateLoad, cType } from "@/lib/training/calendar-data";
+import { computeFitnessCurve, computeLoadByType, computeVo2Trend } from "@/lib/training/calendar-data";
 
-type ModalKey = "fitness" | "hrv" | "sleep" | "rhr" | "bb" | "stress" | "hrzones" | "load" | null;
+type ModalKey = "fitness" | "hrv" | "sleep" | "rhr" | "hrzones" | "load" | "vo2" | null;
 
 export default function AnalyticsPage() {
   const { data, loading, syncing, fixingDates, triggerSync, triggerFixDates } = useDashboardData();
@@ -27,14 +28,8 @@ export default function AnalyticsPage() {
     if (!data) return [];
     return [...data.recovery].sort((a, b) => a.date.localeCompare(b.date));
   }, [data]);
-  const hrZones = useMemo(() => data ? computeHrZones(data.cardio) : [], [data]);
-  const loadData: LoadPoint[] = useMemo(() => {
-    if (!data) return [];
-    const points: LoadPoint[] = [];
-    for (const c of data.cardio) points.push({ date: c.date, load: estimateLoad(c.avg_hr, c.duration), type: cType(c.type) });
-    for (const w of data.workouts) points.push({ date: w.date, load: Math.round((w.duration_minutes || 0) * 0.8), type: "lift" });
-    return points;
-  }, [data]);
+  const loadByType = useMemo(() => data ? computeLoadByType(data, 12) : [], [data]);
+  const vo2Trend = useMemo(() => data ? computeVo2Trend(data) : [], [data]);
 
   const fetchInsight = useCallback(async (section: string) => {
     if (insights[section]) return;
@@ -55,8 +50,8 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     if (modal === "fitness") fetchInsight("fitness");
-    else if (modal === "hrzones" || modal === "load") fetchInsight("training");
-    else if (modal && ["hrv", "sleep", "rhr", "bb", "stress"].includes(modal)) fetchInsight("recovery");
+    else if (modal === "hrzones" || modal === "load" || modal === "vo2") fetchInsight("training");
+    else if (modal && ["hrv", "sleep", "rhr"].includes(modal)) fetchInsight("recovery");
   }, [modal, fetchInsight]);
 
   const insightFor = (section: string) => insights[section] || null;
@@ -83,110 +78,132 @@ export default function AnalyticsPage() {
 
       <div style={{ marginBottom: 16 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: "#111827", letterSpacing: "-0.02em", margin: 0 }}>Analytics</h1>
-        <p style={{ fontSize: 12, color: "#6b7280", margin: "4px 0 0" }}>Trends and insights from the last 90 days. Click any chart to expand and view AI coaching notes.</p>
+        <p style={{ fontSize: 12, color: "#6b7280", margin: "4px 0 0" }}>Trends from the last 90 days. Click any chart to expand and view AI coaching notes.</p>
       </div>
 
+      {/* Row 1 — Training story */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14, marginBottom: 14 }}>
         <div style={{ gridColumn: "span 2" }}>
           <ChartCard
-            title="Fitness / Fatigue / Form"
-            description="CTL (42-day), ATL (7-day), TSB. Are you building fitness or overreaching?"
+            title="Fitness Trend"
+            description="How your training is stacking up. Green is fresh, red is fatigued."
             onClick={() => setModal("fitness")}
             accent={chartColors.fitness}
           >
             <FitnessChart data={fitnessCurve} compact />
           </ChartCard>
         </div>
-        <ChartCard
-          title="HR Zone Distribution"
-          description="Time per HR zone across all cardio (90d)."
-          onClick={() => setModal("hrzones")}
-          accent={chartColors.zones[1]}
-        >
-          <HrZoneChart zones={hrZones} compact />
-        </ChartCard>
-        <ChartCard
-          title="Weekly Training Load"
-          description="Estimated load from HR × duration. Consistency > peaks."
-          onClick={() => setModal("load")}
-          accent={chartColors.load}
-        >
-          <TrainingLoadChart data={loadData} compact />
-        </ChartCard>
+        <div style={{ gridColumn: "span 2" }}>
+          <ChartCard
+            title="Weekly Load"
+            description="How hard you trained each week, by activity."
+            onClick={() => setModal("load")}
+            accent={chartColors.load}
+          >
+            <TrainingLoadChart data={loadByType} compact />
+          </ChartCard>
+        </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 14, marginBottom: 14 }}>
-        <ChartCard title="HRV" description="Higher = better recovery." onClick={() => setModal("hrv")} accent={chartColors.hrv}>
+      {/* Row 2 — Heart rate + VO2 */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14, marginBottom: 14 }}>
+        <div style={{ gridColumn: "span 2" }}>
+          <ChartCard
+            title="Heart Rate Zones"
+            description="Where your heart rate spent its time. Switch sport to compare."
+            onClick={() => setModal("hrzones")}
+            accent={chartColors.zones[1]}
+          >
+            <HrZoneTabs cardio={data.cardio} boundaries={data.hrZones?.boundaries ?? null} compact />
+          </ChartCard>
+        </div>
+        <div style={{ gridColumn: "span 2" }}>
+          <ChartCard
+            title="VO2 Max"
+            description="Aerobic capacity estimate from Garmin run and bike activities."
+            onClick={() => setModal("vo2")}
+            accent={chartColors.vo2}
+          >
+            <Vo2Chart data={vo2Trend} compact />
+          </ChartCard>
+        </div>
+      </div>
+
+      {/* Row 3 — Recovery */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14, marginBottom: 14 }}>
+        <ChartCard title="HRV" description="Higher is better. A drop can mean fatigue or illness." onClick={() => setModal("hrv")} accent={chartColors.hrv}>
           <RecoveryTrendChart data={recoveryData} dataKey="hrv" color={chartColors.hrv} label="HRV" unit="" compact />
         </ChartCard>
-        <ChartCard title="Sleep" description="Hours per night. 7-9h optimal." onClick={() => setModal("sleep")} accent={chartColors.sleep}>
+        <ChartCard title="Sleep" description="Hours per night. 7–9 is the sweet spot." onClick={() => setModal("sleep")} accent={chartColors.sleep}>
           <RecoveryTrendChart data={recoveryData} dataKey="sleep_hours" color={chartColors.sleep} label="Sleep" unit="h" compact />
         </ChartCard>
-        <ChartCard title="Resting HR" description="Lower = better aerobic fitness." onClick={() => setModal("rhr")} accent={chartColors.rhr}>
+        <ChartCard title="Resting HR" description="Lower trends usually mean better aerobic fitness." onClick={() => setModal("rhr")} accent={chartColors.rhr}>
           <RecoveryTrendChart data={recoveryData} dataKey="resting_hr" color={chartColors.rhr} label="RHR" unit=" bpm" compact />
-        </ChartCard>
-        <ChartCard title="Body Battery" description="Garmin energy reserve estimate." onClick={() => setModal("bb")} accent={chartColors.bodyBattery}>
-          <RecoveryTrendChart data={recoveryData} dataKey="body_battery" color={chartColors.bodyBattery} label="Body Battery" unit="" compact />
-        </ChartCard>
-        <ChartCard title="Stress" description="Garmin stress score. Lower = better." onClick={() => setModal("stress")} accent={chartColors.stress}>
-          <RecoveryTrendChart data={recoveryData} dataKey="stress_level" color={chartColors.stress} label="Stress" unit="" compact />
         </ChartCard>
       </div>
 
-      <ChartModal open={modal === "fitness"} onClose={() => setModal(null)} title="Fitness / Fatigue / Form (CTL / ATL / TSB)" insight={insightFor("fitness")} insightLoading={isLoadingInsight("fitness")}>
+      <ChartModal open={modal === "fitness"} onClose={() => setModal(null)} title="Fitness Trend" insight={insightFor("fitness")} insightLoading={isLoadingInsight("fitness")}>
         <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
-          <b>Fitness (CTL)</b> is your 42-day rolling average training load — it represents your chronic training capacity. <b>Fatigue (ATL)</b> is the 7-day average — your acute tiredness. <b>Form (TSB = CTL - ATL)</b> tells you if you{"'"}re fresh (positive) or fatigued (negative). The sweet spot for racing is TSB between +5 and +25.
+          <b>Fitness</b> is the long-term load you{"'"}ve built up — your training capacity. <b>Fatigue</b> is short-term tiredness from the past week. <b>Form</b> is fitness minus fatigue: positive means you{"'"}re fresh and ready to race, negative means you{"'"}re absorbing hard training. A small positive number (around +5 to +25) is the sweet spot before a big effort.
         </p>
         <FitnessChart data={fitnessCurve} />
       </ChartModal>
 
-      <ChartModal open={modal === "hrzones"} onClose={() => setModal(null)} title="Heart Rate Zone Distribution" insight={insightFor("training")} insightLoading={isLoadingInsight("training")}>
+      <ChartModal open={modal === "hrzones"} onClose={() => setModal(null)} title="Heart Rate Zones" insight={insightFor("training")} insightLoading={isLoadingInsight("training")}>
         <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
-          <b>Z1 Recovery</b> (&lt;120 bpm): Easy recovery, warm-up. <b>Z2 Aerobic</b> (120-140): Base building, fat burning — aim for 80% of training here. <b>Z3 Tempo</b> (140-155): Sustainable hard effort. <b>Z4 Threshold</b> (155-170): Race pace, lactate threshold. <b>Z5 Anaerobic</b> (170+): Max effort intervals. The 80/20 rule suggests 80% Z1-Z2, 20% Z3-Z5.
+          {(() => {
+            const bs = data?.hrZones?.boundaries;
+            const r = (i: number) => {
+              if (!bs || bs.length !== 5) return ["<120 bpm", "120-140", "140-155", "155-170", "170+"][i];
+              const b = bs[i];
+              return i === 0 ? `<${b.high} bpm` : i === 4 ? `${b.low}+ bpm` : `${b.low}-${b.high}`;
+            };
+            return (
+              <>
+                <b>Z1 Recovery</b> ({r(0)}): warm-up and easy days. <b>Z2 Aerobic</b> ({r(1)}): base building — aim for most of your time here. <b>Z3 Tempo</b> ({r(2)}): sustainable hard effort. <b>Z4 Threshold</b> ({r(3)}): race pace. <b>Z5 Anaerobic</b> ({r(4)}): max intervals. A common target is roughly 80% easy, 20% hard.
+                {data?.hrZones?.source === "garmin" && (
+                  <span style={{ display: "block", marginTop: 8, fontSize: 11, color: "#9ca3af" }}>Zones synced from your Garmin settings.</span>
+                )}
+              </>
+            );
+          })()}
         </p>
-        <HrZoneChart zones={hrZones} />
+        <HrZoneTabs cardio={data.cardio} boundaries={data.hrZones?.boundaries ?? null} />
       </ChartModal>
 
-      <ChartModal open={modal === "load"} onClose={() => setModal(null)} title="Weekly Training Load" insight={insightFor("training")} insightLoading={isLoadingInsight("training")}>
+      <ChartModal open={modal === "load"} onClose={() => setModal(null)} title="Weekly Load" insight={insightFor("training")} insightLoading={isLoadingInsight("training")}>
         <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
-          Training load is estimated from heart rate intensity and duration (TRIMP). Consistent weekly load with gradual increases ({"<"}10% per week) builds fitness safely. Big spikes increase injury risk. Dips are OK for recovery weeks.
+          Each bar is one week of training, stacked by activity type. Load is estimated from heart rate intensity and duration. Consistency with gradual increases (under ~10% per week) builds fitness safely. Big spikes raise injury risk; dips are fine for recovery weeks.
         </p>
-        <TrainingLoadChart data={loadData} />
+        <TrainingLoadChart data={loadByType} />
       </ChartModal>
 
-      <ChartModal open={modal === "hrv"} onClose={() => setModal(null)} title="Heart Rate Variability (HRV)" insight={insightFor("recovery")} insightLoading={isLoadingInsight("recovery")}>
+      <ChartModal open={modal === "vo2"} onClose={() => setModal(null)} title="VO2 Max" insight={insightFor("training")} insightLoading={isLoadingInsight("training")}>
         <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
-          HRV measures the variation between heartbeats — higher values indicate better autonomic nervous system recovery. A downward trend over several days may signal overtraining, poor sleep, or illness. Your personal baseline matters more than absolute numbers.
+          VO2 max is an estimate of how much oxygen your body can use during hard exercise — a key marker of aerobic capacity. Garmin estimates a separate value for running and cycling because the demands are different. Trends matter more than absolute numbers; expect slow improvements over months, not days.
+        </p>
+        <Vo2Chart data={vo2Trend} />
+      </ChartModal>
+
+      <ChartModal open={modal === "hrv"} onClose={() => setModal(null)} title="Heart Rate Variability" insight={insightFor("recovery")} insightLoading={isLoadingInsight("recovery")}>
+        <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
+          HRV measures the variation between heartbeats — higher values usually mean your nervous system is well recovered. A downward trend over several days can signal overtraining, poor sleep, or illness. Your personal baseline matters more than absolute numbers.
         </p>
         <RecoveryTrendChart data={recoveryData} dataKey="hrv" color={chartColors.hrv} label="HRV" unit="" />
       </ChartModal>
 
       <ChartModal open={modal === "sleep"} onClose={() => setModal(null)} title="Sleep Duration" insight={insightFor("recovery")} insightLoading={isLoadingInsight("recovery")}>
         <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
-          Sleep is the #1 recovery tool. Athletes need 7-9 hours for optimal recovery, hormone production, and muscle repair. Consistency in sleep timing matters as much as duration.
+          Sleep is the most powerful recovery tool. Athletes need 7–9 hours for hormone production, muscle repair, and adaptation. Consistency in bedtime matters as much as total duration.
         </p>
         <RecoveryTrendChart data={recoveryData} dataKey="sleep_hours" color={chartColors.sleep} label="Sleep" unit="h" domain={[4, 10]} />
       </ChartModal>
 
       <ChartModal open={modal === "rhr"} onClose={() => setModal(null)} title="Resting Heart Rate" insight={insightFor("recovery")} insightLoading={isLoadingInsight("recovery")}>
         <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
-          Resting heart rate trends downward as cardiovascular fitness improves. A sudden spike (5+ bpm above baseline) can indicate illness, stress, dehydration, or overtraining. Track the 7-day average rather than individual readings.
+          Resting heart rate trends downward as cardiovascular fitness improves. A sudden spike (5+ bpm above baseline) can mean illness, stress, dehydration, or overtraining. Watch the 7-day average rather than single readings.
         </p>
         <RecoveryTrendChart data={recoveryData} dataKey="resting_hr" color={chartColors.rhr} label="Resting HR" unit=" bpm" />
-      </ChartModal>
-
-      <ChartModal open={modal === "bb"} onClose={() => setModal(null)} title="Body Battery" insight={insightFor("recovery")} insightLoading={isLoadingInsight("recovery")}>
-        <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
-          Garmin{"'"}s Body Battery estimates your energy reserves on a 0-100 scale using HRV, stress, sleep, and activity data. It charges during sleep and drains during activity and stress. Starting a hard session above 50 is ideal.
-        </p>
-        <RecoveryTrendChart data={recoveryData} dataKey="body_battery" color={chartColors.bodyBattery} label="Body Battery" unit="" domain={[0, 100]} />
-      </ChartModal>
-
-      <ChartModal open={modal === "stress"} onClose={() => setModal(null)} title="Stress Level" insight={insightFor("recovery")} insightLoading={isLoadingInsight("recovery")}>
-        <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
-          Garmin{"'"}s stress score (0-100) is derived from HRV analysis. Under 25 is resting, 26-50 is low stress, 51-75 is medium, and 76+ is high. Chronically elevated stress without recovery days signals overtraining risk.
-        </p>
-        <RecoveryTrendChart data={recoveryData} dataKey="stress_level" color={chartColors.stress} label="Stress" unit="" domain={[0, 100]} />
       </ChartModal>
     </div>
   );

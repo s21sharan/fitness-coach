@@ -30,6 +30,7 @@ interface SystemPromptInput {
     sessionsCompleted: number;
     sessionsPlanned: number;
   } | null;
+  hrZones?: Array<{ zone: number; low: number; high: number }> | null;
 }
 
 const RACE_LABELS: Record<string, string> = {
@@ -45,7 +46,7 @@ const SPLIT_LABELS: Record<string, string> = {
 };
 
 export function buildSystemPrompt(input: SystemPromptInput): string {
-  const { profile, goals, plan, todaySession, recovery, weekStats } = input;
+  const { profile, goals, plan, todaySession, recovery, weekStats, hrZones } = input;
   const lines: string[] = [];
 
   lines.push("You are Coach, a fitness coach. You are direct, specific, encouraging but honest, opinionated, and concise.");
@@ -91,6 +92,12 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     if (recovery.resting_hr !== null) parts.push(`RHR ${recovery.resting_hr}`);
     if (recovery.body_battery !== null) parts.push(`Body Battery ${recovery.body_battery}`);
     if (parts.length > 0) lines.push(`Recovery: ${parts.join(", ")}`);
+  }
+
+  if (hrZones && hrZones.length === 5) {
+    const fmt = (b: { low: number; high: number }, i: number) =>
+      i === 0 ? `Z1 <${b.high}` : i === 4 ? `Z5 ${b.low}+` : `Z${i + 1} ${b.low}-${b.high}`;
+    lines.push(`HR zones (from Garmin, bpm): ${hrZones.map((b, i) => fmt(b, i)).join(", ")}`);
   }
 
   if (weekStats) lines.push(`This week: ${weekStats.sessionsCompleted}/${weekStats.sessionsPlanned} sessions completed`);

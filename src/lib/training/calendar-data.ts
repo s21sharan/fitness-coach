@@ -14,6 +14,32 @@ export const TYPE_COLORS: Record<string, { bg: string; border: string; text: str
 
 export const ZONE_COLORS = ["#93c5fd", "#86efac", "#fde047", "#fb923c", "#f87171"];
 
+export interface ZoneBoundary {
+  zone: number;
+  low: number;
+  high: number;
+}
+
+export interface UserHrZones {
+  source: "garmin" | "legacy";
+  boundaries: ZoneBoundary[];
+  syncedAt: string | null;
+}
+
+const LEGACY_BOUNDARIES: ZoneBoundary[] = [
+  { zone: 1, low: 0, high: 120 },
+  { zone: 2, low: 120, high: 140 },
+  { zone: 3, low: 140, high: 155 },
+  { zone: 4, low: 155, high: 170 },
+  { zone: 5, low: 170, high: 250 },
+];
+
+export function zoneRangeLabel(b: ZoneBoundary, isFirst: boolean, isLast: boolean): string {
+  if (isFirst) return `< ${b.high} bpm`;
+  if (isLast) return `${b.low}+ bpm`;
+  return `${b.low}-${b.high} bpm`;
+}
+
 export interface DayData {
   date: string;
   dateObj: Date;
@@ -65,7 +91,12 @@ export function fmtMin(m: number): string {
 }
 
 export function cType(t: string): string {
-  return t === "run" ? "run" : t === "bike" ? "bike" : t === "swim" ? "swim" : "other";
+  if (t === "run" || t === "bike" || t === "swim") return t;
+  // Strava lift activities that didn't get suppressed (e.g. no Hevy
+  // connected) reach the dashboard as type="strength" — render them with
+  // the same styling as planned/Hevy lifts.
+  if (t === "strength") return "lift";
+  return "other";
 }
 
 export function estimateLoad(avgHr: number | null, durationSec: number): number {
@@ -75,13 +106,14 @@ export function estimateLoad(avgHr: number | null, durationSec: number): number 
   return Math.round(dMin * hrFraction * hrFraction * 1.5);
 }
 
-export function hrZone(avgHr: number | null): number {
+export function hrZone(avgHr: number | null, boundaries?: ZoneBoundary[] | null): number {
   if (!avgHr) return 0;
-  if (avgHr < 120) return 1;
-  if (avgHr < 140) return 2;
-  if (avgHr < 155) return 3;
-  if (avgHr < 170) return 4;
-  return 5;
+  const bs = boundaries && boundaries.length === 5 ? boundaries : LEGACY_BOUNDARIES;
+  // Top zone catches anything at or above its low.
+  for (let i = bs.length - 1; i >= 0; i--) {
+    if (avgHr >= bs[i].low) return bs[i].zone;
+  }
+  return bs[0].zone;
 }
 
 export function exerciseSummary(exercises: unknown): { totalSets: number; topExercises: string[]; avgRpe: number | null } {
@@ -165,6 +197,89 @@ export function weekTotals(days: DayData[]): WeekTotals {
   t.kcal = Math.round(t.kcal);
   t.elevation = Math.round(t.elevation);
   return t;
+}
+
+export interface LoadByTypePoint {
+  week: string;
+  lift: number;
+  run: number;
+  bike: number;
+  swim: number;
+  other: number;
+  total: number;
+}
+
+function mondayKey(dateStr: string): string {
+  const date = new Date(dateStr + "T00:00:00");
+  const day = date.getDay();
+  const monday = new Date(date);
+  monday.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
+  return monday.toISOString().slice(0, 10);
+}
+
+export function computeLoadByType(data: ApiData, weeks: number = 12): LoadByTypePoint[] {
+  const weekMap = new Map<string, LoadByTypePoint>();
+  const blank = (week: string): LoadByTypePoint => ({ week, lift: 0, run: 0, bike: 0, swim: 0, other: 0, total: 0 });
+
+  for (const c of data.cardio) {
+    const week = mondayKey(c.date);
+    const bucket = weekMap.get(week) || blank(week);
+    const k = cType(c.type) as "lift" | "run" | "bike" | "swim" | "other";
+    const load = estimateLoad(c.avg_hr, c.duration);
+    if (k === "lift" || k === "run" || k === "bike" || k === "swim" || k === "other") {
+      bucket[k] += load;
+    } else {
+      bucket.other += load;
+    }
+    bucket.total += load;
+    weekMap.set(week, bucket);
+  }
+
+  for (const w of data.workouts) {
+    const week = mondayKey(w.date);
+    const bucket = weekMap.get(week) || blank(week);
+    const load = Math.round((w.duration_minutes || 0) * 0.8);
+    bucket.lift += load;
+    bucket.total += load;
+    weekMap.set(week, bucket);
+  }
+
+  return Array.from(weekMap.values())
+    .sort((a, b) => a.week.localeCompare(b.week))
+    .slice(-weeks);
+}
+
+export interface Vo2Point {
+  date: string;
+  run: number | null;
+  bike: number | null;
+}
+
+export function computeVo2Trend(data: ApiData): Vo2Point[] {
+  const byDate = new Map<string, { run: number | null; bike: number | null }>();
+  for (const c of data.cardio) {
+    if (c.vo2_max == null) continue;
+    const k = cType(c.type);
+    if (k !== "run" && k !== "bike") continue;
+    const entry = byDate.get(c.date) || { run: null, bike: null };
+    // Keep the highest reading for the day (Garmin sometimes records multiple)
+    const prev = entry[k];
+    if (prev == null || c.vo2_max > prev) entry[k] = c.vo2_max;
+    byDate.set(c.date, entry);
+  }
+
+  const sorted = Array.from(byDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, v]) => ({ date, ...v }));
+
+  // Carry forward last-known value per sport so areas render continuously.
+  let lastRun: number | null = null;
+  let lastBike: number | null = null;
+  return sorted.map((p) => {
+    if (p.run != null) lastRun = p.run; else p.run = lastRun;
+    if (p.bike != null) lastBike = p.bike; else p.bike = lastBike;
+    return p;
+  });
 }
 
 export function computeFitnessCurve(data: ApiData, numDays: number): FitnessPoint[] {

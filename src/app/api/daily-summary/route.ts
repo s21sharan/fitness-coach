@@ -30,9 +30,9 @@ export async function POST(req: Request) {
 
   const [recoveryRes, workoutsTodayRes, cardioTodayRes, workoutsHistRes, plannedRes, recovery7Res] = await Promise.all([
     supabase.from("recovery_logs").select("sleep_hours, sleep_score, hrv, resting_hr, body_battery, stress_level, steps").eq("user_id", userId).eq("date", date).single(),
-    supabase.from("workout_logs").select("name, duration_minutes, exercises").eq("user_id", userId).eq("date", date),
-    supabase.from("cardio_logs").select("type, distance, duration, avg_hr, pace_or_speed, calories, elevation").eq("user_id", userId).eq("date", date),
-    supabase.from("workout_logs").select("date, exercises").eq("user_id", userId).gte("date", since14),
+    supabase.from("workout_logs").select("name, duration_minutes, exercises").eq("user_id", userId).eq("is_suppressed", false).eq("date", date),
+    supabase.from("cardio_logs").select("type, distance, duration, avg_hr, pace_or_speed, calories, elevation").eq("user_id", userId).eq("is_suppressed", false).eq("date", date),
+    supabase.from("workout_logs").select("date, exercises").eq("user_id", userId).eq("is_suppressed", false).gte("date", since14),
     supabase.from("planned_workouts").select("session_type").eq("date", date).limit(1),
     supabase.from("recovery_logs").select("hrv").eq("user_id", userId).gte("date", since7),
   ]);

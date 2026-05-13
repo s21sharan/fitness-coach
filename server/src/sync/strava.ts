@@ -3,15 +3,24 @@ import { config } from "../config.js";
 import { StravaClient, type StravaActivity } from "../integrations/strava-client.js";
 import { StravaTokenManager } from "../integrations/token-manager.js";
 import { getActiveIntegrations, logSync, updateSyncTimestamp, markIntegrationError } from "./base.js";
+import { reconcileUserActivities } from "./reconcile.js";
+import type { ActivityCategory } from "./providers.js";
 
 const RUN_TYPES = new Set(["Run", "TrailRun", "VirtualRun"]);
 const BIKE_TYPES = new Set(["Ride", "GravelRide", "VirtualRide", "EBikeRide", "EMountainBikeRide", "MountainBikeRide"]);
 const SWIM_TYPES = new Set(["Swim"]);
+// Strava's strength-coded sport_types. "Workout" is generic but lifters
+// commonly use it for gym sessions; we still map it to strength so the
+// reconciler can compare against Hevy. If the user's gym session was
+// actually some other indoor session, the reconciler simply won't find
+// a Hevy match and the row stays as-is.
+const STRENGTH_TYPES = new Set(["WeightTraining", "Crossfit", "Workout"]);
 
-export function mapSportType(sportType: string): "run" | "bike" | "swim" | "other" {
+export function mapSportType(sportType: string): ActivityCategory {
   if (RUN_TYPES.has(sportType)) return "run";
   if (BIKE_TYPES.has(sportType)) return "bike";
   if (SWIM_TYPES.has(sportType)) return "swim";
+  if (STRENGTH_TYPES.has(sportType)) return "strength";
   return "other";
 }
 
@@ -51,8 +60,10 @@ export async function syncStravaForUser(userId: string, sinceEpoch?: number): Pr
   const client = new StravaClient(tokenManager);
 
   // Use `??` so a caller can pass `0` (epoch) for a full backfill without
-  // silently falling back to the last-24h default.
-  const after = sinceEpoch ?? Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
+  // silently falling back to the default. The default covers 30 days so
+  // first-time syncs (last_synced_at null) don't dribble in one day at a
+  // time — the cron-style "incremental" callers always pass a sinceEpoch.
+  const after = sinceEpoch ?? Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000);
   // SummaryActivity from /athlete/activities already includes everything we
   // store except `calories`. Skipping the per-activity getActivity() call cuts
   // the backfill from N+1 requests to ~ceil(N/30), which keeps us well under
@@ -67,6 +78,9 @@ export async function syncStravaForUser(userId: string, sinceEpoch?: number): Pr
       .upsert(rows, { onConflict: "user_id,activity_id" });
 
     if (error) throw error;
+
+    const dates = rows.map((r) => r.date).sort();
+    await reconcileUserActivities(userId, { from: dates[0], to: dates[dates.length - 1] });
   }
 
   return rows.length;
@@ -84,6 +98,8 @@ export async function syncStravaActivity(userId: string, activityId: number): Pr
     .upsert([row], { onConflict: "user_id,activity_id" });
 
   if (error) throw error;
+
+  await reconcileUserActivities(userId, { from: row.date, to: row.date });
 }
 
 export async function syncAllStrava(): Promise<void> {

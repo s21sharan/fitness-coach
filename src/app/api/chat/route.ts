@@ -52,7 +52,7 @@ export async function POST(request: Request) {
   const conversationId = await getOrCreateConversation(userId);
   await saveMessage(conversationId, "user", lastUserMessage.content);
 
-  const [profileRes, goalsRes, planRes, todayRecoveryRes] =
+  const [profileRes, goalsRes, planRes, todayRecoveryRes, latestGarminCardioRes] =
     await Promise.all([
       supabase.from("user_profiles").select("*").eq("user_id", userId).single(),
       supabase.from("user_goals").select("*").eq("user_id", userId).single(),
@@ -68,12 +68,38 @@ export async function POST(request: Request) {
         .eq("user_id", userId)
         .eq("date", new Date().toISOString().slice(0, 10))
         .single(),
+      supabase
+        .from("cardio_logs")
+        .select("hr_zones")
+        .eq("user_id", userId)
+        .eq("is_suppressed", false)
+        .not("hr_zones", "is", null)
+        .order("date", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
 
   const profile = profileRes.data;
   const goals = goalsRes.data;
   const plan = planRes.data;
   const recovery = todayRecoveryRes.data;
+
+  // Parse Garmin zones from the latest activity that has them. Same logic as
+  // /api/test-data: we trust whatever Garmin most recently bucketed.
+  let hrZones: Array<{ zone: number; low: number; high: number }> | null = null;
+  const rawZones = latestGarminCardioRes.data?.hr_zones;
+  if (Array.isArray(rawZones) && rawZones.length === 5) {
+    const parsed: Array<{ zone: number; low: number; high: number }> = [];
+    for (const z of rawZones as Array<{ zone?: number; low?: number; high?: number }>) {
+      if (typeof z?.zone === "number" && typeof z?.low === "number" && typeof z?.high === "number") {
+        parsed.push({ zone: z.zone, low: z.low, high: z.high });
+      }
+    }
+    if (parsed.length === 5) {
+      parsed.sort((a, b) => a.zone - b.zone);
+      hrZones = parsed;
+    }
+  }
 
   let todaySession: string | null = null;
   if (plan) {
@@ -160,6 +186,7 @@ export async function POST(request: Request) {
     todaySession,
     recovery,
     weekStats,
+    hrZones,
   });
 
   // Convert incoming UIMessages to ModelMessages for streamText

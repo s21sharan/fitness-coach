@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { supabase } from "../db.js";
 import { config } from "../config.js";
 import { syncStravaActivity } from "../sync/strava.js";
+import { reconcileUserActivities } from "../sync/reconcile.js";
 import { logger } from "../utils/logger.js";
 
 export function verifyStravaWebhook(
@@ -66,6 +67,8 @@ export function createWebhookRouter(): Router {
           .delete()
           .eq("user_id", integration.user_id)
           .eq("activity_id", String(object_id));
+        // Removing a row may un-shadow a lower-priority duplicate from another provider.
+        await reconcileUserActivities(integration.user_id);
         logger.info("Strava webhook: deleted activity", { userId: integration.user_id, activityId: object_id });
       }
     } catch (err) {

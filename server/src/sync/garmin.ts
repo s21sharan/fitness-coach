@@ -2,6 +2,7 @@ import { supabase } from "../db.js";
 import { config } from "../config.js";
 import { decrypt } from "../utils/encryption.js";
 import { getActiveIntegrations, logSync, updateSyncTimestamp, markIntegrationError } from "./base.js";
+import { reconcileUserActivities } from "./reconcile.js";
 
 interface GarminMetric {
   date: string;
@@ -48,31 +49,66 @@ export function normalizeGarminData(userId: string, data: GarminSyncResponse) {
   });
 }
 
-async function fetchFromGarminService(email: string, password: string, since: string): Promise<GarminSyncResponse> {
-  const res = await fetch(`${config.garminServiceUrl}/sync`, {
+// Surfaces the typed error string from the Garmin FastAPI service so callers
+// (Express routes, eventually the UI) can react to e.g. `needs_mfa` instead of
+// only seeing a generic 500.
+export class GarminServiceError extends Error {
+  constructor(public readonly code: string, public readonly status: number) {
+    super(`Garmin service error: ${code}`);
+  }
+}
+
+interface GarminServicePayload {
+  email: string;
+  password: string;
+  since: string;
+  mfa_code?: string;
+}
+
+async function postToGarmin<T>(path: string, body: GarminServicePayload): Promise<T> {
+  const res = await fetch(`${config.garminServiceUrl}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password, since }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "unknown" }));
-    throw new Error(`Garmin service error: ${(err as { error: string }).error}`);
+    const payload = await res.json().catch(() => ({ detail: { error: "unknown" } }));
+    // FastAPI wraps our explicit HTTPException(detail={error: ...}) in a
+    // top-level `detail` field; non-HTTPException paths use `error` directly.
+    const code =
+      (payload as { detail?: { error?: string } }).detail?.error ??
+      (payload as { error?: string }).error ??
+      "unknown";
+    throw new GarminServiceError(code, res.status);
   }
 
-  return res.json() as Promise<GarminSyncResponse>;
+  return res.json() as Promise<T>;
+}
+
+async function fetchFromGarminService(
+  email: string,
+  password: string,
+  since: string,
+  mfaCode?: string,
+): Promise<GarminSyncResponse> {
+  return postToGarmin<GarminSyncResponse>("/sync", { email, password, since, mfa_code: mfaCode });
 }
 
 export async function syncGarminForUser(
   userId: string,
   credentials: { email: string; password: string },
   since?: string,
+  mfaCode?: string,
 ): Promise<number> {
   const email = decrypt(credentials.email, config.encryptionKey);
   const password = decrypt(credentials.password, config.encryptionKey);
 
-  const sinceDate = since || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const data = await fetchFromGarminService(email, password, sinceDate);
+  // First-time syncs (no `since` passed in) backfill 30 days so users see
+  // history rather than a single day. Cron-style incremental callers pass
+  // last_synced_at, which keeps day-to-day syncs cheap.
+  const sinceDate = since || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const data = await fetchFromGarminService(email, password, sinceDate, mfaCode);
   const rows = normalizeGarminData(userId, data);
 
   if (rows.length > 0) {
@@ -145,17 +181,16 @@ export function isMatchingActivity(
   return true;
 }
 
-async function fetchGarminActivities(email: string, password: string, since: string): Promise<GarminActivity[]> {
-  const res = await fetch(`${config.garminServiceUrl}/sync-activities`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password, since }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "unknown" }));
-    throw new Error(`Garmin activity sync error: ${(err as { error: string }).error}`);
-  }
-  const data = await res.json() as { activities: GarminActivity[] };
+async function fetchGarminActivities(
+  email: string,
+  password: string,
+  since: string,
+  mfaCode?: string,
+): Promise<GarminActivity[]> {
+  const data = await postToGarmin<{ activities: GarminActivity[] }>(
+    "/sync-activities",
+    { email, password, since, mfa_code: mfaCode },
+  );
   return data.activities;
 }
 
@@ -163,12 +198,15 @@ export async function syncGarminActivitiesForUser(
   userId: string,
   credentials: { email: string; password: string },
   since?: string,
+  mfaCode?: string,
 ): Promise<number> {
   const email = decrypt(credentials.email, config.encryptionKey);
   const password = decrypt(credentials.password, config.encryptionKey);
-  const sinceDate = since || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  // Match the 30-day first-sync floor used elsewhere — keeps the calendar
+  // populated when a user first connects Garmin.
+  const sinceDate = since || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-  const garminActivities = await fetchGarminActivities(email, password, sinceDate);
+  const garminActivities = await fetchGarminActivities(email, password, sinceDate, mfaCode);
   if (garminActivities.length === 0) return 0;
 
   const dates = garminActivities.map((a) => a.date);
@@ -245,6 +283,10 @@ export async function syncGarminActivitiesForUser(
         }, { onConflict: "user_id,activity_id" });
       if (!error) synced++;
     }
+  }
+
+  if (minDate && maxDate) {
+    await reconcileUserActivities(userId, { from: minDate, to: maxDate });
   }
 
   return synced;

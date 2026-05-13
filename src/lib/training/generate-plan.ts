@@ -87,8 +87,8 @@ export async function getRecentActivityStats(userId: string): Promise<RecentActi
   const since = thirtyDaysAgo.toISOString().slice(0, 10);
 
   const [cardioRes, workoutRes, recoveryRes] = await Promise.all([
-    supabase.from("cardio_logs").select("type, distance, duration, avg_hr").eq("user_id", userId).gte("date", since),
-    supabase.from("workout_logs").select("duration_minutes").eq("user_id", userId).gte("date", since),
+    supabase.from("cardio_logs").select("type, distance, duration, avg_hr").eq("user_id", userId).eq("is_suppressed", false).gte("date", since),
+    supabase.from("workout_logs").select("duration_minutes").eq("user_id", userId).eq("is_suppressed", false).gte("date", since),
     supabase.from("recovery_logs").select("hrv, sleep_hours").eq("user_id", userId).gte("date", since),
   ]);
 
