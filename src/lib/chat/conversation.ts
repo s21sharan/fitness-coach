@@ -8,6 +8,21 @@ interface DBMessage {
   created_at: string;
 }
 
+/** Convert a DB message to the AI SDK v6 UIMessage shape for useChat */
+export function convertDBToUIMessage(msg: DBMessage): {
+  id: string;
+  role: "user" | "assistant";
+  parts: Array<{ type: "text"; text: string }>;
+  createdAt: Date;
+} {
+  return {
+    id: msg.id,
+    role: msg.role as "user" | "assistant",
+    parts: [{ type: "text", text: msg.content }],
+    createdAt: new Date(msg.created_at),
+  };
+}
+
 export function formatMessagesForAI(messages: DBMessage[]): Array<{ role: "user" | "assistant"; content: string }> {
   return messages.map((m) => ({
     role: m.role as "user" | "assistant",
@@ -58,4 +73,13 @@ export async function saveMessage(
     content,
     tool_calls: toolCalls || null,
   });
+}
+
+/** Delete all messages in a conversation (keeps the conversation record) */
+export async function clearConversation(conversationId: string): Promise<void> {
+  const supabase = createServerClient();
+  await supabase
+    .from("chat_messages")
+    .delete()
+    .eq("conversation_id", conversationId);
 }

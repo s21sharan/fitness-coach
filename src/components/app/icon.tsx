@@ -190,6 +190,13 @@ export function Icon({ name, size = 18, ...rest }: IconProps) {
           <path d="M5 11a7 7 0 0014 0M12 18v3" />
         </svg>
       );
+    case "trash":
+      return (
+        <svg {...props}>
+          <path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+          <path d="M10 11v6M14 11v6" />
+        </svg>
+      );
     default:
       return null;
   }

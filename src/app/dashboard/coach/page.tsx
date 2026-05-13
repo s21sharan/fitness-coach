@@ -2,10 +2,12 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageBubble, TypingIndicator } from "@/components/chat/message-bubble";
 import { ChatInput } from "@/components/chat/chat-input";
 import { PlanProposalCard } from "@/components/chat/plan-proposal-card";
+import { Icon } from "@/components/app/icon";
+import { convertDBToUIMessage } from "@/lib/chat/conversation";
 
 const transport = new DefaultChatTransport({ api: "/api/chat" });
 
@@ -82,11 +84,26 @@ function extractText(parts: unknown[]): string {
 
 export default function CoachPage() {
   const [input, setInput] = useState("");
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const { messages, sendMessage, status } = useChat({ transport });
+  const { messages, sendMessage, status, setMessages } = useChat({ transport });
   const isLoading = status === "streaming" || status === "submitted";
 
+  // Load chat history on mount
+  useEffect(() => {
+    fetch("/api/chat/messages")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.messages?.length > 0) {
+          setMessages(data.messages.map(convertDBToUIMessage));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setHistoryLoaded(true));
+  }, [setMessages]);
+
+  // Auto-scroll on new messages
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -100,10 +117,63 @@ export default function CoachPage() {
     setInput("");
   };
 
+  const handleClearChat = useCallback(async () => {
+    const res = await fetch("/api/chat/messages", { method: "DELETE" });
+    if (res.ok) {
+      setMessages([]);
+    }
+  }, [setMessages]);
+
+  // Show loading skeleton while history is being fetched
+  if (!historyLoaded) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", height: "100%", maxWidth: 780, margin: "0 auto" }}>
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+            <div
+              style={{
+                width: 32, height: 32, borderRadius: "50%",
+                border: "2.5px solid #e5e7eb", borderTopColor: "var(--ink, #0F1B22)",
+                animation: "spin 0.7s linear infinite",
+              }}
+            />
+            <span style={{ fontSize: 13, color: "#9ca3af" }}>Loading conversation...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const showEmptyState = messages.length === 0;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", maxWidth: 780, margin: "0 auto" }}>
+      {/* Header bar — visible when there are messages */}
+      {!showEmptyState && (
+        <div
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "flex-end",
+            padding: "10px 20px 0",
+          }}
+        >
+          <button
+            type="button"
+            onClick={handleClearChat}
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "5px 10px", borderRadius: 8,
+              border: "1px solid #e5e7eb", background: "#fff",
+              fontSize: 12, color: "#9ca3af", cursor: "pointer",
+            }}
+          >
+            <Icon name="trash" size={13} />
+            Clear chat
+          </button>
+        </div>
+      )}
+
       <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "24px 20px" }}>
-        {messages.length === 0 ? (
+        {showEmptyState ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", textAlign: "center" }}>
             <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--ink, #0F1B22)", display: "grid", placeItems: "center" }}>
               <span style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>H</span>
