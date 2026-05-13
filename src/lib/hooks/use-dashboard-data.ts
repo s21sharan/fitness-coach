@@ -90,8 +90,8 @@ export function useDashboardData(): UseDashboardData {
     setUnits(getUnitPreferences());
   }, []);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  const fetchData = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     const localToday = encodeURIComponent(formatCalendarDateLocal(new Date()));
     const res = await fetch(`/api/test-data?localToday=${localToday}`);
     if (res.ok) {
@@ -101,7 +101,7 @@ export function useDashboardData(): UseDashboardData {
         planned: Array.isArray(json.planned) ? json.planned : [],
       } as ApiData);
     }
-    setLoading(false);
+    if (!opts?.silent) setLoading(false);
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -144,7 +144,7 @@ export function useDashboardData(): UseDashboardData {
     const MAX_MS = 120_000;
     const POLL_MS = 5_000;
     const poll = async () => {
-      await fetchData();
+      await fetchData({ silent: true });
       if (Date.now() - start >= MAX_MS) {
         setFixingDates(false);
         return;

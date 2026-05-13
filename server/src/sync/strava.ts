@@ -51,15 +51,13 @@ export async function syncStravaForUser(userId: string, sinceEpoch?: number): Pr
   // Use `??` so a caller can pass `0` (epoch) for a full backfill without
   // silently falling back to the last-24h default.
   const after = sinceEpoch ?? Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
+  // SummaryActivity from /athlete/activities already includes everything we
+  // store except `calories`. Skipping the per-activity getActivity() call cuts
+  // the backfill from N+1 requests to ~ceil(N/30), which keeps us well under
+  // Strava's 200/15min limit.
   const activities = await client.getAllActivitiesSince(after);
 
-  const detailed: StravaActivity[] = [];
-  for (const a of activities) {
-    const detail = await client.getActivity(a.id);
-    detailed.push(detail);
-  }
-
-  const rows = detailed.map((a) => normalizeActivity(userId, a));
+  const rows = activities.map((a) => normalizeActivity(userId, a));
 
   if (rows.length > 0) {
     const { error } = await supabase
