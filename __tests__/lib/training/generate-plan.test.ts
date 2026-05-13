@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { generatePlannedWorkouts } from "@/lib/training/generate-plan";
+import { generatePlannedWorkouts, expandBlocksToWorkouts } from "@/lib/training/generate-plan";
 import type { DayLayout } from "@/lib/training/schemas";
+import type { WeekBlock } from "@/lib/training/schemas";
 
 describe("generatePlannedWorkouts", () => {
   it("generates 4 weeks of planned workouts from a weekly layout", () => {
@@ -62,5 +63,89 @@ describe("generatePlannedWorkouts", () => {
     const workouts = generatePlannedWorkouts("plan-1", layout, new Date("2026-05-04"), 1);
     expect(workouts[0].ai_notes).toBe("Go heavy today");
     expect(workouts[1].ai_notes).toBeNull();
+  });
+});
+
+describe("expandBlocksToWorkouts", () => {
+  it("converts multi-week blocks to planned_workout rows using combineDaySessions", () => {
+    const blocks: WeekBlock[] = [
+      {
+        week_number: 1,
+        week_focus: "Base week",
+        days: [
+          { day_label: "Mon", am_session: "Easy Run — 40min Zone 2", am_rationale: "Aerobic base", pm_session: "Upper Body — push/pull 3x10", pm_rationale: "Strength work", is_rest: false, notes: null },
+          { day_label: "Tue", am_session: null, am_rationale: null, pm_session: null, pm_rationale: null, is_rest: true, notes: "Rest" },
+          { day_label: "Wed", am_session: null, am_rationale: null, pm_session: "Lower Body — squat focus", pm_rationale: "Leg day", is_rest: false, notes: null },
+          { day_label: "Thu", am_session: "Tempo Run — 4x1km @ 4:30", am_rationale: "Quality session", pm_session: null, pm_rationale: null, is_rest: false, notes: null },
+          { day_label: "Fri", am_session: null, am_rationale: null, pm_session: null, pm_rationale: null, is_rest: true, notes: "Rest" },
+          { day_label: "Sat", am_session: "Long Run — 90min Zone 2", am_rationale: "Weekly long run", pm_session: null, pm_rationale: null, is_rest: false, notes: null },
+          { day_label: "Sun", am_session: null, am_rationale: null, pm_session: null, pm_rationale: null, is_rest: true, notes: "Full rest" },
+        ],
+      },
+    ];
+
+    const startDate = new Date("2026-05-18"); // Monday
+    const workouts = expandBlocksToWorkouts("plan-abc", blocks, startDate);
+
+    expect(workouts).toHaveLength(7);
+
+    // Monday: AM + PM combined
+    expect(workouts[0].date).toBe("2026-05-18");
+    expect(workouts[0].session_type).toContain("AM:");
+    expect(workouts[0].session_type).toContain("PM:");
+    expect(workouts[0].ai_notes).toContain("AM");
+
+    // Tuesday: rest
+    expect(workouts[1].date).toBe("2026-05-19");
+    expect(workouts[1].session_type).toBe("Rest");
+
+    // Thursday: AM only — Tempo Run
+    expect(workouts[3].date).toBe("2026-05-21");
+    expect(workouts[3].session_type).toContain("Tempo Run");
+  });
+
+  it("handles 2-week blocks with correct date progression", () => {
+    const restDay = { am_session: null, am_rationale: null, pm_session: null, pm_rationale: null, is_rest: true, notes: null };
+    const activeDay = { am_session: "Push Day", am_rationale: "Strength", pm_session: null, pm_rationale: null, is_rest: false, notes: null };
+
+    const blocks: WeekBlock[] = [
+      { week_number: 1, week_focus: "Week 1", days: [
+        { day_label: "Mon", ...activeDay }, { day_label: "Tue", ...restDay },
+        { day_label: "Wed", ...activeDay }, { day_label: "Thu", ...restDay },
+        { day_label: "Fri", ...activeDay }, { day_label: "Sat", ...restDay },
+        { day_label: "Sun", ...restDay },
+      ]},
+      { week_number: 2, week_focus: "Week 2", days: [
+        { day_label: "Mon", ...activeDay }, { day_label: "Tue", ...restDay },
+        { day_label: "Wed", ...activeDay }, { day_label: "Thu", ...restDay },
+        { day_label: "Fri", ...activeDay }, { day_label: "Sat", ...restDay },
+        { day_label: "Sun", ...restDay },
+      ]},
+    ];
+
+    const startDate = new Date("2026-05-18");
+    const workouts = expandBlocksToWorkouts("plan-xyz", blocks, startDate);
+
+    expect(workouts).toHaveLength(14);
+    expect(workouts[0].date).toBe("2026-05-18"); // Week 1 Monday
+    expect(workouts[7].date).toBe("2026-05-25"); // Week 2 Monday
+  });
+
+  it("sets approved=true and status=scheduled on all rows", () => {
+    const restDay = { am_session: null, am_rationale: null, pm_session: null, pm_rationale: null, is_rest: true, notes: null };
+    const blocks: WeekBlock[] = [{
+      week_number: 1,
+      week_focus: "test",
+      days: (["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const).map((label) => ({
+        day_label: label,
+        ...restDay,
+      })),
+    }];
+
+    const workouts = expandBlocksToWorkouts("plan-1", blocks, new Date("2026-05-18"));
+    for (const w of workouts) {
+      expect(w.status).toBe("scheduled");
+      expect(w.approved).toBe(true);
+    }
   });
 });

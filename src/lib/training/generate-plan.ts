@@ -2,8 +2,10 @@ import { generateObject } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@/lib/supabase/server";
-import { planGenerationSchema, type PlanGeneration, type DayLayout } from "./schemas";
-import { PLAN_SYSTEM_PROMPT, buildUserPrompt, type RecentActivity } from "./prompts";
+import { planGenerationSchema, type PlanGeneration, type DayLayout, type MultiWeekPlan, type WeekBlock, multiWeekPlanSchema } from "./schemas";
+import { PLAN_SYSTEM_PROMPT, buildUserPrompt, type RecentActivity, MULTI_WEEK_SYSTEM_PROMPT, buildMultiWeekUserPrompt, type MultiWeekPromptContext } from "./prompts";
+import { combineDaySessions } from "./seed-plan-from-onboarding";
+import type { PlanPreviewDay } from "@/lib/onboarding/types";
 
 interface GeneratePlanInput {
   userId: string;
@@ -118,6 +120,8 @@ export async function generateTrainingPlan(input: GeneratePlanInput): Promise<{
   plan: PlanGeneration;
   planId: string;
 }> {
+  const recentActivity = await getRecentActivityStats(input.userId);
+
   const userPrompt = buildUserPrompt({
     age: input.profile.age,
     height: input.profile.height,
@@ -134,7 +138,7 @@ export async function generateTrainingPlan(input: GeneratePlanInput): Promise<{
     goalTime: input.goals.goal_time,
     doesCardio: input.goals.does_cardio,
     cardioTypes: input.goals.cardio_types || [],
-    recentActivity: null,
+    recentActivity,
   });
 
   const { object: plan } = await generateObject({
@@ -190,4 +194,134 @@ function getNextMonday(): Date {
   monday.setDate(now.getDate() + daysUntilMonday);
   monday.setHours(0, 0, 0, 0);
   return monday;
+}
+
+const DAY_LABEL_TO_INDEX: Record<string, number> = {
+  Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6,
+};
+
+export function expandBlocksToWorkouts(
+  planId: string,
+  blocks: WeekBlock[],
+  startDate: Date,
+): Array<{
+  plan_id: string;
+  date: string;
+  day_of_week: number;
+  session_type: string;
+  ai_notes: string | null;
+  targets: Record<string, unknown> | null;
+  status: string;
+  approved: boolean;
+}> {
+  const workouts: Array<{
+    plan_id: string;
+    date: string;
+    day_of_week: number;
+    session_type: string;
+    ai_notes: string | null;
+    targets: Record<string, unknown> | null;
+    status: string;
+    approved: boolean;
+  }> = [];
+
+  for (const block of blocks) {
+    const weekOffset = block.week_number - 1;
+    for (const day of block.days) {
+      const dayIdx = DAY_LABEL_TO_INDEX[day.day_label] ?? 0;
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + weekOffset * 7 + dayIdx);
+      const dateStr = date.toISOString().slice(0, 10);
+
+      const previewDay: PlanPreviewDay = {
+        day_label: day.day_label,
+        am_session: day.am_session,
+        am_rationale: day.am_rationale,
+        pm_session: day.pm_session,
+        pm_rationale: day.pm_rationale,
+        is_rest: day.is_rest,
+        notes: day.notes,
+      };
+      const { session_type, ai_notes, targets } = combineDaySessions(previewDay);
+
+      workouts.push({
+        plan_id: planId,
+        date: dateStr,
+        day_of_week: dayIdx,
+        session_type,
+        ai_notes,
+        targets: targets as Record<string, unknown> | null,
+        status: "scheduled",
+        approved: true,
+      });
+    }
+  }
+
+  return workouts;
+}
+
+export interface GenerateMultiWeekInput {
+  userId: string;
+  profile: {
+    age: number | null;
+    height: number | null;
+    weight: number | null;
+    sex: string | null;
+    training_experience: string | null;
+  };
+  goals: {
+    body_goal: string;
+    emphasis: string | null;
+    days_per_week: number;
+    lifting_days: number | null;
+    training_for_race: boolean;
+    race_type: string | null;
+    race_date: string | null;
+    goal_time: string | null;
+    does_cardio: boolean;
+    cardio_types: string[] | null;
+  };
+  weeks: number;
+  compliance: string | null;
+  userRequest?: string;
+}
+
+export async function generateMultiWeekPlan(input: GenerateMultiWeekInput): Promise<MultiWeekPlan> {
+  const recentActivity = await getRecentActivityStats(input.userId);
+
+  const ctx: MultiWeekPromptContext = {
+    age: input.profile.age,
+    height: input.profile.height,
+    weight: input.profile.weight,
+    sex: input.profile.sex,
+    experience: input.profile.training_experience,
+    bodyGoal: input.goals.body_goal,
+    emphasis: input.goals.emphasis,
+    daysPerWeek: input.goals.days_per_week,
+    liftingDays: input.goals.lifting_days,
+    trainingForRace: input.goals.training_for_race,
+    raceType: input.goals.race_type,
+    raceDate: input.goals.race_date,
+    goalTime: input.goals.goal_time,
+    doesCardio: input.goals.does_cardio,
+    cardioTypes: input.goals.cardio_types || [],
+    recentActivity,
+    compliance: input.compliance,
+    weeksToGenerate: input.weeks,
+  };
+
+  let prompt = buildMultiWeekUserPrompt(ctx);
+
+  if (input.userRequest) {
+    prompt += `\n\nThe user specifically requested: ${input.userRequest}`;
+  }
+
+  const { object: plan } = await generateObject({
+    model: anthropic("claude-sonnet-4-20250514"),
+    schema: multiWeekPlanSchema,
+    system: MULTI_WEEK_SYSTEM_PROMPT,
+    prompt,
+  });
+
+  return plan;
 }
