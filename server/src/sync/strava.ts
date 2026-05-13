@@ -2,8 +2,6 @@ import { supabase } from "../db.js";
 import { config } from "../config.js";
 import { StravaClient, type StravaActivity } from "../integrations/strava-client.js";
 import { StravaTokenManager } from "../integrations/token-manager.js";
-import { calendarDateInTimeZone } from "../utils/activity-calendar-date.js";
-import { fetchUserTimeZone } from "../utils/user-timezone.js";
 import { getActiveIntegrations, logSync, updateSyncTimestamp, markIntegrationError } from "./base.js";
 
 const RUN_TYPES = new Set(["Run", "TrailRun", "VirtualRun"]);
@@ -17,7 +15,7 @@ export function mapSportType(sportType: string): "run" | "bike" | "swim" | "othe
   return "other";
 }
 
-export function normalizeActivity(userId: string, activity: StravaActivity, timeZone = "Etc/UTC") {
+export function normalizeActivity(userId: string, activity: StravaActivity) {
   const type = mapSportType(activity.sport_type);
   const distanceKm = activity.distance / 1000;
 
@@ -32,7 +30,8 @@ export function normalizeActivity(userId: string, activity: StravaActivity, time
 
   return {
     user_id: userId,
-    date: calendarDateInTimeZone(activity.start_date, timeZone),
+    // start_date_local is the activity's local calendar time at the activity location.
+    date: activity.start_date_local.slice(0, 10),
     activity_id: String(activity.id),
     type,
     distance: Math.round(distanceKm * 100) / 100,
@@ -49,7 +48,9 @@ export async function syncStravaForUser(userId: string, sinceEpoch?: number): Pr
   const tokenManager = new StravaTokenManager(userId, config.stravaClientId, config.stravaClientSecret);
   const client = new StravaClient(tokenManager);
 
-  const after = sinceEpoch || Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
+  // Use `??` so a caller can pass `0` (epoch) for a full backfill without
+  // silently falling back to the last-24h default.
+  const after = sinceEpoch ?? Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
   const activities = await client.getAllActivitiesSince(after);
 
   const detailed: StravaActivity[] = [];
@@ -58,8 +59,7 @@ export async function syncStravaForUser(userId: string, sinceEpoch?: number): Pr
     detailed.push(detail);
   }
 
-  const timeZone = await fetchUserTimeZone(userId);
-  const rows = detailed.map((a) => normalizeActivity(userId, a, timeZone));
+  const rows = detailed.map((a) => normalizeActivity(userId, a));
 
   if (rows.length > 0) {
     const { error } = await supabase
@@ -77,8 +77,7 @@ export async function syncStravaActivity(userId: string, activityId: number): Pr
   const client = new StravaClient(tokenManager);
 
   const activity = await client.getActivity(activityId);
-  const timeZone = await fetchUserTimeZone(userId);
-  const row = normalizeActivity(userId, activity, timeZone);
+  const row = normalizeActivity(userId, activity);
 
   const { error } = await supabase
     .from("cardio_logs")

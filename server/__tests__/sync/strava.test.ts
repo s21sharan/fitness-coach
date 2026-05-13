@@ -67,6 +67,28 @@ describe("Strava sync", () => {
       expect(row.elevation).toBe(50);
     });
 
+    it("uses start_date_local for the calendar date, not UTC start_date", () => {
+      // 9pm Pacific (UTC-7) on May 11 = 4am UTC May 12.
+      // Strava reports start_date_local as the activity's wall-clock time.
+      const activity = {
+        id: 42,
+        name: "Late evening run",
+        sport_type: "Run",
+        distance: 5000,
+        moving_time: 1800,
+        elapsed_time: 1800,
+        total_elevation_gain: 0,
+        start_date: "2026-05-12T04:00:00Z",
+        start_date_local: "2026-05-11T21:00:00Z",
+        average_speed: 2.78,
+        max_speed: 3.5,
+        has_heartrate: false,
+      };
+
+      const row = normalizeActivity("user-1", activity);
+      expect(row.date).toBe("2026-05-11");
+    });
+
     it("calculates pace in min/km for runs", () => {
       const activity = {
         id: 1,
