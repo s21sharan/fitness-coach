@@ -78,7 +78,7 @@ export const multiWeekPlanSchema = z.object({
   narrative: z.string().min(1),
   risks: z.array(z.string()),
   plan_config: planConfigSchema,
-  weeks: z.array(weekBlockSchema).min(1).max(4),
+  weeks: z.array(weekBlockSchema).min(1).max(6),
 });
 
 export type MultiWeekPlan = z.infer<typeof multiWeekPlanSchema>;
