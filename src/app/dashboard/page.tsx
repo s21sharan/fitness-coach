@@ -6,6 +6,7 @@ import { RecoveryTrendChart, HrZoneChart, TrainingLoadChart, computeHrZones, typ
 import { ChartModal } from "@/components/charts/chart-modal";
 import { getUnitPreferences, fmtDist as fmtDistUnit, fmtPace as fmtPaceUnit, distanceLabel, type UnitPreferences } from "@/lib/units";
 import { PlannedCard, splitAmPmSessions } from "@/components/calendar/planned-card";
+import { DailySummaryCard } from "@/components/dashboard/daily-summary-card";
 import { ComplianceBadge, getComplianceStatus } from "@/components/calendar/compliance-badge";
 import { WorkoutModal } from "@/components/calendar/workout-modal";
 import { MuscleDiagram } from "@/components/calendar/muscle-diagram";
@@ -687,6 +688,8 @@ export default function DashboardPage() {
   return (
     <div style={{ padding: "12px 20px 40px", maxWidth: 1600, margin: "0 auto" }}>
       <ConnectionBar integrations={data.integrations} syncing={syncing} onSync={triggerSync} />
+
+      <DailySummaryCard />
 
       {/* ─── CHARTS GRID ─── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
