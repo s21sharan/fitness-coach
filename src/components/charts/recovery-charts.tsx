@@ -234,12 +234,20 @@ export function TrainingLoadChart({ data, compact = false }: { data: LoadPoint[]
     .slice(-12)
     .map(([week, load]) => ({ week, load }));
 
-  const h = compact ? 96 : 220;
+  const h = compact ? 112 : 220;
+
+  // In compact mode, show every 3rd date label to avoid crowding
+  const compactTickIndices = new Set<number>();
+  if (compact && weekData.length > 0) {
+    compactTickIndices.add(0);
+    compactTickIndices.add(Math.floor(weekData.length / 2));
+    compactTickIndices.add(weekData.length - 1);
+  }
 
   return (
     <div>
       <ResponsiveContainer width="100%" height={h}>
-        <BarChart data={weekData} margin={{ top: 6, right: 6, bottom: 4, left: compact ? -24 : 0 }} barCategoryGap="22%">
+        <BarChart data={weekData} margin={{ top: 6, right: compact ? 4 : 6, bottom: compact ? 2 : 4, left: compact ? 4 : 0 }} barCategoryGap="22%">
           <defs>
             <linearGradient id="grad-load" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={chartColors.load} stopOpacity={1} />
@@ -249,10 +257,16 @@ export function TrainingLoadChart({ data, compact = false }: { data: LoadPoint[]
           {!compact && <CartesianGrid {...gridProps} />}
           <XAxis
             dataKey="week"
-            tickFormatter={(w: string) => new Date(w + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-            tick={compact ? false : axisProps.tick}
+            tickFormatter={(w: string, i: number) => {
+              if (compact && !compactTickIndices.has(i)) return "";
+              const d = new Date(w + "T00:00:00");
+              return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+            }}
+            tick={{ fontSize: compact ? 9 : 10, fill: chartColors.textFaint, fontWeight: 600 }}
             axisLine={false}
             tickLine={false}
+            interval={0}
+            padding={{ left: compact ? 8 : 0, right: compact ? 8 : 0 }}
           />
           {!compact && <YAxis {...axisProps} />}
           {!compact && (
