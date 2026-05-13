@@ -4,6 +4,7 @@ import {
   ResponsiveContainer, ComposedChart, Line, Area, XAxis, YAxis,
   CartesianGrid, Tooltip, ReferenceLine, Legend,
 } from "recharts";
+import { chartColors, tooltipStyle, tooltipItemStyle, tooltipLabelStyle, gridProps, axisProps } from "./chart-theme";
 
 export interface FitnessPoint {
   date: string;
@@ -24,48 +25,68 @@ function formatDate(d: string) {
 }
 
 export function FitnessChart({ data, compact = false }: FitnessChartProps) {
-  if (data.length < 7) return <div style={{ color: "#9ca3af", fontSize: 12, padding: 20 }}>Not enough data for fitness chart</div>;
+  if (data.length < 7) return <div style={{ color: chartColors.textFaint, fontSize: 12, padding: 20 }}>Not enough data for fitness chart</div>;
 
   const display = compact ? data.slice(-42) : data;
   const lastP = display[display.length - 1];
-  const h = compact ? 120 : 320;
+  const h = compact ? 140 : 340;
+  const formColor = lastP.tsb >= 0 ? chartColors.formPositive : chartColors.formNegative;
 
   return (
     <div>
       {!compact && (
-        <div style={{ display: "flex", gap: 16, marginBottom: 8, fontSize: 12, fontWeight: 600 }}>
-          <span style={{ color: "#3b82f6" }}>Fitness (CTL) {lastP.ctl}</span>
-          <span style={{ color: "#f97316" }}>Fatigue (ATL) {lastP.atl}</span>
-          <span style={{ color: lastP.tsb >= 0 ? "#22c55e" : "#ef4444" }}>Form (TSB) {lastP.tsb}</span>
+        <div style={{ display: "flex", gap: 18, marginBottom: 12, fontSize: 12, fontWeight: 600 }}>
+          <span style={{ color: chartColors.fitness, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: chartColors.fitness }} /> Fitness (CTL) <b>{lastP.ctl}</b>
+          </span>
+          <span style={{ color: chartColors.fatigue, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: chartColors.fatigue }} /> Fatigue (ATL) <b>{lastP.atl}</b>
+          </span>
+          <span style={{ color: formColor, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: formColor }} /> Form (TSB) <b>{lastP.tsb}</b>
+          </span>
         </div>
       )}
       <ResponsiveContainer width="100%" height={h}>
-        <ComposedChart data={display} margin={{ top: 5, right: 5, bottom: 5, left: compact ? -20 : 0 }}>
-          {!compact && <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />}
+        <ComposedChart data={display} margin={{ top: 8, right: 8, bottom: 4, left: compact ? -24 : 0 }}>
+          <defs>
+            <linearGradient id="grad-ctl" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={chartColors.fitness} stopOpacity={0.22} />
+              <stop offset="100%" stopColor={chartColors.fitness} stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="grad-tsb-pos" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={chartColors.formPositive} stopOpacity={0.18} />
+              <stop offset="100%" stopColor={chartColors.formPositive} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          {!compact && <CartesianGrid {...gridProps} />}
           <XAxis
             dataKey="date"
             tickFormatter={formatDate}
-            tick={{ fontSize: compact ? 0 : 10, fill: "#9ca3af" }}
+            tick={compact ? false : axisProps.tick}
             interval={compact ? 999 : Math.floor(display.length / 6)}
             axisLine={false}
             tickLine={false}
           />
           {!compact && (
-            <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+            <YAxis {...axisProps} />
           )}
           {!compact && (
             <Tooltip
-              contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e5e7eb" }}
+              contentStyle={tooltipStyle}
+              itemStyle={tooltipItemStyle}
+              labelStyle={tooltipLabelStyle}
               labelFormatter={formatDate}
+              cursor={{ stroke: chartColors.gridStrong, strokeWidth: 1 }}
             />
           )}
-          <ReferenceLine y={0} stroke="#e5e7eb" strokeDasharray="3 3" />
-          {/* TSB fill zones */}
-          <Area dataKey="tsb" fill="#dcfce7" stroke="none" fillOpacity={0.5} />
-          <Line dataKey="ctl" stroke="#3b82f6" strokeWidth={compact ? 1.5 : 2} dot={false} name="Fitness" />
-          <Line dataKey="atl" stroke="#f97316" strokeWidth={compact ? 1.5 : 2} dot={false} name="Fatigue" />
-          <Line dataKey="tsb" stroke="#22c55e" strokeWidth={compact ? 1 : 1.5} dot={false} strokeDasharray="4 2" name="Form" />
-          {!compact && <Legend wrapperStyle={{ fontSize: 11 }} />}
+          <ReferenceLine y={0} stroke={chartColors.gridStrong} strokeDasharray="3 4" />
+          <Area dataKey="tsb" fill="url(#grad-tsb-pos)" stroke="none" />
+          <Area dataKey="ctl" fill="url(#grad-ctl)" stroke="none" />
+          <Line dataKey="ctl" stroke={chartColors.fitness} strokeWidth={compact ? 2 : 2.5} dot={false} name="Fitness" />
+          <Line dataKey="atl" stroke={chartColors.fatigue} strokeWidth={compact ? 1.8 : 2} dot={false} name="Fatigue" />
+          <Line dataKey="tsb" stroke={chartColors.formPositive} strokeWidth={compact ? 1.4 : 1.8} dot={false} strokeDasharray="4 3" name="Form" />
+          {!compact && <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} iconType="circle" />}
         </ComposedChart>
       </ResponsiveContainer>
     </div>
