@@ -114,4 +114,111 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("protein");
     expect(prompt).toContain("caloric deficit");
   });
+
+  it("includes block context when block is provided", () => {
+    const prompt = buildSystemPrompt({
+      profile: { age: 28, height: 180, weight: 185, sex: "male", training_experience: "intermediate" },
+      goals: { body_goal: "gain_muscle", emphasis: null, days_per_week: 5, training_for_race: false, race_type: null, race_date: null, goal_time: null },
+      plan: { split_type: "ppl", plan_config: null },
+      todaySession: null,
+      recovery: null,
+      todayNutrition: null,
+      weekStats: null,
+      block: {
+        block_type: "build",
+        block_label: "Build Block",
+        block_number: 2,
+        week_count: 4,
+        current_week: 3,
+        end_date: "2026-05-25",
+        days_until_end: 10,
+        compliance_pct: 87,
+      },
+    });
+    expect(prompt).toContain("Build Block");
+    expect(prompt).toContain("Block 2");
+    expect(prompt).toContain("Week 3 of 4");
+    expect(prompt).toContain("Block ends: 2026-05-25");
+    expect(prompt).toContain("Block compliance: 87%");
+  });
+
+  it("does not append days_until_end to Block ends line when more than 3 days remain", () => {
+    const prompt = buildSystemPrompt({
+      profile: { age: 28, height: 180, weight: 185, sex: "male", training_experience: "intermediate" },
+      goals: { body_goal: "gain_muscle", emphasis: null, days_per_week: 5, training_for_race: false, race_type: null, race_date: null, goal_time: null },
+      plan: null,
+      todaySession: null,
+      recovery: null,
+      todayNutrition: null,
+      weekStats: null,
+      block: {
+        block_type: "build",
+        block_label: "Build Block",
+        block_number: 1,
+        week_count: 4,
+        current_week: 1,
+        end_date: "2026-05-30",
+        days_until_end: 10,
+        compliance_pct: null,
+      },
+    });
+    expect(prompt).toContain("Block ends: 2026-05-30");
+    expect(prompt).not.toContain("(10 days)");
+    expect(prompt).not.toContain("IMPORTANT: The athlete's current block ends in");
+  });
+
+  it("includes proactive trigger and days countdown when block ends within 3 days", () => {
+    const prompt = buildSystemPrompt({
+      profile: { age: 30, height: 175, weight: 170, sex: "male", training_experience: "advanced" },
+      goals: { body_goal: "gain_muscle", emphasis: null, days_per_week: 6, training_for_race: false, race_type: null, race_date: null, goal_time: null },
+      plan: null,
+      todaySession: null,
+      recovery: null,
+      todayNutrition: null,
+      weekStats: null,
+      block: {
+        block_type: "peak",
+        block_label: "Peak Block",
+        block_number: 3,
+        week_count: 3,
+        current_week: 3,
+        end_date: "2026-05-14",
+        days_until_end: 2,
+        compliance_pct: 92,
+      },
+    });
+    expect(prompt).toContain("Block ends: 2026-05-14 (2 days)");
+    expect(prompt).toContain("IMPORTANT: The athlete's current block ends in 2 days");
+    expect(prompt).toContain("propose_next_block");
+  });
+
+  it("includes propose_next_block in guidelines", () => {
+    const prompt = buildSystemPrompt({
+      profile: { age: 25, height: 170, weight: 150, sex: "female", training_experience: "beginner" },
+      goals: { body_goal: "lose_weight", emphasis: null, days_per_week: 4, training_for_race: false, race_type: null, race_date: null, goal_time: null },
+      plan: null,
+      todaySession: null,
+      recovery: null,
+      todayNutrition: null,
+      weekStats: null,
+    });
+    expect(prompt).toContain("propose_next_block");
+    expect(prompt).toContain("regenerate_plan");
+  });
+
+  it("omits block section entirely when block is null", () => {
+    const prompt = buildSystemPrompt({
+      profile: { age: 28, height: 180, weight: 185, sex: "male", training_experience: "intermediate" },
+      goals: { body_goal: "gain_muscle", emphasis: null, days_per_week: 5, training_for_race: false, race_type: null, race_date: null, goal_time: null },
+      plan: null,
+      todaySession: null,
+      recovery: null,
+      todayNutrition: null,
+      weekStats: null,
+      block: null,
+    });
+    expect(prompt).not.toContain("Current block:");
+    expect(prompt).not.toContain("Block ends:");
+    expect(prompt).not.toContain("Block compliance:");
+  });
 });

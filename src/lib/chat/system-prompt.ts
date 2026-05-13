@@ -31,6 +31,16 @@ interface SystemPromptInput {
     sessionsPlanned: number;
   } | null;
   hrZones?: Array<{ zone: number; low: number; high: number }> | null;
+  block?: {
+    block_type: string;
+    block_label: string;
+    block_number: number;
+    week_count: number;
+    current_week: number;
+    end_date: string;
+    days_until_end: number;
+    compliance_pct: number | null;
+  } | null;
 }
 
 const REASONING_FRAMEWORK = `
@@ -100,7 +110,7 @@ const SPLIT_LABELS: Record<string, string> = {
 };
 
 export function buildSystemPrompt(input: SystemPromptInput): string {
-  const { profile, goals, plan, todaySession, recovery, weekStats, hrZones } = input;
+  const { profile, goals, plan, todaySession, recovery, weekStats, hrZones, block } = input;
   const lines: string[] = [];
 
   lines.push("You are Coach, a fitness coach. You are direct, specific, encouraging but honest, opinionated, and concise.");
@@ -132,6 +142,22 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     }
     if (plan.plan_config?.race_weeks_out) lines.push(`Race in ${plan.plan_config.race_weeks_out} weeks`);
   }
+
+  // Block context
+  if (block) {
+    lines.push("");
+    lines.push(`Current block: ${block.block_label} (Block ${block.block_number}) — Week ${block.current_week} of ${block.week_count}`);
+    lines.push(`Block ends: ${block.end_date}${block.days_until_end <= 3 ? ` (${block.days_until_end} days)` : ""}`);
+    if (block.compliance_pct !== null) {
+      lines.push(`Block compliance: ${block.compliance_pct}%`);
+    }
+
+    if (block.days_until_end <= 3) {
+      lines.push("");
+      lines.push("IMPORTANT: The athlete's current block ends in " + block.days_until_end + " days. Proactively suggest proposing the next block. Use the propose_next_block tool when the user agrees.");
+    }
+  }
+
   lines.push("");
 
   const today = new Date();
@@ -167,9 +193,11 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   lines.push("- Be concise — use bullet points, not paragraphs");
   lines.push("- You can use tools to look up data you don't have in this context");
   lines.push("- When modifying the plan, explain what you're changing and why");
+  lines.push("- When the user wants to restructure their current block, use regenerate_plan.");
   lines.push("- When the user wants to change their entire training split or restructure their plan, use the regenerate_plan tool. This generates a new 2-week plan and adds it to their calendar.");
   lines.push("- After regenerating a plan, present the new weekly layout clearly with day-by-day breakdown so the user can review it.");
   lines.push("- For small changes (swapping one day, adding a rest day), use update_planned_workout instead.");
+  lines.push("- When the user's block is ending or they want to move to the next phase, use propose_next_block.");
   lines.push("- You have access to exercise science research papers via the search_research tool");
   lines.push("- When making training, nutrition, or recovery recommendations, search for supporting evidence");
   lines.push("- Present your recommendation first, then add a Sources: section at the end with 1-3 citations");
