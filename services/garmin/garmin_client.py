@@ -230,3 +230,190 @@ def fetch_data(client: Garmin, since: str) -> dict:
         "stress": stress_data,
         "steps": steps_data,
     }
+
+
+# Activity type mapping constants
+GARMIN_RUN_TYPES = {"running", "trail_running", "treadmill_running", "track_running"}
+GARMIN_BIKE_TYPES = {"cycling", "mountain_biking", "indoor_cycling", "gravel_cycling", "e_bike_cycling"}
+GARMIN_SWIM_TYPES = {"lap_swimming", "open_water_swimming"}
+
+
+def map_garmin_activity_type(activity_type: str) -> str:
+    """Map a Garmin activity type string to run/bike/swim/other."""
+    normalized = (activity_type or "").lower()
+    if normalized in GARMIN_RUN_TYPES:
+        return "run"
+    if normalized in GARMIN_BIKE_TYPES:
+        return "bike"
+    if normalized in GARMIN_SWIM_TYPES:
+        return "swim"
+    return "other"
+
+
+def extract_hr_zones(activity_detail: dict) -> list[dict] | None:
+    """Extract HR zone breakdown from activity detail."""
+    zones_raw = activity_detail.get("heartRateZones")
+    if not zones_raw:
+        summary_dto = activity_detail.get("summaryDTO", {})
+        if isinstance(summary_dto, dict):
+            zones_raw = summary_dto.get("heartRateZones")
+
+    if not zones_raw or not isinstance(zones_raw, list):
+        return None
+
+    zones = []
+    for z in zones_raw:
+        if not isinstance(z, dict):
+            continue
+        zone_num = z.get("zoneNumber") or z.get("zone")
+        low = z.get("zoneLowBoundary") or z.get("startBpm")
+        high = z.get("zoneHighBoundary") or z.get("endBpm")
+        secs = z.get("secsInZone", 0) or 0
+        minutes = round(secs / 60, 1)
+        if zone_num is not None:
+            zones.append({
+                "zone": zone_num,
+                "low": low,
+                "high": high,
+                "minutes": minutes,
+            })
+
+    return zones if zones else None
+
+
+def extract_splits(activity_detail: dict) -> list[dict] | None:
+    """Extract per-km splits from activity detail."""
+    splits_raw = activity_detail.get("splitSummaries") or activity_detail.get("splits")
+    if not splits_raw or not isinstance(splits_raw, list):
+        return None
+
+    splits = []
+    for i, s in enumerate(splits_raw):
+        if not isinstance(s, dict):
+            continue
+
+        split_type = s.get("splitType", "")
+        if split_type not in ("distance", "DISTANCE", ""):
+            continue
+
+        distance = s.get("distance") or s.get("totalDistance") or 0
+        if distance < 100:
+            continue
+
+        duration_sec = s.get("duration") or s.get("totalElapsedTime") or 0
+        km_index = i + 1
+
+        pace = None
+        if distance and duration_sec:
+            pace = round((duration_sec / 60) / (distance / 1000), 2)
+
+        avg_hr = s.get("averageHR") or s.get("avgHeartRate")
+        elevation = s.get("elevationGain") or s.get("totalAscent")
+        cadence = s.get("averageRunCadence") or s.get("avgRunCadence") or s.get("averageCadence")
+
+        splits.append({
+            "km": km_index,
+            "distance_m": round(distance),
+            "pace_min_km": pace,
+            "avg_hr": avg_hr,
+            "elevation": elevation,
+            "cadence": cadence,
+        })
+
+    return splits if splits else None
+
+
+def fetch_activities(client: Garmin, since: str) -> list[dict]:
+    """Fetch all activities since the given date, including details."""
+    today = date.today().isoformat()
+    log(f"Fetching activities from {since} to {today}...")
+
+    activities_raw = client.get_activities_by_date(since, today)
+    if not activities_raw:
+        log("No activities found.")
+        return []
+
+    log(f"Found {len(activities_raw)} activities, fetching details...")
+    results = []
+
+    for activity in activities_raw:
+        if not isinstance(activity, dict):
+            continue
+
+        activity_id = activity.get("activityId")
+        if activity_id is None:
+            continue
+
+        # Map activity type
+        raw_type = (
+            activity.get("activityType", {}).get("typeKey", "")
+            if isinstance(activity.get("activityType"), dict)
+            else str(activity.get("activityType", ""))
+        )
+        mapped_type = map_garmin_activity_type(raw_type)
+
+        # Base fields from summary
+        distance_m = activity.get("distance") or 0
+        distance_km = round(distance_m / 1000, 3) if distance_m else None
+
+        duration_sec = activity.get("duration") or activity.get("elapsedDuration") or 0
+
+        # Pace / speed
+        if mapped_type == "run" and distance_km and duration_sec:
+            pace_or_speed = round((duration_sec / 60) / distance_km, 2)
+        elif distance_km and duration_sec:
+            pace_or_speed = round(distance_km / (duration_sec / 3600), 2)
+        else:
+            pace_or_speed = None
+
+        record: dict = {
+            "activity_id": activity_id,
+            "date": (activity.get("startTimeLocal") or "")[:10],
+            "start_time": activity.get("startTimeLocal"),
+            "type": mapped_type,
+            "distance_km": distance_km,
+            "duration_sec": round(duration_sec) if duration_sec else None,
+            "avg_hr": activity.get("averageHR"),
+            "max_hr": activity.get("maxHR"),
+            "calories": activity.get("calories"),
+            "elevation": activity.get("elevationGain"),
+            "training_effect_aerobic": activity.get("aerobicTrainingEffect"),
+            "training_effect_anaerobic": activity.get("anaerobicTrainingEffect"),
+            "vo2_max": activity.get("vO2MaxValue"),
+            "avg_respiration": activity.get("avgRespirationRate"),
+            "pace_or_speed": pace_or_speed,
+            # Detail fields filled in below
+            "avg_cadence": None,
+            "avg_stride_length": None,
+            "ground_contact_time": None,
+            "recovery_time": None,
+            "hr_zones": None,
+            "splits": None,
+        }
+
+        # Fetch per-activity detail
+        try:
+            detail = client.get_activity(activity_id)
+            if isinstance(detail, dict):
+                summary_dto = detail.get("summaryDTO", {}) or {}
+                record["avg_cadence"] = (
+                    summary_dto.get("averageRunningCadenceInStepsPerMinute")
+                    or summary_dto.get("averageBikingCadenceInRevPerMinute")
+                    or detail.get("averageRunCadence")
+                    or detail.get("averageCadence")
+                )
+                record["avg_stride_length"] = summary_dto.get("strideLength") or detail.get("avgStrideLength")
+                record["ground_contact_time"] = summary_dto.get("groundContactTime") or detail.get("groundContactTime")
+                record["recovery_time"] = (
+                    detail.get("recoveryTime")
+                    or summary_dto.get("recoveryTimeInHours")
+                )
+                record["hr_zones"] = extract_hr_zones(detail)
+                record["splits"] = extract_splits(detail)
+        except Exception as e:
+            log(f"  Detail fetch failed for activity {activity_id}: {e}")
+
+        results.append(record)
+
+    log(f"Done. Fetched details for {len(results)} activities.")
+    return results
