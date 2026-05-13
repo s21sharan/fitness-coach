@@ -43,27 +43,36 @@ Top nav bar with three tabs: **Calendar** | **Coach** | **Settings**
 - Unit-aware display (mi/km, lbs/kg from user preferences)
 
 ### AI Coach
-- Streaming chat via Vercel AI SDK `streamText` + `useChat` from `@ai-sdk/react`
-- 7 tools: `get_nutrition`, `get_workouts`, `get_cardio`, `get_recovery`, `get_weight_trend`, `get_training_plan`, `update_planned_workout`
+- Streaming chat via Vercel AI SDK v6 `streamText` + `useChat` from `@ai-sdk/react` + `DefaultChatTransport`
+- 8 tools: `get_nutrition`, `get_workouts`, `get_cardio`, `get_recovery`, `get_weight_trend`, `get_training_plan`, `update_planned_workout`, `regenerate_plan`
+- Tool schemas use `inputSchema` (not `parameters`) — AI SDK v6 requirement
+- API route uses `toUIMessageStreamResponse()` (not `toDataStreamResponse`)
+- Messages use v6 UIMessage format with `parts` array (not `content` string)
 - Coach personality: direct, data-driven, concise, opinionated
 - Dynamic system prompt rebuilt per request with fresh user context
 - Single conversation per user, persisted to Supabase `chat_messages`
-- Plan regeneration: coach can propose plan changes, user approves/rejects
+- Plan regeneration: `regenerate_plan` tool generates a proposal (not saved), shown as PlanProposalCard in chat, user clicks Accept to save via `/api/plan/accept`
+- Plan proposals include last 7 days of workout history to avoid scheduling conflicts
 
 ### Integrations
 - **Hevy** — Workout logs (exercises, sets, reps, weight, RPE) via API key
 - **Strava** — Cardio logs (runs, rides, swims) via OAuth
-- **Garmin** — Recovery data (HRV, sleep, RHR, body battery, stress, steps) via Python microservice
-- **MacroFactor** — Nutrition logs (calories, macros) via Firebase auth
+- **Garmin** — Recovery data (HRV, sleep, RHR, body battery, stress, steps) via Python FastAPI microservice on port 8001 (port 8000 is used by scraper)
+- **MacroFactor** — Nutrition logs (calories, macros) via Firebase auth (API key: `AIzaSyA17Uwy37irVEQSwz6PIyX3wnkHrDBeleA` — extracted from MCP package)
+- Dashboard shows 3 integrations: Hevy, Strava, Garmin (MacroFactor removed from dashboard)
 - Encrypted credential storage (AES-256-GCM)
+- Connect routes store credentials directly without external validation (Firebase/Garmin validation removed for local dev)
 - Cron-based sync workers on Railway Express backend
+- Express backend dev script uses `node --env-file=.env` for env loading
 
 ### Training Plan
-- AI-generated plans via Claude `generateObject` with structured output
+- AI-generated plans via Claude `generateObject` with structured output (schema in `src/lib/training/schemas.ts`)
+- Initial plan generated during onboarding via `generatePlanFromOnboarding()`
+- Coach can regenerate full plan via chat — generates proposal, user approves, then saved
 - Rolling 2-week plan generation based on recent activity data
 - Planned workouts with targets (distance, duration, pace, HR zone, muscle focus)
 - Compliance tracking: matches planned sessions to actual Hevy/Strava data
-- Plan edit/approve/reject via API endpoints
+- Plan accept/reject: `/api/plan/accept` saves proposed plan + creates 2 weeks of `planned_workouts`
 
 ### Exercise → Muscle Mapping
 - `src/lib/exercise-muscles.ts` — keyword-based fuzzy matching of Hevy exercise names to 11 muscle groups
@@ -102,6 +111,14 @@ Top nav bar with three tabs: **Calendar** | **Coach** | **Settings**
 - App renamed from Hybro to Trainer
 - Calendar page with charts, fitness curves, recovery trends
 - AI insights in chart modals
+- Landing page redesigned with pastel aesthetic (powder-blue, coral/mint/sky/lemon)
+- Dashboard wired to real API data (recovery, workouts, cardio from Supabase)
+- Day columns show sleep, RHR, HRV, steps with color-coded thresholds
+- Week totals include fitness/fatigue/form (CTL/ATL/TSB), elevation, kcal
+- Future weeks show no totals
+- Garmin backfill working (30 days of recovery data synced)
+- AI SDK v6 migration: useChat, DefaultChatTransport, inputSchema, toUIMessageStreamResponse, parts-based messages
+- PlanProposalCard in chat with accept/modify flow
 
 ## Development Rules
 
@@ -114,9 +131,10 @@ Top nav bar with three tabs: **Calendar** | **Coach** | **Settings**
 ## Running
 
 ```bash
-npm run dev          # Start Next.js dev server
-npm test             # Run all frontend tests
-cd server && npx tsx src/index.ts  # Start Express backend (needs server/.env)
+npm run dev                        # Start Next.js dev server (port 3000)
+npm test                           # Run all frontend tests
+cd server && npm run dev           # Start Express backend (port 3001, loads server/.env)
+cd services/garmin && source .venv/bin/activate && uvicorn main:app --port 8001  # Garmin service
 ```
 
 ## Database
@@ -140,4 +158,9 @@ cd server && npx tsx src/index.ts  # Start Express backend (needs server/.env)
 - `API_SECRET`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`
 - `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`
 - `MACROFACTOR_FIREBASE_API_KEY`
-- `GARMIN_SERVICE_URL`
+- `GARMIN_SERVICE_URL` (default: `http://localhost:8001`)
+
+## Known Issues
+- MacroFactor sync fails on Firestore data path (nutrition path format changed) — needs client update to match MCP package's approach
+- Clerk webhook doesn't fire locally — users must be manually inserted into Supabase `users` table for local dev
+- Sparkline component uses `useId()` for gradient IDs (fixes hydration mismatch from `Math.random()`)
