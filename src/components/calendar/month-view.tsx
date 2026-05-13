@@ -10,6 +10,7 @@ import {
 } from "@/lib/training/calendar-data";
 import type { ApiData, CardioLog, WorkoutLog } from "@/lib/hooks/use-dashboard-data";
 import type { UnitPreferences } from "@/lib/units";
+import type { TrainingBlock } from "@/lib/training/blocks";
 
 interface MonthViewProps {
   data: ApiData;
@@ -97,6 +98,7 @@ export function MonthView({ data, units, onWorkoutClick, onCardioClick }: MonthV
             onWorkoutClick={onWorkoutClick}
             onCardioClick={onCardioClick}
             onSummaryClick={(days, weekNum) => setSummaryWeek({ days, weekNum })}
+            activeBlock={data.activeBlock ?? null}
           />
         ))}
       </div>

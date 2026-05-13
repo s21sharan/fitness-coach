@@ -5,6 +5,7 @@ import { formatCalendarDateLocal } from "@/lib/dates/local-calendar";
 import { getUnitPreferences, type UnitPreferences } from "@/lib/units";
 import type { WorkoutContractV1 } from "@/lib/training/workout-contract";
 import type { Integration } from "@/components/app/connection-bar";
+import type { TrainingBlock } from "@/lib/training/blocks";
 
 export interface WorkoutLog {
   date: string;
@@ -92,6 +93,7 @@ export interface ApiData {
   recovery: RecoveryLog[];
   planned: PlannedWorkout[];
   hrZones: UserHrZones | null;
+  activeBlock: TrainingBlock | null;
 }
 
 export interface UseDashboardData {
@@ -126,6 +128,7 @@ export function useDashboardData(): UseDashboardData {
         ...json,
         planned: Array.isArray(json.planned) ? json.planned : [],
         hrZones: json.hrZones ?? null,
+        activeBlock: json.activeBlock ?? null,
       } as ApiData);
     }
     if (!opts?.silent) setLoading(false);

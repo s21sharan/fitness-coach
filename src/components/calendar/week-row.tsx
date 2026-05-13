@@ -7,6 +7,9 @@ import {
 } from "@/lib/training/calendar-data";
 import type { CardioLog, WorkoutLog } from "@/lib/hooks/use-dashboard-data";
 import { fmtDist as fmtDistUnit, distanceLabel, type UnitPreferences } from "@/lib/units";
+import type { TrainingBlock } from "@/lib/training/blocks";
+import { computeBlockWeekNumber } from "@/lib/training/blocks";
+import { blockTypeLabel } from "@/lib/training/phase-rules";
 
 interface WeekRowProps {
   days: DayData[];
@@ -16,9 +19,10 @@ interface WeekRowProps {
   onWorkoutClick?: (w: WorkoutLog) => void;
   onCardioClick?: (c: CardioLog) => void;
   onSummaryClick?: (days: DayData[], weekNum: number) => void;
+  activeBlock?: TrainingBlock | null;
 }
 
-export function WeekRow({ days, weekNum, units, hrZoneBoundaries, onWorkoutClick, onCardioClick, onSummaryClick }: WeekRowProps) {
+export function WeekRow({ days, weekNum, units, hrZoneBoundaries, onWorkoutClick, onCardioClick, onSummaryClick, activeBlock }: WeekRowProps) {
   const todayStr = toDS(new Date());
   const isFutureWeek = days[0].date > todayStr;
   const hasData = !isFutureWeek;
@@ -27,6 +31,16 @@ export function WeekRow({ days, weekNum, units, hrZoneBoundaries, onWorkoutClick
   const fmtDist = (km: number) => fmtDistUnit(km, units.distance);
   const distUnit = distanceLabel(units.distance);
   const clickable = !!onSummaryClick && !!t && t.timeSec > 0;
+
+  // Determine whether this week falls within the active block's date range
+  const weekMonday = days[0].date;
+  const blockIndicator: string | null = (() => {
+    if (!activeBlock) return null;
+    if (weekMonday < activeBlock.start_date || weekMonday > activeBlock.end_date) return null;
+    const weekNum = computeBlockWeekNumber(activeBlock.start_date, weekMonday);
+    const label = blockTypeLabel(activeBlock.block_type);
+    return `${label} · Wk ${weekNum}/${activeBlock.week_count}`;
+  })();
 
   return (
     <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #e5e7eb" }}>
@@ -49,6 +63,11 @@ export function WeekRow({ days, weekNum, units, hrZoneBoundaries, onWorkoutClick
         onMouseEnter={(e) => { if (clickable) (e.currentTarget as HTMLButtonElement).style.background = "#f3f4f6"; }}
         onMouseLeave={(e) => { if (clickable) (e.currentTarget as HTMLButtonElement).style.background = "#fafafa"; }}
       >
+        {blockIndicator && (
+          <div style={{ fontSize: 11, fontWeight: 500, color: "#9ca3af" }}>
+            {blockIndicator}
+          </div>
+        )}
         <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em" }}>
           Week {weekNum}
         </div>

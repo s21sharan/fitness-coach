@@ -58,16 +58,28 @@ export async function GET(request: Request) {
 
   const planId = planRes.data?.[0]?.id;
   let plannedRows: unknown[] = [];
+  let activeBlock: unknown = null;
   if (planId) {
-    const { data: pw, error: pwErr } = await supabase
-      .from("planned_workouts")
-      .select("id, date, day_of_week, session_type, ai_notes, targets, approved, status")
-      .eq("plan_id", planId)
-      .gte("date", plannedFromStr)
-      .lte("date", plannedToStr)
-      .order("date");
-    if (pwErr) console.error("test-data planned_workouts:", pwErr);
-    plannedRows = pw || [];
+    const [pwRes, blockRes] = await Promise.all([
+      supabase
+        .from("planned_workouts")
+        .select("id, date, day_of_week, session_type, ai_notes, targets, approved, status")
+        .eq("plan_id", planId)
+        .gte("date", plannedFromStr)
+        .lte("date", plannedToStr)
+        .order("date"),
+      supabase
+        .from("training_blocks")
+        .select("*")
+        .eq("plan_id", planId)
+        .eq("status", "active")
+        .order("block_number", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+    if (pwRes.error) console.error("test-data planned_workouts:", pwRes.error);
+    plannedRows = pwRes.data || [];
+    activeBlock = blockRes.data ?? null;
   }
 
   // Derive the user's canonical HR zones from the most recent Garmin activity
@@ -86,6 +98,7 @@ export async function GET(request: Request) {
     recovery: recoveryRes.data || [],
     planned: plannedRows,
     hrZones,
+    activeBlock,
   });
 }
 
