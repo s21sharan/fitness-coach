@@ -1,15 +1,17 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { generatePlannedWorkouts } from "@/lib/training/generate-plan";
+import { generatePlannedWorkouts, expandBlocksToWorkouts } from "@/lib/training/generate-plan";
+import type { WeekBlock } from "@/lib/training/schemas";
 
 export async function POST(request: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { split_type, body_goal, race_type, plan_config, weekly_layout } = await request.json();
+  const body = await request.json();
+  const { split_type, body_goal, race_type, plan_config, weekly_layout, raw_blocks } = body;
 
-  if (!split_type || !weekly_layout) {
+  if (!split_type || (!weekly_layout && !raw_blocks)) {
     return NextResponse.json({ error: "Missing plan data" }, { status: 400 });
   }
 
@@ -43,7 +45,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Failed to create plan" }, { status: 500 });
   }
 
-  // Generate 2 weeks starting next Monday
+  // Calculate next Monday
   const now = new Date();
   const day = now.getDay();
   const daysUntilMonday = day === 0 ? 1 : day === 1 ? 0 : 8 - day;
@@ -51,7 +53,17 @@ export async function POST(request: NextRequest) {
   nextMonday.setDate(now.getDate() + daysUntilMonday);
   nextMonday.setHours(0, 0, 0, 0);
 
-  const workouts = generatePlannedWorkouts(newPlan.id, weekly_layout, nextMonday, 2);
+  // Generate workouts — use multi-week blocks if available, else fall back to flat layout
+  let workouts;
+  let weeksGenerated: number;
+
+  if (raw_blocks && Array.isArray(raw_blocks) && raw_blocks.length > 0) {
+    workouts = expandBlocksToWorkouts(newPlan.id, raw_blocks as WeekBlock[], nextMonday);
+    weeksGenerated = raw_blocks.length;
+  } else {
+    workouts = generatePlannedWorkouts(newPlan.id, weekly_layout, nextMonday, 2);
+    weeksGenerated = 2;
+  }
 
   const { error: workoutsError } = await supabase
     .from("planned_workouts")
@@ -64,7 +76,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     plan_id: newPlan.id,
-    weeks_generated: 2,
+    weeks_generated: weeksGenerated,
     starts: nextMonday.toISOString().slice(0, 10),
   });
 }
