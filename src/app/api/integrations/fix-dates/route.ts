@@ -40,6 +40,28 @@ export async function POST(request: NextRequest) {
     .eq("user_id", userId);
   const connected = new Set((integrationsRows || []).map((r) => r.provider));
 
+  // Destructive reset: wipe completed-workout tables for connected providers
+  // so the upcoming sync repopulates from scratch with the correct local dates.
+  // Also clear last_synced_at so the cron's next incremental run starts fresh.
+  const deleted: Record<string, { ok: boolean; error?: string }> = {};
+
+  if (connected.has("strava")) {
+    const r = await supabase.from("cardio_logs").delete().eq("user_id", userId);
+    deleted.cardio_logs = { ok: !r.error, error: r.error?.message };
+  }
+  if (connected.has("hevy")) {
+    const r = await supabase.from("workout_logs").delete().eq("user_id", userId);
+    deleted.workout_logs = { ok: !r.error, error: r.error?.message };
+  }
+  if (connected.has("strava") || connected.has("hevy")) {
+    const r = await supabase
+      .from("integrations")
+      .update({ last_synced_at: null })
+      .eq("user_id", userId)
+      .in("provider", ["strava", "hevy"]);
+    deleted.last_synced_at_cleared = { ok: !r.error, error: r.error?.message };
+  }
+
   // Hevy: trigger a full re-fetch (no `since` → syncHevyForUser uses getWorkouts()).
   // Strava: use backfill with a far-past `since` to pull every activity.
   const headers = { "Content-Type": "application/json", "X-API-Key": apiKey };
@@ -85,7 +107,7 @@ export async function POST(request: NextRequest) {
 
   const allOk = Object.values(results).every((r) => "skipped" in r || r.ok);
   return NextResponse.json(
-    { status: allOk ? "fix_triggered" : "partial", timezone, results },
+    { status: allOk ? "fix_triggered" : "partial", timezone, deleted, results },
     { status: allOk ? 200 : 207 },
   );
 }

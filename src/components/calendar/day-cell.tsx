@@ -98,13 +98,17 @@ function CardioCardTall({ c: a, units, onClick }: { c: CardioLog; units: UnitPre
   const zone = hrZone(a.avg_hr);
 
   return (
-    <div onClick={onClick} style={{
-      background: cl.bg, borderLeft: `3px solid ${cl.border}`,
-      borderRadius: 8, padding: "9px 11px",
-      fontSize: 12, lineHeight: 1.5,
-      cursor: onClick ? "pointer" : "default",
-      transition: "filter 0.1s",
-    }} onMouseEnter={(e) => onClick && (e.currentTarget.style.filter = "brightness(0.95)")} onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}>
+    <div
+      onClick={onClick}
+      onMouseEnter={(e) => onClick && (e.currentTarget.style.filter = "brightness(0.97)")}
+      onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
+      style={{
+        background: cl.bg, borderLeft: `3px solid ${cl.border}`,
+        borderRadius: 8, padding: "9px 11px",
+        fontSize: 12, lineHeight: 1.5,
+        cursor: onClick ? "pointer" : "default",
+        transition: "filter 0.1s",
+      }}>
       <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 2 }}>
         <span style={{ fontSize: 14 }}>{cl.icon}</span>
         <span style={{ fontWeight: 700, color: cl.text, fontSize: 13, flex: 1 }}>{fmtSec(a.duration)}</span>
@@ -330,7 +334,15 @@ export function DayCell({ day, variant = "compact", units, onWorkoutClick, onCar
         const t = cType(c.type);
         const cl = TYPE_COLORS[t];
         const label = c.distance > 0 ? `${fmtDist(c.distance, units)} ${distUnit(units)}` : fmtSec(c.duration);
-        return <ActivityChip key={`c-${i}`} icon={cl.icon} label={label} color={cl} onClick={onCardioClick ? () => onCardioClick(c) : undefined} />;
+        return (
+          <ActivityChip
+            key={`c-${i}`}
+            icon={cl.icon}
+            label={label}
+            color={cl}
+            onClick={onCardioClick ? () => onCardioClick(c) : undefined}
+          />
+        );
       })}
       {showPlanned && day.planned && <PlannedPill p={day.planned} isToday={isToday} isFuture={isFuture} />}
     </div>

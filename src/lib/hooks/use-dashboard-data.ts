@@ -103,8 +103,8 @@ export function useDashboardData(): UseDashboardData {
     setUnits(getUnitPreferences());
   }, []);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  const fetchData = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     const localToday = encodeURIComponent(formatCalendarDateLocal(new Date()));
     const res = await fetch(`/api/test-data?localToday=${localToday}`);
     if (res.ok) {
@@ -114,7 +114,7 @@ export function useDashboardData(): UseDashboardData {
         planned: Array.isArray(json.planned) ? json.planned : [],
       } as ApiData);
     }
-    setLoading(false);
+    if (!opts?.silent) setLoading(false);
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -127,6 +127,12 @@ export function useDashboardData(): UseDashboardData {
 
   const triggerFixDates = useCallback(async () => {
     if (fixingDates) return;
+    if (typeof window !== "undefined") {
+      const confirmed = window.confirm(
+        "This will DELETE all your completed Hevy workouts and Strava cardio logs, then re-sync them from scratch with your local timezone. Continue?",
+      );
+      if (!confirmed) return;
+    }
     setFixingDates(true);
     try {
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -135,14 +141,30 @@ export function useDashboardData(): UseDashboardData {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ timezone }),
       });
-      if (!res.ok && res.status !== 207) {
-        const text = await res.text().catch(() => "");
-        console.error("fix-dates failed:", res.status, text);
+      const payload = await res.json().catch(() => null);
+      if (res.status === 207 || !res.ok) {
+        console.error("fix-dates response:", res.status, payload);
+      } else {
+        console.log("fix-dates response:", res.status, payload);
       }
     } catch (err) {
       console.error("fix-dates error:", err);
     }
-    setTimeout(() => { fetchData(); setFixingDates(false); }, 8000);
+    // Strava backfill makes 1 API call per activity (getActivity), so a full
+    // re-sync can take 30–90s. Refetch every 5s for up to 2 minutes so the
+    // user sees rows trickle in as the backend completes the sync.
+    const start = Date.now();
+    const MAX_MS = 120_000;
+    const POLL_MS = 5_000;
+    const poll = async () => {
+      await fetchData({ silent: true });
+      if (Date.now() - start >= MAX_MS) {
+        setFixingDates(false);
+        return;
+      }
+      setTimeout(poll, POLL_MS);
+    };
+    setTimeout(poll, POLL_MS);
   }, [fixingDates, fetchData]);
 
   return { data, loading, syncing, fixingDates, units, refetch: fetchData, triggerSync, triggerFixDates };
