@@ -9,6 +9,7 @@ import { WorkoutModal } from "@/components/calendar/workout-modal";
 import { CardioModal } from "@/components/calendar/cardio-modal";
 import { useDashboardData, type CardioLog, type WorkoutLog } from "@/lib/hooks/use-dashboard-data";
 import { DailySummaryCard } from "@/components/dashboard/daily-summary-card";
+import { BlockBanner } from "@/components/calendar/block-banner";
 
 type CalendarView = "month" | "week";
 
@@ -49,6 +50,19 @@ function DashboardPageInner() {
       />
 
       <DailySummaryCard />
+
+      {data.activeBlock && (() => {
+        const daysUntilEnd = Math.ceil(
+          (new Date(data.activeBlock.end_date + "T00:00:00").getTime() - Date.now()) / (24 * 60 * 60 * 1000)
+        );
+        return daysUntilEnd <= 3 && daysUntilEnd >= 0 ? (
+          <BlockBanner
+            blockType={data.activeBlock.block_type}
+            endDate={data.activeBlock.end_date}
+            daysUntilEnd={daysUntilEnd}
+          />
+        ) : null;
+      })()}
 
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
         <ViewToggle view={view} onChange={setView} />
