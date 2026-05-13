@@ -50,3 +50,35 @@ export const planGenerationSchema = z.object({
 });
 
 export type PlanGeneration = z.infer<typeof planGenerationSchema>;
+
+const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+export const sessionDaySchema = z.object({
+  day_label: z.enum(DAY_LABELS),
+  am_session: z.string().nullable(),
+  am_rationale: z.string().nullable(),
+  pm_session: z.string().nullable(),
+  pm_rationale: z.string().nullable(),
+  is_rest: z.boolean(),
+  notes: z.string().nullable(),
+});
+
+export type SessionDay = z.infer<typeof sessionDaySchema>;
+
+export const weekBlockSchema = z.object({
+  week_number: z.number().int().min(1),
+  week_focus: z.string().min(1),
+  days: z.array(sessionDaySchema).length(7),
+});
+
+export type WeekBlock = z.infer<typeof weekBlockSchema>;
+
+export const multiWeekPlanSchema = z.object({
+  split_type: z.enum(SPLIT_TYPES),
+  narrative: z.string().min(1),
+  risks: z.array(z.string()),
+  plan_config: planConfigSchema,
+  weeks: z.array(weekBlockSchema).min(1).max(4),
+});
+
+export type MultiWeekPlan = z.infer<typeof multiWeekPlanSchema>;
