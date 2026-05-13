@@ -24,9 +24,22 @@ export interface CardioLog {
   distance: number;
   duration: number;
   avg_hr: number | null;
+  max_hr: number | null;
   pace_or_speed: number | null;
   calories: number | null;
   elevation: number | null;
+  start_time: string | null;
+  training_effect_aerobic: number | null;
+  training_effect_anaerobic: number | null;
+  vo2_max: number | null;
+  recovery_time_min: number | null;
+  avg_respiration: number | null;
+  avg_cadence: number | null;
+  avg_stride_length: number | null;
+  ground_contact_time: number | null;
+  hr_zones: Array<{ zone: number; low: number; high: number; minutes: number }> | null;
+  splits: Array<{ km: number; distance_m: number | null; pace_min_km: number | null; avg_hr: number | null; elevation: number | null; cadence: number | null }> | null;
+  source: string | null;
 }
 
 export interface RecoveryLog {

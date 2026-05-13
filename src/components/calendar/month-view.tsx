@@ -6,13 +6,14 @@ import {
   DAY_NAMES, TYPE_COLORS,
   buildMonthWeeks, getMonday, addDays, weekNumberFor,
 } from "@/lib/training/calendar-data";
-import type { ApiData, WorkoutLog } from "@/lib/hooks/use-dashboard-data";
+import type { ApiData, CardioLog, WorkoutLog } from "@/lib/hooks/use-dashboard-data";
 import type { UnitPreferences } from "@/lib/units";
 
 interface MonthViewProps {
   data: ApiData;
   units: UnitPreferences;
   onWorkoutClick?: (w: WorkoutLog) => void;
+  onCardioClick?: (c: CardioLog) => void;
 }
 
 const navBtn: React.CSSProperties = {
@@ -24,7 +25,7 @@ const navBtn: React.CSSProperties = {
 
 const SIDEBAR_WIDTH = 110;
 
-export function MonthView({ data, units, onWorkoutClick }: MonthViewProps) {
+export function MonthView({ data, units, onWorkoutClick, onCardioClick }: MonthViewProps) {
   const [monthOffset, setMonthOffset] = useState(0);
 
   const monthDate = useMemo(() => {
@@ -87,6 +88,7 @@ export function MonthView({ data, units, onWorkoutClick }: MonthViewProps) {
             weekNum={weekNumbers[wi]}
             units={units}
             onWorkoutClick={onWorkoutClick}
+            onCardioClick={onCardioClick}
           />
         ))}
       </div>
