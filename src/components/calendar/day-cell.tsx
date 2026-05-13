@@ -1,6 +1,6 @@
 "use client";
 
-import { PlannedCard } from "./planned-card";
+import { PlannedCard, splitAmPmSessions } from "./planned-card";
 import { ComplianceBadge, getComplianceStatus } from "./compliance-badge";
 import {
   TYPE_COLORS, ZONE_COLORS,
@@ -206,8 +206,8 @@ function ActivityChip({
   );
 }
 
-function PlannedPill({ p, isToday, isFuture }: { p: PlannedWorkout; isToday: boolean; isFuture: boolean }) {
-  const type = inferTypeFromSession(p.session_type);
+function PlannedPill({ label, isToday, isFuture }: { label: string; isToday: boolean; isFuture: boolean }) {
+  const type = inferTypeFromSession(label);
   const c = TYPE_COLORS[type];
   const dimmed = !isToday && !isFuture;
   return (
@@ -225,7 +225,7 @@ function PlannedPill({ p, isToday, isFuture }: { p: PlannedWorkout; isToday: boo
       title="Planned"
     >
       <span style={{ fontSize: 12 }}>{c.icon}</span>
-      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.session_type}</span>
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
     </div>
   );
 }
@@ -284,14 +284,20 @@ export function DayCell({ day, variant = "compact", units, onWorkoutClick, onCar
         {day.cardio.map((c, i) => (
           <CardioCardTall key={`c-${i}`} c={c} units={units} onClick={onCardioClick ? () => onCardioClick(c) : undefined} />
         ))}
-        {day.planned && (
+        {day.planned && splitAmPmSessions(
+          day.planned.session_type,
+          day.planned.ai_notes,
+          day.planned.targets,
+        ).map((session, i) => (
           <PlannedCard
+            key={`planned-${i}`}
             variant={isToday ? "today" : isFuture ? "future" : "past"}
-            sessionType={day.planned.session_type}
-            aiNotes={day.planned.ai_notes}
-            targets={day.planned.targets}
+            sessionType={session.label}
+            aiNotes={session.aiNotes}
+            slot={session.slot}
+            targets={session.targets}
           />
-        )}
+        ))}
       </div>
     );
   }
@@ -344,7 +350,13 @@ export function DayCell({ day, variant = "compact", units, onWorkoutClick, onCar
           />
         );
       })}
-      {showPlanned && day.planned && <PlannedPill p={day.planned} isToday={isToday} isFuture={isFuture} />}
+      {showPlanned && day.planned && splitAmPmSessions(
+        day.planned.session_type,
+        day.planned.ai_notes,
+        day.planned.targets,
+      ).map((session, i) => (
+        <PlannedPill key={`pill-${i}`} label={session.label} isToday={isToday} isFuture={isFuture} />
+      ))}
     </div>
   );
 }
