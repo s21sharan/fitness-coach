@@ -2,6 +2,8 @@ import { supabase } from "../db.js";
 import { config } from "../config.js";
 import { StravaClient, type StravaActivity } from "../integrations/strava-client.js";
 import { StravaTokenManager } from "../integrations/token-manager.js";
+import { calendarDateInTimeZone } from "../utils/activity-calendar-date.js";
+import { fetchUserTimeZone } from "../utils/user-timezone.js";
 import { getActiveIntegrations, logSync, updateSyncTimestamp, markIntegrationError } from "./base.js";
 
 const RUN_TYPES = new Set(["Run", "TrailRun", "VirtualRun"]);
@@ -15,7 +17,7 @@ export function mapSportType(sportType: string): "run" | "bike" | "swim" | "othe
   return "other";
 }
 
-export function normalizeActivity(userId: string, activity: StravaActivity) {
+export function normalizeActivity(userId: string, activity: StravaActivity, timeZone = "Etc/UTC") {
   const type = mapSportType(activity.sport_type);
   const distanceKm = activity.distance / 1000;
 
@@ -30,7 +32,7 @@ export function normalizeActivity(userId: string, activity: StravaActivity) {
 
   return {
     user_id: userId,
-    date: activity.start_date.slice(0, 10),
+    date: calendarDateInTimeZone(activity.start_date, timeZone),
     activity_id: String(activity.id),
     type,
     distance: Math.round(distanceKm * 100) / 100,
@@ -56,7 +58,8 @@ export async function syncStravaForUser(userId: string, sinceEpoch?: number): Pr
     detailed.push(detail);
   }
 
-  const rows = detailed.map((a) => normalizeActivity(userId, a));
+  const timeZone = await fetchUserTimeZone(userId);
+  const rows = detailed.map((a) => normalizeActivity(userId, a, timeZone));
 
   if (rows.length > 0) {
     const { error } = await supabase
@@ -74,7 +77,8 @@ export async function syncStravaActivity(userId: string, activityId: number): Pr
   const client = new StravaClient(tokenManager);
 
   const activity = await client.getActivity(activityId);
-  const row = normalizeActivity(userId, activity);
+  const timeZone = await fetchUserTimeZone(userId);
+  const row = normalizeActivity(userId, activity, timeZone);
 
   const { error } = await supabase
     .from("cardio_logs")

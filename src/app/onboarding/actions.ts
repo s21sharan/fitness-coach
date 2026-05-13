@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { aggregateAthleteLoad } from "@/lib/training-load/aggregate";
 import { computeAllScores } from "@/lib/onboarding/scoring";
@@ -9,7 +9,9 @@ import type {
   SportEntry,
   StepId,
 } from "@/lib/onboarding/types";
-import { getDefaultAthleteProfile } from "@/lib/onboarding/types";
+import { getDefaultAthleteProfile, proteinGramsFromTier } from "@/lib/onboarding/types";
+import { isValidIanaTimeZone } from "@/lib/dates/local-calendar";
+import { seedPlannedWorkoutsFromOnboardingPreview } from "@/lib/training/seed-plan-from-onboarding";
 
 interface ActionResult {
   success: boolean;
@@ -19,6 +21,32 @@ interface ActionResult {
 interface DraftResult extends ActionResult {
   profile: AthleteContextProfile | null;
   step: StepId | null;
+}
+
+/**
+ * `user_profiles`, `user_goals`, `onboarding_drafts`, etc. FK to `public.users`.
+ * That row is normally created by the Clerk `user.created` webhook; if the webhook
+ * is missing in local dev or failed once, inserts would violate `user_profiles_user_id_fkey`.
+ */
+async function ensureUsersRow(
+  supabase: ReturnType<typeof createServerClient>,
+  userId: string
+): Promise<ActionResult | null> {
+  const clerkUser = await currentUser();
+  const email =
+    clerkUser?.primaryEmailAddress?.emailAddress ??
+    clerkUser?.emailAddresses?.[0]?.emailAddress ??
+    `${userId}@placeholder.hybro.local`;
+
+  const { error } = await supabase.from("users").upsert(
+    { id: userId, email },
+    { onConflict: "id", ignoreDuplicates: true }
+  );
+  if (error) {
+    console.error("ensureUsersRow failed:", error);
+    return failWith("users", error.message);
+  }
+  return null;
 }
 
 // ============================================================
@@ -58,6 +86,9 @@ export async function saveOnboardingDraft(
   if (!userId) return { success: false, error: "Not authenticated" };
 
   const supabase = createServerClient();
+  const userErr = await ensureUsersRow(supabase, userId);
+  if (userErr) return userErr;
+
   const { error } = await supabase
     .from("onboarding_drafts")
     .upsert(
@@ -101,27 +132,31 @@ export async function fetchAggregatedLoad() {
 // ============================================================
 
 export async function commitOnboardingData(
-  profile: AthleteContextProfile
+  profile: AthleteContextProfile,
+  calendarOpts?: { calendarWeekAnchorYmd?: string; calendarTimezone?: string }
 ): Promise<ActionResult> {
   const { userId } = await auth();
   if (!userId) return { success: false, error: "Not authenticated" };
 
   const supabase = createServerClient();
+  const userErr = await ensureUsersRow(supabase, userId);
+  if (userErr) return userErr;
 
   // 1. user_profiles
   {
-    const { error } = await supabase.from("user_profiles").upsert(
-      {
-        user_id: userId,
-        height: profile.basic.height_cm,
-        weight: profile.basic.weight_lbs,
-        age: profile.basic.age,
-        sex: profile.basic.sex,
-        training_experience: profile.basic.training_experience,
-        athlete_identity: profile.athlete_identity,
-      },
-      { onConflict: "user_id" }
-    );
+    const row: Record<string, unknown> = {
+      user_id: userId,
+      height: profile.basic.height_cm,
+      weight: profile.basic.weight_lbs,
+      age: profile.basic.age,
+      sex: profile.basic.sex,
+      training_experience: profile.basic.training_experience,
+      athlete_identity: profile.athlete_identity,
+    };
+    if (calendarOpts?.calendarTimezone && isValidIanaTimeZone(calendarOpts.calendarTimezone)) {
+      row.timezone = calendarOpts.calendarTimezone.trim();
+    }
+    const { error } = await supabase.from("user_profiles").upsert(row as never, { onConflict: "user_id" });
     if (error) return failWith("user_profiles", error.message);
   }
 
@@ -197,6 +232,7 @@ export async function commitOnboardingData(
         start_time: w.start_time,
         end_time: w.end_time,
         max_duration_min: w.max_duration_min,
+        session_count: w.session_count ?? 1,
         locations: w.locations,
       }))
     );
@@ -241,6 +277,7 @@ export async function commitOnboardingData(
       profile.injuries.map((i) => ({
         user_id: userId,
         area: i.area,
+        description: i.description ?? null,
         current_pain_level: i.current_pain_level,
         history: i.history,
         triggers: i.triggers,
@@ -267,17 +304,20 @@ export async function commitOnboardingData(
 
   // 9. body & nutrition
   {
+    const bn = profile.body_nutrition;
+    const proteinFromTier = proteinGramsFromTier(bn.protein_tier, profile.basic.weight_lbs);
     const { error } = await supabase.from("athlete_body_nutrition").upsert(
       {
         user_id: userId,
-        body_goal: profile.body_nutrition.body_goal,
-        goal_weight_lbs: profile.body_nutrition.goal_weight_lbs,
-        target_rate_lbs_per_week: profile.body_nutrition.target_rate_lbs_per_week,
-        diet_style: profile.body_nutrition.diet_style,
-        protein_target_g: profile.body_nutrition.protein_target_g,
-        fuel_workouts_when_cutting: profile.body_nutrition.fuel_workouts_when_cutting,
-        tracking_app: profile.body_nutrition.tracking_app,
-        notes: profile.body_nutrition.notes || null,
+        body_goal: bn.body_goal,
+        goal_weight_lbs: bn.goal_weight_lbs,
+        target_rate_lbs_per_week: bn.target_rate_lbs_per_week,
+        diet_style: bn.diet_style,
+        protein_target_g: proteinFromTier ?? bn.protein_target_g,
+        protein_tier: bn.protein_tier,
+        fuel_workouts_when_cutting: bn.fuel_workouts_when_cutting,
+        tracking_app: bn.tracking_app,
+        notes: bn.notes || null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id" }
@@ -332,6 +372,14 @@ export async function commitOnboardingData(
       { onConflict: "user_id" }
     );
     if (error) return failWith("athlete_derived_scores", error.message);
+  }
+
+  // 12b. training plan + planned workouts from plan preview (workout contracts for calendar / Garmin path)
+  {
+    const seed = await seedPlannedWorkoutsFromOnboardingPreview(supabase, userId, profile, {
+      weekAnchorYmd: calendarOpts?.calendarWeekAnchorYmd,
+    });
+    if (!seed.ok) return failWith("planned_workouts", seed.error);
   }
 
   // 13. flip onboarding_completed + delete draft

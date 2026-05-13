@@ -54,4 +54,50 @@ describe("ScreenEvents", () => {
     renderScreen(profile);
     expect(screen.getByDisplayValue("Hometown 10K")).toBeDefined();
   });
+
+  it("shows running distance presets when running sport is chosen", () => {
+    const profile = {
+      ...getDefaultAthleteProfile(),
+      events: [
+        {
+          id: "e1",
+          name: "Test",
+          sport_type: "running",
+          distance: null,
+          event_date: null,
+          priority: "A" as const,
+          goal_type: "finish",
+          goal_time: null,
+          course_notes: null,
+          travel: false,
+        },
+      ],
+    };
+    renderScreen(profile);
+    expect(screen.getByText("Marathon")).toBeDefined();
+    expect(screen.getByText("Half marathon")).toBeDefined();
+  });
+
+  it("shows triathlon distance presets when triathlon is chosen", () => {
+    const profile = {
+      ...getDefaultAthleteProfile(),
+      events: [
+        {
+          id: "e1",
+          name: "Test",
+          sport_type: "triathlon",
+          distance: null,
+          event_date: null,
+          priority: "A" as const,
+          goal_type: "finish",
+          goal_time: null,
+          course_notes: null,
+          travel: false,
+        },
+      ],
+    };
+    renderScreen(profile);
+    expect(screen.getByText("70.3 / Half-Iron")).toBeDefined();
+    expect(screen.getByText("140.6 / Ironman")).toBeDefined();
+  });
 });

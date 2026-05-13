@@ -1,10 +1,14 @@
 "use client";
 
-import type { AthleteContextProfile, SportEntry } from "@/lib/onboarding/types";
+import type {
+  AthleteContextProfile,
+  MovementStyle,
+  SportEntry,
+} from "@/lib/onboarding/types";
 import {
   SPLIT_PREFERENCES,
   LEG_INTERFERENCE_OPTIONS,
-  LIFTING_GOALS,
+  MOVEMENT_STYLES,
 } from "@/lib/onboarding/types";
 import { labelStyle } from "./shared-styles";
 
@@ -15,18 +19,42 @@ interface ScreenStrengthProps {
 
 export const SCREEN_STRENGTH_TITLE = "Lifting setup.";
 export const SCREEN_STRENGTH_SUBTITLE =
-  "Tell us where to put your lifts. This is the central hybrid-athlete question.";
+  "How you like to lift. This is the central hybrid-athlete question — your overall goals live on a previous screen.";
 
+// Compound + accessory lifts the user might prioritize.
 const KEY_LIFTS = [
-  "squat",
+  "back_squat",
+  "front_squat",
   "deadlift",
+  "rdl",
   "bench",
+  "incline_bench",
   "ohp",
+  "row",
   "pullups",
-  "olympic",
-  "machines",
-  "none",
-];
+  "dips",
+  "split_squat",
+  "lunge",
+  "hip_thrust",
+  "calf_raise",
+] as const;
+
+const KEY_LIFT_LABELS: Record<(typeof KEY_LIFTS)[number], string> = {
+  back_squat: "Back squat",
+  front_squat: "Front squat",
+  deadlift: "Deadlift",
+  rdl: "RDL",
+  bench: "Bench press",
+  incline_bench: "Incline bench",
+  ohp: "Overhead press",
+  row: "Row",
+  pullups: "Pullups",
+  dips: "Dips",
+  split_squat: "Split squat",
+  lunge: "Lunges",
+  hip_thrust: "Hip thrust",
+  calf_raise: "Calf raise",
+};
 
 export function ScreenStrength({ profile, onUpdate }: ScreenStrengthProps) {
   const lift: SportEntry = profile.sports.lift;
@@ -41,22 +69,20 @@ export function ScreenStrength({ profile, onUpdate }: ScreenStrengthProps) {
     });
   };
 
-  const toggleKeyLift = (lift_: string) => {
+  const toggleKeyLift = (k: string) => {
     const cur = ss.key_lifts ?? [];
-    const next = cur.includes(lift_) ? cur.filter((k) => k !== lift_) : [...cur, lift_];
+    const next = cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k];
     setSS({ key_lifts: next });
   };
 
-  return (
-    <div style={{ maxWidth: 640, margin: "0 auto", width: "100%", display: "flex", flexDirection: "column", gap: 22 }}>
-      <Section title="Lifting goal">
-        <PillRow
-          options={LIFTING_GOALS}
-          selected={ss.lifting_goal ?? null}
-          onSelect={(v) => setSS({ lifting_goal: v as typeof ss.lifting_goal })}
-        />
-      </Section>
+  const toggleMovementStyle = (style: MovementStyle) => {
+    const cur = ss.movement_style ?? [];
+    const next = cur.includes(style) ? cur.filter((x) => x !== style) : [...cur, style];
+    setSS({ movement_style: next });
+  };
 
+  return (
+    <div style={{ maxWidth: 660, margin: "0 auto", width: "100%", display: "flex", flexDirection: "column", gap: 22 }}>
       <Section title="Preferred split">
         <PillRow
           options={SPLIT_PREFERENCES}
@@ -94,8 +120,36 @@ export function ScreenStrength({ profile, onUpdate }: ScreenStrengthProps) {
         </div>
       </Section>
 
-      <Section title="Key lifts">
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      <Section title="Movement style — pick what you like">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          {MOVEMENT_STYLES.map((opt) => {
+            const selected = (ss.movement_style ?? []).includes(opt.value);
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => toggleMovementStyle(opt.value)}
+                style={{
+                  textAlign: "left",
+                  padding: "10px 12px",
+                  borderRadius: "var(--r-md)",
+                  border: selected ? "2px solid var(--ink)" : "1.5px solid var(--line)",
+                  background: selected ? "var(--coral-soft)" : "#fff",
+                  color: "var(--ink)",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                <p style={{ margin: 0, fontWeight: 800, fontSize: 13 }}>{opt.label}</p>
+                <p style={{ margin: "2px 0 0", fontSize: 11, color: "var(--muted)" }}>{opt.description}</p>
+              </button>
+            );
+          })}
+        </div>
+      </Section>
+
+      <Section title="Key lifts you care about (optional)">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {KEY_LIFTS.map((k) => {
             const selected = (ss.key_lifts ?? []).includes(k);
             return (
@@ -104,7 +158,7 @@ export function ScreenStrength({ profile, onUpdate }: ScreenStrengthProps) {
                 type="button"
                 onClick={() => toggleKeyLift(k)}
                 style={{
-                  padding: "7px 14px",
+                  padding: "7px 13px",
                   borderRadius: 999,
                   border: selected ? "2px solid var(--ink)" : "1.5px solid var(--line)",
                   background: selected ? "var(--ink)" : "#fff",
@@ -115,7 +169,7 @@ export function ScreenStrength({ profile, onUpdate }: ScreenStrengthProps) {
                   fontFamily: "inherit",
                 }}
               >
-                {prettyLift(k)}
+                {KEY_LIFT_LABELS[k]}
               </button>
             );
           })}
@@ -170,13 +224,4 @@ function PillRow<T extends string>({
       })}
     </div>
   );
-}
-
-function prettyLift(k: string): string {
-  switch (k) {
-    case "ohp": return "Overhead press";
-    case "olympic": return "Olympic lifts";
-    case "pullups": return "Pullups";
-    default: return k.charAt(0).toUpperCase() + k.slice(1);
-  }
 }

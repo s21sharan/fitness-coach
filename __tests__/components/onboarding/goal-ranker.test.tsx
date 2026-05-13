@@ -9,11 +9,11 @@ describe("GoalRanker", () => {
   });
 
   it("renders rows with numeric positions", () => {
-    render(<GoalRanker rank={["build_muscle", "run_faster"]} onChange={vi.fn()} />);
+    render(<GoalRanker rank={["build_muscle", "build_speed"]} onChange={vi.fn()} />);
     expect(screen.getByText("1")).toBeDefined();
     expect(screen.getByText("2")).toBeDefined();
     expect(screen.getByText(/Build muscle/i)).toBeDefined();
-    expect(screen.getByText(/Run faster/i)).toBeDefined();
+    expect(screen.getByText(/Build speed/i)).toBeDefined();
   });
 
   it("renders nothing for invalid goal keys", () => {

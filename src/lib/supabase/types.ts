@@ -188,6 +188,7 @@ export type Database = {
           start_time: string;
           end_time: string;
           max_duration_min: number | null;
+          session_count: number | null;
           locations: string[] | null;
           created_at: string;
         };
@@ -198,6 +199,7 @@ export type Database = {
           start_time: string;
           end_time: string;
           max_duration_min?: number | null;
+          session_count?: number | null;
           locations?: string[] | null;
           created_at?: string;
         };
@@ -250,6 +252,7 @@ export type Database = {
           id: string;
           user_id: string;
           area: string;
+          description: string | null;
           current_pain_level: number | null;
           history: boolean;
           triggers: string[] | null;
@@ -260,6 +263,7 @@ export type Database = {
           id?: string;
           user_id: string;
           area: string;
+          description?: string | null;
           current_pain_level?: number | null;
           history?: boolean;
           triggers?: string[] | null;
@@ -297,6 +301,7 @@ export type Database = {
           target_rate_lbs_per_week: number | null;
           diet_style: string | null;
           protein_target_g: number | null;
+          protein_tier: string | null;
           fuel_workouts_when_cutting: string | null;
           tracking_app: string | null;
           notes: string | null;
@@ -309,6 +314,7 @@ export type Database = {
           target_rate_lbs_per_week?: number | null;
           diet_style?: string | null;
           protein_target_g?: number | null;
+          protein_tier?: string | null;
           fuel_workouts_when_cutting?: string | null;
           tracking_app?: string | null;
           notes?: string | null;
@@ -609,6 +615,7 @@ export type Database = {
           day_of_week: number;
           session_type: string;
           ai_notes: string | null;
+          targets: Record<string, unknown> | null;
           status: "scheduled" | "completed" | "skipped" | "moved";
           calendar_event_id: string | null;
           approved: boolean;
@@ -621,6 +628,7 @@ export type Database = {
           day_of_week: number;
           session_type: string;
           ai_notes?: string | null;
+          targets?: Record<string, unknown> | null;
           status?: "scheduled" | "completed" | "skipped" | "moved";
           calendar_event_id?: string | null;
           approved?: boolean;

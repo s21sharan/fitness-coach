@@ -13,6 +13,7 @@ import {
   getOnboardingDraft,
   saveOnboardingDraft,
 } from "./actions";
+import { weekAnchorMondayYmdFromLocalDate } from "@/lib/dates/local-calendar";
 import { OnboardingProgress } from "@/components/onboarding/onboarding-progress";
 
 import { ScreenWelcome, SCREEN_WELCOME_TITLE, SCREEN_WELCOME_SUBTITLE } from "@/components/onboarding/screen-welcome";
@@ -21,8 +22,6 @@ import { ScreenSports, SCREEN_SPORTS_TITLE, SCREEN_SPORTS_SUBTITLE } from "@/com
 import { ScreenIdentity, SCREEN_IDENTITY_TITLE, SCREEN_IDENTITY_SUBTITLE } from "@/components/onboarding/screen-identity";
 import { ScreenGoals, SCREEN_GOALS_TITLE, SCREEN_GOALS_SUBTITLE } from "@/components/onboarding/screen-goals";
 import { ScreenEvents, SCREEN_EVENTS_TITLE, SCREEN_EVENTS_SUBTITLE } from "@/components/onboarding/screen-events";
-import { ScreenLoadCurrent, SCREEN_LOAD_CURRENT_TITLE, SCREEN_LOAD_CURRENT_SUBTITLE } from "@/components/onboarding/screen-load-current";
-import { ScreenLoadTarget, SCREEN_LOAD_TARGET_TITLE, SCREEN_LOAD_TARGET_SUBTITLE } from "@/components/onboarding/screen-load-target";
 import { ScreenStrength, SCREEN_STRENGTH_TITLE, SCREEN_STRENGTH_SUBTITLE } from "@/components/onboarding/screen-strength";
 import { ScreenBodyNutrition, SCREEN_BODY_NUTRITION_TITLE, SCREEN_BODY_NUTRITION_SUBTITLE } from "@/components/onboarding/screen-body-nutrition";
 import { ScreenAvailability, SCREEN_AVAILABILITY_TITLE, SCREEN_AVAILABILITY_SUBTITLE } from "@/components/onboarding/screen-availability";
@@ -44,8 +43,6 @@ const SCREENS: Record<StepId, { Component: React.ComponentType<ScreenProps>; tit
   identity: { Component: ScreenIdentity, title: SCREEN_IDENTITY_TITLE, subtitle: SCREEN_IDENTITY_SUBTITLE },
   goals: { Component: ScreenGoals, title: SCREEN_GOALS_TITLE, subtitle: SCREEN_GOALS_SUBTITLE },
   events: { Component: ScreenEvents, title: SCREEN_EVENTS_TITLE, subtitle: SCREEN_EVENTS_SUBTITLE },
-  load_current: { Component: ScreenLoadCurrent, title: SCREEN_LOAD_CURRENT_TITLE, subtitle: SCREEN_LOAD_CURRENT_SUBTITLE },
-  load_target: { Component: ScreenLoadTarget, title: SCREEN_LOAD_TARGET_TITLE, subtitle: SCREEN_LOAD_TARGET_SUBTITLE },
   strength: { Component: ScreenStrength, title: SCREEN_STRENGTH_TITLE, subtitle: SCREEN_STRENGTH_SUBTITLE },
   body_nutrition: { Component: ScreenBodyNutrition, title: SCREEN_BODY_NUTRITION_TITLE, subtitle: SCREEN_BODY_NUTRITION_SUBTITLE },
   availability: { Component: ScreenAvailability, title: SCREEN_AVAILABILITY_TITLE, subtitle: SCREEN_AVAILABILITY_SUBTITLE },
@@ -141,7 +138,10 @@ function OnboardingFlow() {
     if (isLast) {
       setSaving(true);
       try {
-        const res = await commitOnboardingData(profile);
+        const res = await commitOnboardingData(profile, {
+          calendarWeekAnchorYmd: weekAnchorMondayYmdFromLocalDate(new Date()),
+          calendarTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        });
         if (!res.success) {
           setError(res.error ?? "Couldn't save your profile");
           return;
@@ -367,13 +367,20 @@ function mergeWithDefaults(p: AthleteContextProfile): AthleteContextProfile {
     recovery: { ...defaults.recovery, ...(p.recovery ?? {}) },
     preferences: { ...defaults.preferences, ...(p.preferences ?? {}) },
     coach: { ...defaults.coach, ...(p.coach ?? {}) },
-    availability_windows: p.availability_windows ?? [],
+    availability_windows: (p.availability_windows ?? []).map((w) => ({
+      session_count: 1,
+      ...w,
+    })),
     availability_rules: p.availability_rules ?? [],
     events: p.events ?? [],
-    injuries: p.injuries ?? [],
+    injuries: (p.injuries ?? []).map((i) => ({
+      description: null,
+      ...i,
+    })),
     equipment: p.equipment ?? [],
     chat_notes: p.chat_notes ?? [],
     goal_keys: p.goal_keys ?? [],
     goal_rank: p.goal_rank ?? [],
+    weeks_to_generate: p.weeks_to_generate ?? defaults.weeks_to_generate,
   };
 }

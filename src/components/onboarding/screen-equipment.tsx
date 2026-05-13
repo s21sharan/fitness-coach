@@ -16,7 +16,7 @@ interface ScreenEquipmentProps {
 
 export const SCREEN_EQUIPMENT_TITLE = "What equipment do you have?";
 export const SCREEN_EQUIPMENT_SUBTITLE =
-  "We only ask about the sports you train. This makes the plan match your reality (no home-gym-only barbell suggestions).";
+  "Tap what you have access to. We only ask about the sports you train.";
 
 export function ScreenEquipment({ profile, onUpdate }: ScreenEquipmentProps) {
   const planned = Object.values(profile.sports).filter((s) => s.is_planned).map((s) => s.sport);

@@ -122,9 +122,11 @@ describe("Constants", () => {
     expect(ATHLETE_IDENTITIES.map((i) => i.value)).toContain("hybrid_athlete");
   });
 
-  it("exports goal options with emojis", () => {
-    expect(GOAL_OPTIONS.length).toBeGreaterThan(10);
+  it("exports a trimmed list of goal options with emojis", () => {
+    expect(GOAL_OPTIONS.length).toBeGreaterThanOrEqual(7);
     expect(GOAL_OPTIONS.every((g) => g.emoji.length > 0)).toBe(true);
+    expect(GOAL_OPTIONS.map((g) => g.value)).toContain("build_speed");
+    expect(GOAL_OPTIONS.map((g) => g.value)).toContain("finish_a_race");
   });
 
   it("exports aggressiveness scale", () => {

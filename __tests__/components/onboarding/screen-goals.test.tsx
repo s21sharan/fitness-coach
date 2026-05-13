@@ -13,31 +13,31 @@ describe("ScreenGoals", () => {
   it("renders goal chips", () => {
     renderScreen();
     expect(screen.getByText("Build muscle")).toBeDefined();
-    expect(screen.getByText("Run faster")).toBeDefined();
+    expect(screen.getByText("Build speed")).toBeDefined();
   });
 
   it("toggles a goal and appends to rank", () => {
     const { onUpdate } = renderScreen();
-    fireEvent.click(screen.getByText("Run faster"));
+    fireEvent.click(screen.getByText("Build speed"));
     expect(onUpdate).toHaveBeenCalled();
     const call = onUpdate.mock.calls[0][0];
-    expect(call.goal_keys).toContain("run_faster");
-    expect(call.goal_rank).toContain("run_faster");
+    expect(call.goal_keys).toContain("build_speed");
+    expect(call.goal_rank).toContain("build_speed");
   });
 
   it("removes goal from rank when deselected", () => {
     const profile = {
       ...getDefaultAthleteProfile(),
-      goal_keys: ["run_faster"] as const,
-      goal_rank: ["run_faster"] as const,
+      goal_keys: ["build_speed"] as const,
+      goal_rank: ["build_speed"] as const,
     };
     const { onUpdate } = renderScreen(profile as unknown as AthleteContextProfile);
-    const chips = screen.getAllByText("Run faster");
+    const chips = screen.getAllByText("Build speed");
     const chipButton = (chips[0] as HTMLElement).closest("button") as HTMLElement;
     fireEvent.click(chipButton);
     const call = onUpdate.mock.calls[0][0];
-    expect(call.goal_keys).not.toContain("run_faster");
-    expect(call.goal_rank).not.toContain("run_faster");
+    expect(call.goal_keys).not.toContain("build_speed");
+    expect(call.goal_rank).not.toContain("build_speed");
   });
 
   it("selects a primary optimization", () => {

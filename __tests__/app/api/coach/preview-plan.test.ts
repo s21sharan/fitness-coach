@@ -30,28 +30,35 @@ describe("POST /api/coach/preview-plan", () => {
   });
 
   it("returns LLM-generated preview", async () => {
-    const validWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => ({
+    const validDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => ({
       day_label: d,
-      session: d === "Sun" ? "Rest" : "Easy run",
-      rationale: "test",
+      am_session: d === "Sun" ? null : "Easy run",
+      am_rationale: d === "Sun" ? null : "test",
+      pm_session: null,
+      pm_rationale: null,
+      is_rest: d === "Sun",
+      notes: null,
     }));
     mockExtract.mockResolvedValueOnce({
       narrative: "Test week",
       risks: ["watch ramp"],
-      first_week: validWeek,
+      weeks: [
+        { week_number: 1, week_focus: "Calibrate effort", days: validDays },
+      ],
     });
 
     const { POST } = await import("@/app/api/coach/preview-plan/route");
     const res = await POST(
       new Request("http://x", {
         method: "POST",
-        body: JSON.stringify({ profile: getDefaultAthleteProfile() }),
+        body: JSON.stringify({ profile: getDefaultAthleteProfile(), weeks: 1 }),
       })
     );
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.preview.narrative).toBe("Test week");
-    expect(body.preview.first_week).toHaveLength(7);
+    expect(body.preview.weeks).toHaveLength(1);
+    expect(body.preview.weeks[0].days).toHaveLength(7);
     expect(body.scores).toBeDefined();
   });
 
@@ -61,11 +68,12 @@ describe("POST /api/coach/preview-plan", () => {
     const res = await POST(
       new Request("http://x", {
         method: "POST",
-        body: JSON.stringify({ profile: getDefaultAthleteProfile() }),
+        body: JSON.stringify({ profile: getDefaultAthleteProfile(), weeks: 2 }),
       })
     );
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.preview.first_week).toHaveLength(7);
+    expect(body.preview.weeks).toHaveLength(2);
+    expect(body.preview.weeks[0].days).toHaveLength(7);
   });
 });

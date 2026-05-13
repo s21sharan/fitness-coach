@@ -16,15 +16,15 @@ describe("ScreenAvailability", () => {
     expect(screen.getByText("Sun")).toBeDefined();
   });
 
-  it("toggles a window on click", () => {
+  it("toggles an AM block on click", () => {
     const { onUpdate } = renderScreen();
-    // Find all the "+" cells and click the first
-    const plusCells = screen.getAllByText("+");
-    fireEvent.click(plusCells[0]);
+    const amButtons = screen.getAllByText("AM");
+    fireEvent.click(amButtons[0]);
     expect(onUpdate).toHaveBeenCalled();
     const call = onUpdate.mock.calls[0][0];
     expect(call.availability_windows).toHaveLength(1);
     expect(call.availability_windows[0].day_of_week).toBe(0);
+    expect(call.availability_windows[0].start_time).toBe("06:00");
   });
 
   it("toggles a scheduling rule", () => {

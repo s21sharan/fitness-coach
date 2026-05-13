@@ -6,6 +6,12 @@ import {
 
 vi.mock("@clerk/nextjs/server", () => ({
   auth: vi.fn(() => Promise.resolve({ userId: "test-user-1" })),
+  currentUser: vi.fn(() =>
+    Promise.resolve({
+      primaryEmailAddress: { emailAddress: "tester@example.com" },
+      emailAddresses: [{ emailAddress: "tester@example.com" }],
+    })
+  ),
 }));
 
 // Track calls per table
@@ -67,15 +73,24 @@ vi.mock("@/lib/training-load/aggregate", () => ({
   ),
 }));
 
+vi.mock("@/lib/training/seed-plan-from-onboarding", () => ({
+  seedPlannedWorkoutsFromOnboardingPreview: vi.fn(() => Promise.resolve({ ok: true as const })),
+}));
+
+import { seedPlannedWorkoutsFromOnboardingPreview } from "@/lib/training/seed-plan-from-onboarding";
+
 beforeEach(() => {
   for (const k of Object.keys(tableCalls)) delete tableCalls[k];
+  vi.mocked(seedPlannedWorkoutsFromOnboardingPreview).mockClear();
+  vi.mocked(seedPlannedWorkoutsFromOnboardingPreview).mockResolvedValue({ ok: true });
 });
 
 describe("saveOnboardingDraft", () => {
-  it("upserts the payload to onboarding_drafts", async () => {
+  it("ensures users row then upserts the payload to onboarding_drafts", async () => {
     const { saveOnboardingDraft } = await import("@/app/onboarding/actions");
     const res = await saveOnboardingDraft(getDefaultAthleteProfile(), "welcome");
     expect(res.success).toBe(true);
+    expect(tableCalls.users?.[0].method).toBe("upsert");
     expect(tableCalls.onboarding_drafts?.[0].method).toBe("upsert");
     const args = tableCalls.onboarding_drafts[0].args as Record<string, unknown>;
     expect(args.user_id).toBe("test-user-1");
@@ -159,6 +174,14 @@ describe("commitOnboardingData", () => {
     const res = await commitOnboardingData(profile);
     expect(res.success).toBe(true);
 
+    expect(seedPlannedWorkoutsFromOnboardingPreview).toHaveBeenCalledTimes(1);
+    expect(seedPlannedWorkoutsFromOnboardingPreview).toHaveBeenCalledWith(
+      mockSupabase,
+      "test-user-1",
+      expect.objectContaining({ athlete_identity: "hybrid_athlete" }),
+      { weekAnchorYmd: undefined }
+    );
+
     // All expected tables touched
     for (const table of [
       "user_profiles",
@@ -187,5 +210,18 @@ describe("commitOnboardingData", () => {
     // Onboarding_drafts deleted at the end
     const draftDelete = tableCalls.onboarding_drafts.find((c) => c.method === "delete");
     expect(draftDelete).toBeDefined();
+  });
+
+  it("fails before completing onboarding when planned workout seed fails", async () => {
+    vi.mocked(seedPlannedWorkoutsFromOnboardingPreview).mockResolvedValueOnce({
+      ok: false,
+      error: "insert denied",
+    });
+    const { commitOnboardingData } = await import("@/app/onboarding/actions");
+    const res = await commitOnboardingData(getDefaultAthleteProfile());
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/planned_workouts/i);
+    const userUpdate = tableCalls.users?.find((c) => c.method === "update");
+    expect(userUpdate).toBeUndefined();
   });
 });

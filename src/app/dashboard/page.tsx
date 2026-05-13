@@ -10,6 +10,8 @@ import { ComplianceBadge, getComplianceStatus } from "@/components/calendar/comp
 import { WorkoutModal } from "@/components/calendar/workout-modal";
 import { MuscleDiagram } from "@/components/calendar/muscle-diagram";
 import { computeMuscleVolume } from "@/lib/exercise-muscles";
+import { formatCalendarDateLocal } from "@/lib/dates/local-calendar";
+import type { WorkoutContractV1 } from "@/lib/training/workout-contract";
 
 /* ═══════════════════════════════════════════════
    DATA INTERFACES
@@ -62,6 +64,7 @@ interface PlannedWorkout {
   session_type: string;
   ai_notes: string | null;
   targets: {
+    contract?: WorkoutContractV1 | null;
     target_distance_km?: number | null;
     target_duration_min?: number | null;
     target_pace_min_km?: number | null;
@@ -79,6 +82,7 @@ interface ApiData {
   workouts: WorkoutLog[];
   cardio: CardioLog[];
   recovery: RecoveryLog[];
+  planned: PlannedWorkout[];
 }
 
 /* ═══════════════════════════════════════════════
@@ -107,7 +111,7 @@ function getMonday(d: Date): Date {
   return date;
 }
 function addDays(d: Date, n: number): Date { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
-function toDS(d: Date): string { return d.toISOString().slice(0, 10); }
+function toDS(d: Date): string { return formatCalendarDateLocal(d); }
 function fmtSec(s: number): string { const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); return h > 0 ? `${h}h${m > 0 ? String(m).padStart(2, "0") + "m" : ""}` : `${m}m`; }
 function fmtMin(m: number): string { const h = Math.floor(m / 60); const mm = m % 60; return h > 0 ? `${h}h${mm > 0 ? String(mm).padStart(2, "0") + "m" : ""}` : `${m}m`; }
 // Unit-aware formatters — updated by component state
@@ -160,7 +164,8 @@ function exerciseSummary(exercises: unknown): { totalSets: number; topExercises:
 
 interface DayData { date: string; dateObj: Date; workouts: WorkoutLog[]; cardio: CardioLog[]; recovery: RecoveryLog | null; planned: PlannedWorkout | null; }
 
-function buildMonthWeeks(firstMonday: Date, weekCount: number, data: ApiData, planned: PlannedWorkout[]): DayData[][] {
+function buildMonthWeeks(firstMonday: Date, weekCount: number, data: ApiData): DayData[][] {
+  const plannedForRange = data.planned ?? [];
   const weeks: DayData[][] = [];
   for (let w = 0; w < weekCount; w++) {
     const weekMonday = addDays(firstMonday, w * 7);
@@ -168,7 +173,14 @@ function buildMonthWeeks(firstMonday: Date, weekCount: number, data: ApiData, pl
     for (let d = 0; d < 7; d++) {
       const date = addDays(weekMonday, d);
       const ds = toDS(date);
-      days.push({ date: ds, dateObj: date, workouts: data.workouts.filter((x) => x.date === ds), cardio: data.cardio.filter((x) => x.date === ds), recovery: data.recovery.find((x) => x.date === ds) || null, planned: planned.find((p) => p.date === ds) || null });
+      days.push({
+        date: ds,
+        dateObj: date,
+        workouts: data.workouts.filter((x) => x.date === ds),
+        cardio: data.cardio.filter((x) => x.date === ds),
+        recovery: data.recovery.find((x) => x.date === ds) || null,
+        planned: plannedForRange.find((p) => p.date === ds) || null,
+      });
     }
     weeks.push(days);
   }
@@ -341,8 +353,9 @@ function DayColumn({ day, dayIndex, onWorkoutClick }: { day: DayData; dayIndex: 
       {day.recovery && <RecoveryBar r={day.recovery} />}
       {day.workouts.map((w, i) => <WorkoutCard key={`w-${i}`} w={w} onClick={() => onWorkoutClick?.(w)} />)}
       {day.cardio.map((c, i) => <CardioCard key={`c-${i}`} c={c} />)}
-      {isFuture && day.planned && (
+      {day.planned && (
         <PlannedCard
+          variant={isToday ? "today" : isFuture ? "future" : "past"}
           sessionType={day.planned.session_type}
           aiNotes={day.planned.ai_notes}
           targets={day.planned.targets}
@@ -531,7 +544,6 @@ export default function DashboardPage() {
   const [insights, setInsights] = useState<Record<string, string>>({});
   const [insightLoading, setInsightLoading] = useState<string | null>(null);
   const [units, setUnits] = useState<UnitPreferences>({ distance: "mi", weight: "lbs" });
-  const [planned, setPlanned] = useState<PlannedWorkout[]>([]);
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutLog | null>(null);
 
   // Load unit preferences
@@ -543,16 +555,19 @@ export default function DashboardPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/test-data");
-    if (res.ok) setData(await res.json());
+    const localToday = encodeURIComponent(formatCalendarDateLocal(new Date()));
+    const res = await fetch(`/api/test-data?localToday=${localToday}`);
+    if (res.ok) {
+      const json = await res.json();
+      setData({
+        ...json,
+        planned: Array.isArray(json.planned) ? json.planned : [],
+      } as ApiData);
+    }
     setLoading(false);
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-
-  useEffect(() => {
-    fetch("/api/plan/upcoming").then((r) => r.json()).then((d) => setPlanned(d.workouts || [])).catch(() => {});
-  }, []);
 
   // Fetch AI insight when modal opens
   const fetchInsight = useCallback(async (section: string) => {
@@ -588,8 +603,8 @@ export default function DashboardPage() {
     const firstMonday = getMonday(firstOfMonth);
     const lastSunday = addDays(getMonday(lastOfMonth), 6);
     const weekCount = Math.round((lastSunday.getTime() - firstMonday.getTime()) / (7 * 86400000)) + 1;
-    return buildMonthWeeks(firstMonday, weekCount, data, planned);
-  }, [data, monthDate, planned]);
+    return buildMonthWeeks(firstMonday, weekCount, data);
+  }, [data, monthDate]);
 
   const fitnessCurve = useMemo(() => data ? computeFitnessCurve(data, 90) : [], [data]);
 

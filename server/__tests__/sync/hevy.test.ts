@@ -34,14 +34,29 @@ describe("Hevy sync", () => {
         ],
       };
 
-      const row = normalizeWorkout("user-1", workout);
+      const row = normalizeWorkout("user-1", workout, "Etc/UTC");
       expect(row.user_id).toBe("user-1");
       expect(row.workout_id).toBe("w-1");
       expect(row.name).toBe("Push Day");
+      expect(row.date).toBe("2026-04-29");
       expect(row.duration_minutes).toBe(75);
       expect(row.exercises).toHaveLength(1);
       expect(row.exercises[0].name).toBe("Bench Press (Barbell)");
       expect(row.exercises[0].sets[0].weight_kg).toBe(100);
+    });
+
+    it("maps UTC instant to local calendar day in the athlete time zone", () => {
+      const workout = {
+        id: "w-2",
+        title: "Night lift",
+        start_time: "2026-05-12T02:00:00.000Z",
+        end_time: "2026-05-12T03:00:00.000Z",
+        updated_at: "2026-05-12T03:00:00Z",
+        created_at: "2026-05-12T02:00:00Z",
+        exercises: [],
+      };
+      const row = normalizeWorkout("user-1", workout, "America/Los_Angeles");
+      expect(row.date).toBe("2026-05-11");
     });
   });
 });

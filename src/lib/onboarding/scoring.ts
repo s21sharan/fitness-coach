@@ -139,7 +139,20 @@ export function computeGoalConflict(p: AthleteContextProfile): ConflictBucket {
 
   const wantsBulk = body === "aggressive_bulk" || body === "lean_bulk";
   const wantsCut = body === "cut_fat" || body === "slow_cut" || body === "race_weight_focused";
-  const wantsRace = goals.has("first_long_event") || goals.has("run_faster") || goals.has("improve_triathlon") || p.events.some((e) => e.priority === "A");
+  const raceGoalKeys = new Set<string>([
+    "finish_a_race",
+    "improve_race_performance",
+    "build_speed",
+    "build_endurance",
+    // legacy
+    "first_long_event",
+    "run_faster",
+    "improve_triathlon",
+    "finish_race",
+  ]);
+  const wantsRace =
+    Array.from(goals).some((g) => raceGoalKeys.has(g)) ||
+    p.events.some((e) => e.priority === "A");
   const wantsMuscle = goals.has("build_muscle");
   const wantsStrength = goals.has("get_stronger");
 

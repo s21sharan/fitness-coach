@@ -2,6 +2,8 @@ import { supabase } from "../db.js";
 import { config } from "../config.js";
 import { HevyClient, type HevyWorkout } from "../integrations/hevy-client.js";
 import { decrypt } from "../utils/encryption.js";
+import { calendarDateInTimeZone } from "../utils/activity-calendar-date.js";
+import { fetchUserTimeZone } from "../utils/user-timezone.js";
 import { getActiveIntegrations, logSync, updateSyncTimestamp, markIntegrationError } from "./base.js";
 
 interface NormalizedExercise {
@@ -9,7 +11,7 @@ interface NormalizedExercise {
   sets: { index: number; type: string; weight_kg: number | null; reps: number | null; rpe: number | null }[];
 }
 
-export function normalizeWorkout(userId: string, workout: HevyWorkout) {
+export function normalizeWorkout(userId: string, workout: HevyWorkout, timeZone = "Etc/UTC") {
   const startMs = new Date(workout.start_time).getTime();
   const endMs = new Date(workout.end_time).getTime();
   const durationMinutes = Math.round((endMs - startMs) / 60_000);
@@ -27,7 +29,7 @@ export function normalizeWorkout(userId: string, workout: HevyWorkout) {
 
   return {
     user_id: userId,
-    date: workout.start_time.slice(0, 10),
+    date: calendarDateInTimeZone(workout.start_time, timeZone),
     workout_id: workout.id,
     name: workout.title,
     duration_minutes: durationMinutes,
@@ -63,7 +65,8 @@ export async function syncHevyForUser(userId: string, apiKeyEncrypted: string, s
     workouts = await client.getWorkouts();
   }
 
-  const rows = workouts.map((w) => normalizeWorkout(userId, w));
+  const timeZone = await fetchUserTimeZone(userId);
+  const rows = workouts.map((w) => normalizeWorkout(userId, w, timeZone));
 
   if (rows.length > 0) {
     const { error } = await supabase
