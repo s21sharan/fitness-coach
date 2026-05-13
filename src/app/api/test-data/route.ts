@@ -77,15 +77,107 @@ export async function GET(request: Request) {
   // settings. If no Garmin row has hr_zones, return null and the client falls
   // back to legacy hardcoded thresholds.
   const hrZones = deriveUserHrZones(cardioRes.data);
+  const dedupedCardio = deduplicateCardio(cardioRes.data || []);
 
   return NextResponse.json({
     integrations: integrationsRes.data || [],
     workouts: workoutsRes.data || [],
-    cardio: cardioRes.data || [],
+    cardio: dedupedCardio,
     recovery: recoveryRes.data || [],
     planned: plannedRows,
     hrZones,
   });
+}
+
+// Safety-net dedup: if the backend reconciler missed a Strava/Garmin pair
+// (e.g. activities synced out of order, type mismatch, missing start_time),
+// collapse them here so the calendar doesn't show duplicate cards.
+const SOURCE_PRIORITY: Record<string, number> = { merged: 3, strava: 2, garmin: 1 };
+
+interface CardioRow {
+  id?: string;
+  date?: string;
+  type?: string;
+  duration?: number;
+  distance?: number;
+  source?: string;
+  start_time?: string | null;
+  [key: string]: unknown;
+}
+
+function deduplicateCardio(rows: CardioRow[]): CardioRow[] {
+  // Group by date + type
+  const groups = new Map<string, CardioRow[]>();
+  for (const row of rows) {
+    const key = `${row.date ?? ""}|${row.type ?? ""}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(row);
+  }
+
+  const result: CardioRow[] = [];
+  for (const group of groups.values()) {
+    if (group.length <= 1) {
+      result.push(...group);
+      continue;
+    }
+
+    // Within each date+type group, find pairs that look like the same activity
+    const kept = new Set<number>();
+    const suppressed = new Set<number>();
+
+    for (let i = 0; i < group.length; i++) {
+      if (suppressed.has(i)) continue;
+      for (let j = i + 1; j < group.length; j++) {
+        if (suppressed.has(j)) continue;
+        if (isSameActivity(group[i], group[j])) {
+          // Keep the higher-priority source
+          const priI = SOURCE_PRIORITY[group[i].source ?? ""] ?? 0;
+          const priJ = SOURCE_PRIORITY[group[j].source ?? ""] ?? 0;
+          if (priJ > priI) {
+            suppressed.add(i);
+            kept.add(j);
+          } else {
+            suppressed.add(j);
+            kept.add(i);
+          }
+        }
+      }
+      kept.add(i);
+    }
+
+    for (let i = 0; i < group.length; i++) {
+      if (!suppressed.has(i)) result.push(group[i]);
+    }
+  }
+
+  return result;
+}
+
+function isSameActivity(a: CardioRow, b: CardioRow): boolean {
+  // Check start times if both exist (within 15 min)
+  if (a.start_time && b.start_time) {
+    const delta = Math.abs(new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+    if (delta > 15 * 60 * 1000) return false;
+  }
+
+  // Check duration similarity (within 25%)
+  const durA = a.duration ?? 0;
+  const durB = b.duration ?? 0;
+  if (durA > 0 && durB > 0) {
+    const maxDur = Math.max(durA, durB);
+    const diff = Math.abs(durA - durB);
+    if (diff / maxDur > 0.25 && diff > 5 * 60) return false;
+  }
+
+  // Check distance similarity (within 10%)
+  const distA = a.distance ?? 0;
+  const distB = b.distance ?? 0;
+  if (distA > 0 && distB > 0) {
+    const maxDist = Math.max(distA, distB);
+    if (Math.abs(distA - distB) / maxDist > 0.1) return false;
+  }
+
+  return true;
 }
 
 interface GarminZoneRow {

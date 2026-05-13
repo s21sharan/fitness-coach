@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { supabase } from "../db.js";
 import { syncAllHevy, syncHevyForUser } from "../sync/hevy.js";
 import { syncAllStrava, syncStravaForUser } from "../sync/strava.js";
-import { syncAllGarmin, syncGarminForUser } from "../sync/garmin.js";
+import { syncAllGarmin, syncGarminForUser, syncGarminActivitiesForUser } from "../sync/garmin.js";
 import { reconcileUserActivities } from "../sync/reconcile.js";
 import { logger } from "../utils/logger.js";
 
@@ -148,13 +148,11 @@ async function triggerUserSync(
       await syncStravaForUser(userId, sinceEpoch);
       break;
     }
-    case "garmin":
-      await syncGarminForUser(
-        userId,
-        integration.credentials as { email: string; password: string },
-        effectiveSince,
-        mfaCode,
-      );
+    case "garmin": {
+      const creds = integration.credentials as { email: string; password: string };
+      await syncGarminForUser(userId, creds, effectiveSince, mfaCode);
+      await syncGarminActivitiesForUser(userId, creds, effectiveSince, mfaCode);
       break;
+    }
   }
 }
