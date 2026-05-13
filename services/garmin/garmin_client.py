@@ -134,6 +134,25 @@ def safe_get_steps(client: Garmin, date_str: str) -> int | None:
         return None
 
 
+def safe_get_energy(client: Garmin, date_str: str) -> tuple[float | None, float | None, float | None]:
+    """Extract total / active / BMR kcal from user summary."""
+    try:
+        summary = client.get_user_summary(date_str)
+        if not summary or not isinstance(summary, dict):
+            return None, None, None
+        total = summary.get("totalKilocalories")
+        active = summary.get("activeKilocalories")
+        bmr = summary.get("bmrKilocalories")
+        return (
+            float(total) if total is not None else None,
+            float(active) if active is not None else None,
+            float(bmr) if bmr is not None else None,
+        )
+    except Exception as e:
+        log(f"  Energy {date_str}: error - {e}")
+        return None, None, None
+
+
 def safe_get_sleep(client: Garmin, date_str: str) -> tuple[float | None, int | None]:
     """Extract sleep hours and score."""
     try:
@@ -180,6 +199,7 @@ def fetch_data(client: Garmin, since: str) -> dict:
     body_battery = []
     stress_data = []
     steps_data = []
+    energy_data = []
 
     current = start
     while current <= end:
@@ -217,9 +237,19 @@ def fetch_data(client: Garmin, since: str) -> dict:
         if steps_val is not None:
             steps_data.append({"date": date_str, "value": steps_val})
 
+        # Daily energy expenditure (kcal)
+        total_kcal, active_kcal, bmr_kcal = safe_get_energy(client, date_str)
+        if total_kcal is not None or active_kcal is not None or bmr_kcal is not None:
+            energy_data.append({
+                "date": date_str,
+                "total_kcal": total_kcal,
+                "active_kcal": active_kcal,
+                "bmr_kcal": bmr_kcal,
+            })
+
         current += timedelta(days=1)
 
-    log(f"Done. HR={len(resting_hr)}, HRV={len(hrv_data)}, Sleep={len(sleep_data)}, BB={len(body_battery)}, Stress={len(stress_data)}, Steps={len(steps_data)}")
+    log(f"Done. HR={len(resting_hr)}, HRV={len(hrv_data)}, Sleep={len(sleep_data)}, BB={len(body_battery)}, Stress={len(stress_data)}, Steps={len(steps_data)}, Energy={len(energy_data)}")
 
     return {
         "dates": dates,
@@ -229,6 +259,7 @@ def fetch_data(client: Garmin, since: str) -> dict:
         "body_battery": body_battery,
         "stress": stress_data,
         "steps": steps_data,
+        "energy": energy_data,
     }
 
 

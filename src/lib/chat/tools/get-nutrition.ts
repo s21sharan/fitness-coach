@@ -13,13 +13,24 @@ export function getNutritionTool(userId: string) {
     execute: async ({ start_date, end_date }) => {
       const supabase = createServerClient();
       const { data } = await supabase
-        .from("nutrition_logs")
-        .select("date, calories, protein, carbs, fat, fiber")
+        .from("food_log_entries")
+        .select("logged_at, calories, protein, carbs, fat, fiber")
         .eq("user_id", userId)
-        .gte("date", start_date)
-        .lte("date", end_date)
-        .order("date");
-      return data || [];
+        .gte("logged_at", `${start_date}T00:00:00Z`)
+        .lte("logged_at", `${end_date}T23:59:59Z`);
+
+      const byDate = new Map<string, { date: string; calories: number; protein: number; carbs: number; fat: number; fiber: number }>();
+      for (const row of data ?? []) {
+        const d = (row.logged_at as string).slice(0, 10);
+        const agg = byDate.get(d) ?? { date: d, calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
+        agg.calories += Number(row.calories) || 0;
+        agg.protein += Number(row.protein) || 0;
+        agg.carbs += Number(row.carbs) || 0;
+        agg.fat += Number(row.fat) || 0;
+        agg.fiber += Number(row.fiber) || 0;
+        byDate.set(d, agg);
+      }
+      return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
     },
   });
 }

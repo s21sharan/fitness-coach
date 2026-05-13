@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 
-const VALID_PROVIDERS = ["macrofactor", "hevy", "strava", "garmin"];
+const VALID_PROVIDERS = ["hevy", "strava", "garmin"];
 
 export async function POST(
   _request: NextRequest,

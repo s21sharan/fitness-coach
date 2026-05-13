@@ -1,16 +1,14 @@
 import { Router, type Request, type Response } from "express";
 import { supabase } from "../db.js";
-import { syncAllMacroFactor, syncMacroFactorForUser } from "../sync/macrofactor.js";
 import { syncAllHevy, syncHevyForUser } from "../sync/hevy.js";
 import { syncAllStrava, syncStravaForUser } from "../sync/strava.js";
 import { syncAllGarmin, syncGarminForUser } from "../sync/garmin.js";
 import { logger } from "../utils/logger.js";
 
-const VALID_PROVIDERS = ["macrofactor", "hevy", "strava", "garmin"] as const;
+const VALID_PROVIDERS = ["hevy", "strava", "garmin"] as const;
 type Provider = (typeof VALID_PROVIDERS)[number];
 
 const syncAllFns: Record<Provider, () => Promise<void>> = {
-  macrofactor: syncAllMacroFactor,
   hevy: syncAllHevy,
   strava: syncAllStrava,
   garmin: syncAllGarmin,
@@ -98,9 +96,6 @@ export function createSyncRouter(): Router {
 async function triggerUserSync(provider: Provider, integration: Record<string, unknown>, since?: string): Promise<void> {
   const userId = integration.user_id as string;
   switch (provider) {
-    case "macrofactor":
-      await syncMacroFactorForUser(userId, integration.credentials as { email: string; password: string }, since);
-      break;
     case "hevy":
       await syncHevyForUser(userId, integration.access_token as string, since);
       break;

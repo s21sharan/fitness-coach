@@ -19,6 +19,8 @@ import {
   updatePlannedWorkoutTool,
   regeneratePlanTool,
   getSearchResearchTool,
+  logFoodTool,
+  getExpenditureTool,
 } from "@/lib/chat/tools";
 
 export async function POST(request: Request) {
@@ -211,6 +213,8 @@ export async function POST(request: Request) {
       update_planned_workout: updatePlannedWorkoutTool(userId),
       regenerate_plan: regeneratePlanTool(userId),
       search_research: getSearchResearchTool(),
+      log_food: logFoodTool(userId),
+      get_expenditure: getExpenditureTool(userId),
     },
     maxSteps: 5,
     onFinish: async (event) => {

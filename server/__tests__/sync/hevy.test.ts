@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 
 vi.mock("../../src/db.js", () => ({ supabase: {} }));
 vi.mock("../../src/config.js", () => ({
-  config: { encryptionKey: "test-key", macrofactorFirebaseApiKey: "test-api-key" },
+  config: { encryptionKey: "test-key" },
 }));
 vi.mock("../../src/integrations/hevy-client.js", () => ({ HevyClient: vi.fn() }));
 vi.mock("../../src/utils/encryption.js", () => ({ decrypt: vi.fn() }));

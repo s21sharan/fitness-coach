@@ -1,9 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
 
-vi.mock("../../src/sync/macrofactor.js", () => ({
-  syncMacroFactorForUser: vi.fn().mockResolvedValue(5),
-  syncAllMacroFactor: vi.fn().mockResolvedValue(undefined),
-}));
 vi.mock("../../src/sync/hevy.js", () => ({
   syncHevyForUser: vi.fn().mockResolvedValue(3),
   syncAllHevy: vi.fn().mockResolvedValue(undefined),

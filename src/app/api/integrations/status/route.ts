@@ -18,7 +18,7 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: "Failed to fetch" }, { status: 500 });
 
-  const providers = ["macrofactor", "hevy", "strava", "garmin"];
+  const providers = ["hevy", "strava", "garmin"];
   const statusMap = providers.map((provider) => {
     const integration = data?.find((i) => i.provider === provider);
     return {

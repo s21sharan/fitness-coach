@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const VALID_PROVIDERS = ["macrofactor", "hevy", "strava", "garmin"];
+const VALID_PROVIDERS = ["hevy", "strava", "garmin"];
 
 export async function DELETE(
   _request: NextRequest,

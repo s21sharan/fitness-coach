@@ -14,6 +14,7 @@ export const config = {
   stravaClientId: required("STRAVA_CLIENT_ID"),
   stravaClientSecret: required("STRAVA_CLIENT_SECRET"),
   stravaWebhookVerifyToken: process.env.STRAVA_WEBHOOK_VERIFY_TOKEN || "hybro-strava-verify",
-  macrofactorFirebaseApiKey: required("MACROFACTOR_FIREBASE_API_KEY"),
   anthropicApiKey: required("ANTHROPIC_API_KEY"),
+  nutritionixAppId: process.env.NUTRITIONIX_APP_ID,
+  nutritionixApiKey: process.env.NUTRITIONIX_API_KEY,
 } as const;

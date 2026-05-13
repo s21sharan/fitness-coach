@@ -16,7 +16,6 @@ interface IntegrationStatus {
 }
 
 const INTEGRATIONS = [
-  { provider: "macrofactor", name: "MacroFactor", category: "Nutrition", type: "credentials" },
   { provider: "hevy", name: "Hevy", category: "Workouts", type: "api-key" },
   { provider: "strava", name: "Strava", category: "Cardio", type: "oauth" },
   { provider: "garmin", name: "Garmin", category: "Recovery & HR", type: "credentials" },

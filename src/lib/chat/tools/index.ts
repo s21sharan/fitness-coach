@@ -7,3 +7,5 @@ export { getTrainingPlanTool } from "./get-training-plan";
 export { updatePlannedWorkoutTool } from "./update-planned-workout";
 export { regeneratePlanTool } from "./regenerate-plan";
 export { getSearchResearchTool } from "./search-research";
+export { logFoodTool } from "./log-food";
+export { getExpenditureTool } from "./get-expenditure";
