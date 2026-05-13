@@ -1,28 +1,20 @@
 import { z } from "zod";
 import { tool } from "ai";
 import { createServerClient } from "@/lib/supabase/server";
-import { generateObject } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
-import { planGenerationSchema, type DayLayout } from "@/lib/training/schemas";
-import { getRecentActivityStats } from "@/lib/training/generate-plan";
-
-const PLAN_SYSTEM_PROMPT = `You are an expert fitness coach building a weekly training plan.
-Generate a concrete 7-day weekly layout based on the user's request.
-Each day must have a session_type (e.g. "Chest/Back", "Arms", "Legs", "Easy Run (Zone 2)", "Long Run", "Swim", "Brick Run", "Rest").
-Be specific with session names. Include ai_notes with brief coaching cues for each session.
-The plan should be practical and well-periodized — hard days followed by easy days, no back-to-back heavy sessions.
-IMPORTANT: Consider the user's recent workout history — do NOT schedule the same muscle group they just trained. Space out similar sessions.`;
+import { generateMultiWeekPlan } from "@/lib/training/generate-plan";
+import { computeComplianceStats, formatComplianceForPrompt, type ComplianceInput } from "@/lib/training/compliance";
+import { SPLIT_TYPES } from "@/lib/training/schemas";
 
 export function regeneratePlanTool(userId: string) {
   return tool({
     description:
-      "Generate a proposed training plan based on the user's request. This does NOT save it — it returns a proposal for the user to review and approve. Use when the user wants to change their training split, restructure their week, or create a new plan.",
+      "Generate a proposed multi-week training plan based on the user's request. Returns a proposal for the user to review and approve — does NOT save to database. Use when the user wants to change their training split, restructure their week, or create a new plan.",
     inputSchema: z.object({
       user_request: z
         .string()
         .describe("The user's full description of what they want their training plan to look like"),
       split_type: z
-        .enum(["full_body", "upper_lower", "ppl", "arnold", "phul", "bro_split", "hybrid_upper_lower", "hybrid_nick_bare"])
+        .enum(SPLIT_TYPES)
         .describe("The closest matching split type for the new plan"),
       days_per_week: z
         .number()
@@ -33,92 +25,118 @@ export function regeneratePlanTool(userId: string) {
     execute: async ({ user_request, split_type, days_per_week }) => {
       const supabase = createServerClient();
 
-      // Get user profile for context
-      const [profileRes, goalsRes] = await Promise.all([
-        supabase.from("user_profiles").select("*").eq("user_id", userId).single(),
-        supabase.from("user_goals").select("*").eq("user_id", userId).single(),
-      ]);
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("user_id", userId)
+        .single();
 
-      const profile = profileRes.data;
-      const goals = goalsRes.data;
+      const { data: goals } = await supabase
+        .from("user_goals")
+        .select("*")
+        .eq("user_id", userId)
+        .single();
 
-      // Get recent activity stats
-      const recentActivity = await getRecentActivityStats(userId);
+      const { data: activePlan } = await supabase
+        .from("training_plans")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .single();
 
-      // Get last 7 days of actual workouts for sequencing context
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const sinceStr = sevenDaysAgo.toISOString().slice(0, 10);
+      // Build compliance stats from last 2 weeks
+      let complianceText: string | null = null;
+      if (activePlan) {
+        const twoWeeksAgo = new Date();
+        twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+        const sinceStr = twoWeeksAgo.toISOString().slice(0, 10);
 
-      const [workoutRes, cardioRes] = await Promise.all([
-        supabase.from("workout_logs").select("date, name").eq("user_id", userId).gte("date", sinceStr).order("date", { ascending: false }),
-        supabase.from("cardio_logs").select("date, type, distance").eq("user_id", userId).gte("date", sinceStr).order("date", { ascending: false }),
-      ]);
+        const [plannedRes, liftRes, cardioRes] = await Promise.all([
+          supabase.from("planned_workouts")
+            .select("date, session_type")
+            .eq("plan_id", activePlan.id)
+            .gte("date", sinceStr)
+            .lte("date", new Date().toISOString().slice(0, 10)),
+          supabase.from("workout_logs")
+            .select("date, name")
+            .eq("user_id", userId)
+            .gte("date", sinceStr),
+          supabase.from("cardio_logs")
+            .select("date, type, distance")
+            .eq("user_id", userId)
+            .gte("date", sinceStr),
+        ]);
 
-      const recentWorkouts = workoutRes.data || [];
-      const recentCardio = cardioRes.data || [];
+        if (plannedRes.data && plannedRes.data.length > 0) {
+          const isCardioSession = (s: string) =>
+            /run|ride|bike|swim|cardio|zone\s*2/i.test(s);
 
-      // Build context
-      const contextParts: string[] = [];
-      if (profile) {
-        contextParts.push(`Athlete: ${profile.age}yo ${profile.sex}, ${profile.weight}lbs, ${profile.training_experience} experience`);
-      }
-      if (goals) {
-        contextParts.push(`Goal: ${goals.body_goal}`);
-      }
-      if (recentActivity) {
-        if (recentActivity.weeklyRunCount > 0) contextParts.push(`Currently running ~${recentActivity.weeklyRunCount}x/week`);
-        if (recentActivity.weeklyLiftCount > 0) contextParts.push(`Currently lifting ~${recentActivity.weeklyLiftCount}x/week`);
-        if (recentActivity.avgHrv) contextParts.push(`Avg HRV: ${recentActivity.avgHrv}`);
-        if (recentActivity.avgSleepHours) contextParts.push(`Avg sleep: ${recentActivity.avgSleepHours}h`);
-      }
+          const compInput: ComplianceInput = {
+            planned: plannedRes.data.map((p) => ({
+              date: p.date,
+              session_type: p.session_type,
+              is_cardio: isCardioSession(p.session_type),
+            })),
+            actualLifting: (liftRes.data || []).map((l) => ({ date: l.date, name: l.name })),
+            actualCardio: (cardioRes.data || []).map((c) => ({ date: c.date, type: c.type, distance: c.distance })),
+          };
 
-      // Add recent workout history
-      const today = new Date();
-      const todayStr = today.toISOString().slice(0, 10);
-      const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon...
-      const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
-      if (recentWorkouts.length > 0 || recentCardio.length > 0) {
-        contextParts.push(`\nRecent workouts (last 7 days):`);
-        for (const w of recentWorkouts) {
-          contextParts.push(`  ${w.date}: ${w.name} (lifting)`);
+          const stats = computeComplianceStats(compInput);
+          if (stats.totalPlanned > 0) {
+            complianceText = formatComplianceForPrompt(stats);
+          }
         }
-        for (const c of recentCardio) {
-          contextParts.push(`  ${c.date}: ${c.type}${c.distance ? ` ${c.distance}km` : ""}`);
-        }
-        contextParts.push(`Today is ${dayNames[dayOfWeek]} (${todayStr}). The new plan starts next Monday. Schedule accordingly so there's no overlap with what they just did.`);
       }
 
-      const prompt = `${contextParts.join("\n")}
-
-The user wants to change their plan to: ${user_request}
-
-Generate a 7-day weekly layout (Monday=0 through Sunday=6) with ${days_per_week} active training days. Be specific with session types.`;
-
-      // Generate plan via Claude (proposal only — NOT saved)
-      const { object: plan } = await generateObject({
-        model: anthropic("claude-sonnet-4-20250514"),
-        schema: planGenerationSchema,
-        system: PLAN_SYSTEM_PROMPT,
-        prompt,
+      const plan = await generateMultiWeekPlan({
+        userId,
+        profile: {
+          age: profile?.age ?? null,
+          height: profile?.height ?? null,
+          weight: profile?.weight ?? null,
+          sex: profile?.sex ?? null,
+          training_experience: profile?.training_experience ?? null,
+        },
+        goals: {
+          body_goal: goals?.body_goal || "general_fitness",
+          emphasis: goals?.emphasis ?? null,
+          days_per_week: days_per_week,
+          lifting_days: goals?.lifting_days ?? null,
+          training_for_race: goals?.training_for_race ?? false,
+          race_type: goals?.race_type ?? null,
+          race_date: goals?.race_date ?? null,
+          goal_time: goals?.goal_time ?? null,
+          does_cardio: goals?.does_cardio ?? false,
+          cardio_types: goals?.cardio_types ?? [],
+        },
+        weeks: 2,
+        compliance: complianceText,
+        userRequest: user_request,
       });
 
-      // Format for display — do NOT save to database
-      const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-      const layout = plan.weekly_layout.map((d: DayLayout) => ({
-        day: dayLabels[d.day_of_week],
-        session: d.session_type,
-        notes: d.ai_notes,
+      // Format multi-week display for PlanProposalCard
+      const weekLayouts = plan.weeks.map((week) => ({
+        week_number: week.week_number,
+        week_focus: week.week_focus,
+        days: week.days.map((d) => {
+          const parts: string[] = [];
+          if (d.am_session) parts.push(d.am_session);
+          if (d.pm_session) parts.push(d.pm_session);
+          const session = d.is_rest ? "Rest" : parts.join(" + ") || "Rest";
+          const notes = [d.am_rationale, d.pm_rationale].filter(Boolean).join("; ");
+          return { day: d.day_label, session, notes: notes || null };
+        }),
       }));
 
       return {
         success: true,
         proposed: true,
-        split_type: split_type,
-        reasoning: plan.reasoning,
-        weekly_layout: layout,
-        raw_layout: plan.weekly_layout,
+        split_type: plan.split_type,
+        reasoning: plan.narrative,
+        risks: plan.risks,
+        weekly_layout: weekLayouts[0]?.days || [],
+        week_layouts: weekLayouts,
+        raw_blocks: plan.weeks,
         plan_config: plan.plan_config,
         body_goal: goals?.body_goal || "general_fitness",
         race_type: goals?.race_type || null,
