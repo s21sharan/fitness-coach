@@ -19,8 +19,17 @@ const INTEGRATIONS = [
   { provider: "hevy", name: "Hevy", category: "Workouts", type: "api-key" },
   { provider: "strava", name: "Strava", category: "Cardio", type: "oauth" },
   { provider: "garmin", name: "Garmin", category: "Recovery & HR", type: "credentials" },
-  { provider: "gcal", name: "Google Calendar", category: "Schedule", type: "oauth" },
-  { provider: "apple", name: "Apple Health", category: "Health metrics", type: "native" },
+] as const;
+
+const COMING_SOON = [
+  { provider: "apple", name: "Apple Health", category: "Daily health metrics" },
+  { provider: "gcal", name: "Google Calendar", category: "Schedule & availability" },
+  { provider: "whoop", name: "Whoop", category: "Recovery & strain" },
+  { provider: "oura", name: "Oura", category: "Sleep & readiness" },
+  { provider: "trainingpeaks", name: "TrainingPeaks", category: "Workouts & metrics" },
+  { provider: "zwift", name: "Zwift", category: "Indoor cycling" },
+  { provider: "wahoo", name: "Wahoo", category: "Bike computer" },
+  { provider: "myfitnesspal", name: "MyFitnessPal", category: "Nutrition tracking" },
 ] as const;
 
 const NAV_ITEMS = [
@@ -193,7 +202,7 @@ export default function SettingsPage() {
                         padding: "1px 7px",
                       }}
                     >
-                      {connectedCount}/6
+                      {connectedCount}/{INTEGRATIONS.length}
                     </span>
                   )}
                 </button>
@@ -234,7 +243,7 @@ export default function SettingsPage() {
                       Your connected apps
                     </div>
                     <div style={{ fontSize: 13, color: "var(--muted)" }}>
-                      The more Hybro sees, the better it coaches. {connectedCount} of 6 connected.
+                      The more Trainer sees, the better it coaches. {connectedCount} of {INTEGRATIONS.length} connected.
                     </div>
                   </div>
                   <button type="button" className="btn-ink" style={{ flexShrink: 0 }}>
@@ -260,6 +269,28 @@ export default function SettingsPage() {
                       />
                     );
                   })}
+                </div>
+
+                {/* Coming soon */}
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Coming soon
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {COMING_SOON.map((integration) => (
+                      <IntegrationCard
+                        key={integration.provider}
+                        provider={integration.provider}
+                        name={integration.name}
+                        category={integration.category}
+                        connected={false}
+                        lastSyncedAt={null}
+                        onConnect={() => {}}
+                        onDisconnect={() => {}}
+                        comingSoon
+                      />
+                    ))}
+                  </div>
                 </div>
               </>
             )}

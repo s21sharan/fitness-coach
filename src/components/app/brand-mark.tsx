@@ -8,6 +8,11 @@ type BrandName =
   | 'gcal'
   | 'apple'
   | 'whoop'
+  | 'oura'
+  | 'trainingpeaks'
+  | 'zwift'
+  | 'wahoo'
+  | 'myfitnesspal'
   | string;
 
 interface BrandMarkProps {
@@ -24,6 +29,11 @@ export function BrandMark({ name, size = 36 }: BrandMarkProps) {
     gcal: { bg: 'var(--brand-gcal)', label: 'C' },
     apple: { bg: '#000', label: '' },
     whoop: { bg: 'var(--brand-whoop)', label: 'W' },
+    oura: { bg: '#252525', label: 'O' },
+    trainingpeaks: { bg: '#0A7B3E', label: 'TP' },
+    zwift: { bg: '#FC6719', label: 'Z' },
+    wahoo: { bg: '#1A6DB5', label: 'W' },
+    myfitnesspal: { bg: '#0070D1', label: 'MF' },
   };
   const m = map[name] || { bg: '#888', label: '?' };
 

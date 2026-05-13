@@ -1,4 +1,4 @@
-import { streamText } from "ai";
+import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
@@ -7,7 +7,6 @@ import {
   getOrCreateConversation,
   getRecentMessages,
   saveMessage,
-  formatMessagesForAI,
 } from "@/lib/chat/conversation";
 import {
   getWorkoutsTool,
@@ -18,6 +17,8 @@ import {
   regeneratePlanTool,
   getSearchResearchTool,
 } from "@/lib/chat/tools";
+
+export const maxDuration = 30;
 
 export async function POST(request: Request) {
   const { userId } = await auth();
@@ -162,26 +163,9 @@ export async function POST(request: Request) {
     weekStats,
   });
 
-  // Convert incoming UIMessages to ModelMessages for streamText
-  const modelMessages: Array<{ role: "user" | "assistant"; content: string }> = [];
-  for (const msg of messages) {
-    let text = "";
-    if (msg.content) {
-      text = msg.content;
-    } else if (msg.parts) {
-      text = msg.parts
-        .filter((p: { type: string; text?: string }) => p.type === "text")
-        .map((p: { text: string }) => p.text)
-        .join("");
-    }
-    if (text && (msg.role === "user" || msg.role === "assistant")) {
-      modelMessages.push({ role: msg.role, content: text });
-    }
-  }
-
-  // If no messages from client, fall back to DB history
-  const finalMessages = modelMessages.length > 0
-    ? modelMessages
+  // Convert UIMessages from client using AI SDK's proper converter
+  const finalMessages = messages.length > 0
+    ? await convertToModelMessages(messages as UIMessage[])
     : [...(await getRecentMessages(conversationId, 20)).map((m: { role: string; content: string }) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
@@ -200,7 +184,7 @@ export async function POST(request: Request) {
       regenerate_plan: regeneratePlanTool(userId),
       search_research: getSearchResearchTool(),
     },
-    maxSteps: 5,
+    stopWhen: stepCountIs(5),
     onFinish: async (event) => {
       try {
         const text = event.text || "";

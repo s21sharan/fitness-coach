@@ -101,8 +101,10 @@ export function MessageBubble({ role, content, tools, actions, kind, meals }: Me
               borderTopLeftRadius: 6,
               background: "#fff",
               color: "var(--ink)",
-              fontSize: 14,
-              lineHeight: 1.5,
+              fontSize: 13.5,
+              lineHeight: 1.55,
+              fontWeight: 400,
+              letterSpacing: "0.005em",
               boxShadow: "0 1px 0 var(--line-2)",
             }}
             dangerouslySetInnerHTML={{ __html: formatContent(content) }}
@@ -201,7 +203,16 @@ export function TypingIndicator() {
 
 function formatContent(content: string): string {
   return content
+    // Headers — consume surrounding newlines so they don't become extra <br>s
+    .replace(/\n*^### (.+)$\n*/gm, '<span style="font-weight:700;font-size:13.5px;display:block;margin:6px 0 3px">$1</span>')
+    .replace(/\n*^## (.+)$\n*/gm, '<span style="font-weight:700;font-size:15px;display:block;margin:8px 0 3px">$1</span>')
+    // Bold
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    // Bullet points
     .replace(/\n- /g, "<br>• ")
+    .replace(/^- /gm, "• ")
+    // Collapse double newlines into single break
+    .replace(/\n\n+/g, "<br>")
+    // Remaining single newlines
     .replace(/\n/g, "<br>");
 }

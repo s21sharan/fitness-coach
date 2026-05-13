@@ -11,6 +11,7 @@ interface IntegrationCardProps {
   onConnect: () => void;
   onDisconnect: () => void;
   onSync?: () => void;
+  comingSoon?: boolean;
 }
 
 function formatTimeAgo(dateStr: string): string {
@@ -33,9 +34,10 @@ export function IntegrationCard({
   onConnect,
   onDisconnect,
   onSync,
+  comingSoon,
 }: IntegrationCardProps) {
   return (
-    <div className="card" style={{ padding: 18, display: "flex", flexDirection: "row", alignItems: "center", gap: 16 }}>
+    <div className="card" style={{ padding: 18, display: "flex", flexDirection: "row", alignItems: "center", gap: 16, opacity: comingSoon ? 0.5 : 1 }}>
       {/* Brand mark */}
       <BrandMark name={provider} size={44} />
 
@@ -43,7 +45,7 @@ export function IntegrationCard({
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>{name}</span>
-          {connected && (
+          {connected && !comingSoon && (
             <span
               style={{
                 display: "inline-flex",
@@ -79,7 +81,7 @@ export function IntegrationCard({
         </div>
         <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
           {category}
-          {connected && lastSyncedAt && (
+          {connected && !comingSoon && lastSyncedAt && (
             <span style={{ marginLeft: 6 }}>· Synced {formatTimeAgo(lastSyncedAt)}</span>
           )}
         </div>
@@ -87,7 +89,21 @@ export function IntegrationCard({
 
       {/* Actions */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-        {connected ? (
+        {comingSoon ? (
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: "var(--muted)",
+              padding: "6px 14px",
+              borderRadius: 8,
+              border: "1px solid var(--line)",
+              cursor: "not-allowed",
+            }}
+          >
+            Coming soon
+          </span>
+        ) : connected ? (
           <>
             {onSync && (
               <button type="button" className="btn-ghost" onClick={onSync}>
