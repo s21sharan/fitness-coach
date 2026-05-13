@@ -10,17 +10,13 @@ import {
   formatMessagesForAI,
 } from "@/lib/chat/conversation";
 import {
-  getNutritionTool,
   getWorkoutsTool,
   getCardioTool,
   getRecoveryTool,
-  getWeightTrendTool,
   getTrainingPlanTool,
   updatePlannedWorkoutTool,
   regeneratePlanTool,
   getSearchResearchTool,
-  logFoodTool,
-  getExpenditureTool,
 } from "@/lib/chat/tools";
 
 export async function POST(request: Request) {
@@ -56,7 +52,7 @@ export async function POST(request: Request) {
   const conversationId = await getOrCreateConversation(userId);
   await saveMessage(conversationId, "user", lastUserMessage.content);
 
-  const [profileRes, goalsRes, planRes, todayRecoveryRes, todayNutritionRes] =
+  const [profileRes, goalsRes, planRes, todayRecoveryRes] =
     await Promise.all([
       supabase.from("user_profiles").select("*").eq("user_id", userId).single(),
       supabase.from("user_goals").select("*").eq("user_id", userId).single(),
@@ -72,19 +68,12 @@ export async function POST(request: Request) {
         .eq("user_id", userId)
         .eq("date", new Date().toISOString().slice(0, 10))
         .single(),
-      supabase
-        .from("nutrition_logs")
-        .select("calories, protein")
-        .eq("user_id", userId)
-        .eq("date", new Date().toISOString().slice(0, 10))
-        .single(),
     ]);
 
   const profile = profileRes.data;
   const goals = goalsRes.data;
   const plan = planRes.data;
   const recovery = todayRecoveryRes.data;
-  const todayNutrition = todayNutritionRes.data;
 
   let todaySession: string | null = null;
   if (plan) {
@@ -170,7 +159,6 @@ export async function POST(request: Request) {
       : null,
     todaySession,
     recovery,
-    todayNutrition,
     weekStats,
   });
 
@@ -204,17 +192,13 @@ export async function POST(request: Request) {
     system: systemPrompt,
     messages: finalMessages,
     tools: {
-      get_nutrition: getNutritionTool(userId),
       get_workouts: getWorkoutsTool(userId),
       get_cardio: getCardioTool(userId),
       get_recovery: getRecoveryTool(userId),
-      get_weight_trend: getWeightTrendTool(userId),
       get_training_plan: getTrainingPlanTool(userId),
       update_planned_workout: updatePlannedWorkoutTool(userId),
       regenerate_plan: regeneratePlanTool(userId),
       search_research: getSearchResearchTool(),
-      log_food: logFoodTool(userId),
-      get_expenditure: getExpenditureTool(userId),
     },
     maxSteps: 5,
     onFinish: async (event) => {

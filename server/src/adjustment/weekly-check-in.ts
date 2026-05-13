@@ -39,8 +39,6 @@ export function buildAdjustmentPrompt(input: AdjustmentInput): string {
 
   lines.push(`=== LAST WEEK SUMMARY ===`);
   lines.push(`Compliance: ${weekData.compliance}%`);
-  lines.push(`Avg calories: ${weekData.avgCalories}`);
-  lines.push(`Avg protein: ${weekData.avgProtein}g`);
   if (weekData.avgSleepHours !== null) lines.push(`Avg sleep: ${weekData.avgSleepHours}h`);
   if (weekData.avgHrv !== null) lines.push(`Avg HRV: ${weekData.avgHrv}`);
   lines.push("");
@@ -130,8 +128,6 @@ export async function runWeeklyCheckIn(userId: string, planId: string): Promise<
       plan_id: planId,
       week_start_date: weekStartDate,
       compliance_pct: adjustment.compliance_pct,
-      avg_calories: weekData.avgCalories,
-      avg_protein: weekData.avgProtein,
       avg_sleep_hours: weekData.avgSleepHours,
       avg_hrv: weekData.avgHrv,
       ai_summary: adjustment.summary,

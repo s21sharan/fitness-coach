@@ -111,29 +111,6 @@ export async function GET() {
     });
   }
 
-  // Today's nutrition
-  const { data: todayNutrition } = await supabase
-    .from("nutrition_logs")
-    .select("calories, protein")
-    .eq("user_id", userId)
-    .eq("date", todayStr)
-    .single();
-
-  // 7-day calorie average for target
-  const sevenDaysAgo = new Date(now);
-  sevenDaysAgo.setDate(now.getDate() - 7);
-  const { data: recentNutrition } = await supabase
-    .from("nutrition_logs")
-    .select("calories")
-    .eq("user_id", userId)
-    .gte("date", sevenDaysAgo.toISOString().slice(0, 10))
-    .lt("date", todayStr);
-
-  let targetCalories = 2000;
-  if (recentNutrition && recentNutrition.length > 0) {
-    targetCalories = Math.round(recentNutrition.reduce((s, n) => s + n.calories, 0) / recentNutrition.length);
-  }
-
   // Today's recovery
   const { data: todayRecovery } = await supabase
     .from("recovery_logs")
@@ -164,11 +141,6 @@ export async function GET() {
       splitType: plan.split_type,
       sessionsCompleted: completedSessions,
       sessionsTotal: totalSessions,
-    } : null,
-    nutrition: todayNutrition ? {
-      calories: todayNutrition.calories,
-      protein: todayNutrition.protein,
-      target_calories: targetCalories,
     } : null,
     recovery: todayRecovery ? {
       hrv: todayRecovery.hrv,

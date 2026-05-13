@@ -57,8 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isSettings = pathname.startsWith("/dashboard/settings");
   const isCoach = pathname.startsWith("/dashboard/coach");
   const isAnalytics = pathname.startsWith("/dashboard/analytics");
-  const isNutrition = pathname.startsWith("/dashboard/nutrition");
-  const isCalendar = !isSettings && !isCoach && !isAnalytics && !isNutrition;
+  const isCalendar = !isSettings && !isCoach && !isAnalytics;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "var(--bg, #f5f7f8)" }}>
@@ -83,9 +82,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
           <Link href="/dashboard/analytics" style={navLinkStyle(isAnalytics)}>
             <AnalyticsIcon /> Analytics
-          </Link>
-          <Link href="/dashboard/nutrition" style={navLinkStyle(isNutrition)}>
-            Nutrition
           </Link>
           <Link href="/dashboard/coach" style={navLinkStyle(isCoach)}>
             <CoachIcon /> Coach

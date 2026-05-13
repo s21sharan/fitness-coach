@@ -22,17 +22,11 @@ export async function GET(request: Request) {
   const plannedFromStr = addCalendarDaysYmd(localToday, -365);
   const plannedToStr = addCalendarDaysYmd(localToday, 365);
 
-  const [integrationsRes, nutritionRes, workoutsRes, cardioRes, recoveryRes, planRes] = await Promise.all([
+  const [integrationsRes, workoutsRes, cardioRes, recoveryRes, planRes] = await Promise.all([
     supabase
       .from("integrations")
       .select("provider, status, last_synced_at, created_at")
       .eq("user_id", userId),
-    supabase
-      .from("nutrition_logs")
-      .select("*")
-      .eq("user_id", userId)
-      .gte("date", sinceStr)
-      .order("date", { ascending: false }),
     supabase
       .from("workout_logs")
       .select("*")
@@ -76,7 +70,6 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     integrations: integrationsRes.data || [],
-    nutrition: nutritionRes.data || [],
     workouts: workoutsRes.data || [],
     cardio: cardioRes.data || [],
     recovery: recoveryRes.data || [],

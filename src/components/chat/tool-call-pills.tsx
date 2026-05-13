@@ -5,11 +5,9 @@ interface ToolCallPillsProps {
 }
 
 const TOOL_ICONS: Record<string, string> = {
-  get_nutrition: "🍽️",
   get_workouts: "🏋️",
   get_cardio: "🏃",
   get_recovery: "📊",
-  get_weight_trend: "⚖️",
   get_training_plan: "📋",
   update_planned_workout: "✏️",
 };

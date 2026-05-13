@@ -1,11 +1,7 @@
-export { getNutritionTool } from "./get-nutrition";
 export { getWorkoutsTool } from "./get-workouts";
 export { getCardioTool } from "./get-cardio";
 export { getRecoveryTool } from "./get-recovery";
-export { getWeightTrendTool } from "./get-weight-trend";
 export { getTrainingPlanTool } from "./get-training-plan";
 export { updatePlannedWorkoutTool } from "./update-planned-workout";
 export { regeneratePlanTool } from "./regenerate-plan";
 export { getSearchResearchTool } from "./search-research";
-export { logFoodTool } from "./log-food";
-export { getExpenditureTool } from "./get-expenditure";

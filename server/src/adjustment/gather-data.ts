@@ -16,11 +16,8 @@ export interface WeekData {
   planned: Array<{ date: string; session_type: string; status: string; day_of_week: number }>;
   workoutLogs: Array<{ date: string; name: string; duration_minutes: number; exercises: unknown }>;
   cardioLogs: Array<{ date: string; type: string; distance: number; duration: number; avg_hr: number | null }>;
-  nutritionLogs: Array<{ date: string; calories: number; protein: number; carbs: number; fat: number }>;
   recoveryLogs: Array<{ date: string; hrv: number | null; sleep_hours: number | null; resting_hr: number | null; body_battery: number | null; stress_level: number | null }>;
   compliance: number;
-  avgCalories: number;
-  avgProtein: number;
   avgSleepHours: number | null;
   avgHrv: number | null;
 }
@@ -30,7 +27,7 @@ export async function gatherWeekData(userId: string, planId: string, weekStartDa
   weekEnd.setDate(weekEnd.getDate() + 6);
   const endStr = weekEnd.toISOString().slice(0, 10);
 
-  const [plannedRes, workoutRes, cardioRes, nutritionRes, recoveryRes] = await Promise.all([
+  const [plannedRes, workoutRes, cardioRes, recoveryRes] = await Promise.all([
     supabase
       .from("planned_workouts")
       .select("date, session_type, status, day_of_week")
@@ -50,12 +47,6 @@ export async function gatherWeekData(userId: string, planId: string, weekStartDa
       .gte("date", weekStartDate)
       .lte("date", endStr),
     supabase
-      .from("nutrition_logs")
-      .select("date, calories, protein, carbs, fat")
-      .eq("user_id", userId)
-      .gte("date", weekStartDate)
-      .lte("date", endStr),
-    supabase
       .from("recovery_logs")
       .select("date, hrv, sleep_hours, resting_hr, body_battery, stress_level")
       .eq("user_id", userId)
@@ -66,7 +57,6 @@ export async function gatherWeekData(userId: string, planId: string, weekStartDa
   const planned = plannedRes.data || [];
   const workoutLogs = workoutRes.data || [];
   const cardioLogs = cardioRes.data || [];
-  const nutritionLogs = nutritionRes.data || [];
   const recoveryLogs = recoveryRes.data || [];
 
   // Mark planned workouts as completed if matching logs exist
@@ -87,14 +77,6 @@ export async function gatherWeekData(userId: string, planId: string, weekStartDa
 
   const compliance = computeCompliance(planned);
 
-  const avgCalories = nutritionLogs.length > 0
-    ? Math.round(nutritionLogs.reduce((s, n) => s + n.calories, 0) / nutritionLogs.length)
-    : 0;
-
-  const avgProtein = nutritionLogs.length > 0
-    ? Math.round(nutritionLogs.reduce((s, n) => s + n.protein, 0) / nutritionLogs.length)
-    : 0;
-
   const sleepEntries = recoveryLogs.filter((r) => r.sleep_hours !== null);
   const avgSleepHours = sleepEntries.length > 0
     ? Math.round(sleepEntries.reduce((s, r) => s + r.sleep_hours!, 0) / sleepEntries.length * 10) / 10
@@ -109,11 +91,8 @@ export async function gatherWeekData(userId: string, planId: string, weekStartDa
     planned,
     workoutLogs,
     cardioLogs,
-    nutritionLogs,
     recoveryLogs,
     compliance,
-    avgCalories,
-    avgProtein,
     avgSleepHours,
     avgHrv,
   };

@@ -10,13 +10,6 @@ interface GarminMetric {
   score?: number;
 }
 
-interface GarminEnergyMetric {
-  date: string;
-  total_kcal: number | null;
-  active_kcal: number | null;
-  bmr_kcal: number | null;
-}
-
 interface GarminSyncResponse {
   dates: string[];
   resting_hr: GarminMetric[];
@@ -25,7 +18,6 @@ interface GarminSyncResponse {
   body_battery: GarminMetric[];
   stress: GarminMetric[];
   steps: GarminMetric[];
-  energy?: GarminEnergyMetric[];
 }
 
 function findMetric(metrics: GarminMetric[], date: string): GarminMetric | undefined {
@@ -71,25 +63,6 @@ async function fetchFromGarminService(email: string, password: string, since: st
   return res.json() as Promise<GarminSyncResponse>;
 }
 
-export function normalizeGarminEnergy(userId: string, data: GarminSyncResponse) {
-  const energy = data.energy ?? [];
-  return energy
-    .filter((e) => e.total_kcal != null || e.active_kcal != null || e.bmr_kcal != null)
-    .map((e) => ({
-      user_id: userId,
-      date: e.date,
-      wearable_kcal: e.total_kcal,
-      active_kcal: e.active_kcal,
-      bmr_kcal: e.bmr_kcal,
-      // tdee_kcal / correction_k are filled by the TDEE engine in a later phase;
-      // for now mirror wearable_kcal so callers have a usable figure.
-      tdee_kcal: e.total_kcal,
-      correction_k: 1,
-      source: "wearable" as const,
-      updated_at: new Date().toISOString(),
-    }));
-}
-
 export async function syncGarminForUser(
   userId: string,
   credentials: { email: string; password: string },
@@ -106,15 +79,6 @@ export async function syncGarminForUser(
     const { error } = await supabase
       .from("recovery_logs")
       .upsert(rows, { onConflict: "user_id,date" });
-
-    if (error) throw error;
-  }
-
-  const energyRows = normalizeGarminEnergy(userId, data);
-  if (energyRows.length > 0) {
-    const { error } = await supabase
-      .from("expenditure_daily")
-      .upsert(energyRows, { onConflict: "user_id,date" });
 
     if (error) throw error;
   }

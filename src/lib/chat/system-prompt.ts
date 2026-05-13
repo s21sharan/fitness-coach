@@ -26,10 +26,6 @@ interface SystemPromptInput {
     resting_hr: number | null;
     body_battery: number | null;
   } | null;
-  todayNutrition: {
-    calories: number;
-    protein: number;
-  } | null;
   weekStats: {
     sessionsCompleted: number;
     sessionsPlanned: number;
@@ -49,7 +45,7 @@ const SPLIT_LABELS: Record<string, string> = {
 };
 
 export function buildSystemPrompt(input: SystemPromptInput): string {
-  const { profile, goals, plan, todaySession, recovery, todayNutrition, weekStats } = input;
+  const { profile, goals, plan, todaySession, recovery, weekStats } = input;
   const lines: string[] = [];
 
   lines.push("You are Coach, a fitness coach. You are direct, specific, encouraging but honest, opinionated, and concise.");
@@ -97,7 +93,6 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     if (parts.length > 0) lines.push(`Recovery: ${parts.join(", ")}`);
   }
 
-  if (todayNutrition) lines.push(`Today so far: ${todayNutrition.calories} cal, ${todayNutrition.protein}g protein`);
   if (weekStats) lines.push(`This week: ${weekStats.sessionsCompleted}/${weekStats.sessionsPlanned} sessions completed`);
   lines.push("");
 

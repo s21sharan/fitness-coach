@@ -5,6 +5,8 @@
 -- the native stack reaches parity (later phase).
 -- ============================================================
 
+create extension if not exists pg_trgm;
+
 -- ---------- foods (cached DB entries) ----------
 create table public.foods (
   id uuid primary key default gen_random_uuid(),
@@ -28,9 +30,6 @@ create table public.foods (
 );
 
 create index idx_foods_name on public.foods using gin (name gin_trgm_ops);
-
--- gin_trgm_ops requires pg_trgm
-create extension if not exists pg_trgm;
 
 -- ---------- food_log_entries (per-meal entries) ----------
 create table public.food_log_entries (

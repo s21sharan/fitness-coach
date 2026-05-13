@@ -17,12 +17,6 @@ export interface SportLoadSummary {
   unit: "miles" | "hours" | "meters" | "sessions";
 }
 
-export interface NutritionSummary {
-  avg_protein_g: number | null;
-  avg_calories: number | null;
-  days_observed: number;
-}
-
 export interface RecoverySummary {
   avg_sleep_hours: number | null;
   avg_hrv: number | null;
@@ -36,7 +30,6 @@ export interface AggregatedLoadSummary {
   bike: SportLoadSummary | null;
   swim: SportLoadSummary | null;
   lift: SportLoadSummary | null;
-  nutrition: NutritionSummary | null;
   recovery: RecoverySummary | null;
   hasAnyData: boolean;
 }
@@ -60,12 +53,6 @@ interface RecoveryRow {
   resting_hr: number | null;
 }
 
-interface NutritionRow {
-  date: string;
-  calories: number | null;
-  protein: number | null;
-}
-
 export interface AggregateOptions {
   windowDays?: number;   // default 56 (8 weeks)
 }
@@ -80,7 +67,7 @@ export async function aggregateAthleteLoad(
     .toISOString()
     .slice(0, 10);
 
-  const [cardioRes, workoutRes, recoveryRes, nutritionRes] = await Promise.all([
+  const [cardioRes, workoutRes, recoveryRes] = await Promise.all([
     supabase
       .from("cardio_logs")
       .select("date, type, distance, duration")
@@ -102,19 +89,11 @@ export async function aggregateAthleteLoad(
       .gte("date", since)
       .order("date", { ascending: false })
       .returns<RecoveryRow[]>(),
-    supabase
-      .from("nutrition_logs")
-      .select("date, calories, protein")
-      .eq("user_id", userId)
-      .gte("date", since)
-      .order("date", { ascending: false })
-      .returns<NutritionRow[]>(),
   ]);
 
   const cardio = cardioRes.data ?? [];
   const workouts = workoutRes.data ?? [];
   const recovery = recoveryRes.data ?? [];
-  const nutrition = nutritionRes.data ?? [];
 
   const weeks = Math.max(1, Math.round(windowDays / 7));
 
@@ -123,11 +102,10 @@ export async function aggregateAthleteLoad(
   const swim = summarizeCardio(cardio, "swim", weeks, "meters");
   const lift = summarizeLifting(workouts, weeks);
 
-  const nutritionSummary = summarizeNutrition(nutrition);
   const recoverySummary = summarizeRecovery(recovery);
 
   const hasAnyData =
-    !!run || !!bike || !!swim || !!lift || !!nutritionSummary || !!recoverySummary;
+    !!run || !!bike || !!swim || !!lift || !!recoverySummary;
 
   return {
     windowDays,
@@ -135,7 +113,6 @@ export async function aggregateAthleteLoad(
     bike,
     swim,
     lift,
-    nutrition: nutritionSummary,
     recovery: recoverySummary,
     hasAnyData,
   };
@@ -204,33 +181,6 @@ function summarizeLifting(rows: WorkoutRow[], weeks: number): SportLoadSummary |
     longest_session: round1(longest),
     weeks_observed: weeklyCounts.length,
     unit: "sessions",
-  };
-}
-
-// ------------------------------------------------------------
-// Nutrition
-// ------------------------------------------------------------
-
-function summarizeNutrition(rows: NutritionRow[]): NutritionSummary | null {
-  if (rows.length === 0) return null;
-  const proteinRows = rows.filter((r) => r.protein !== null);
-  const calorieRows = rows.filter((r) => r.calories !== null);
-  return {
-    avg_protein_g:
-      proteinRows.length === 0
-        ? null
-        : Math.round(
-            proteinRows.reduce((s, r) => s + (r.protein ?? 0), 0) /
-              proteinRows.length
-          ),
-    avg_calories:
-      calorieRows.length === 0
-        ? null
-        : Math.round(
-            calorieRows.reduce((s, r) => s + (r.calories ?? 0), 0) /
-              calorieRows.length
-          ),
-    days_observed: rows.length,
   };
 }
 
