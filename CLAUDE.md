@@ -1,77 +1,107 @@
-# Hybro — AI Fitness Coaching Platform
+# Trainer — AI Fitness Coaching Platform
 
 ## Project Overview
 
-Hybro is a **review-and-advise** platform that connects users' existing fitness data sources (MacroFactor, Hevy, Strava, Garmin) into a unified intelligence layer. Users review synced activity, view insights, and get AI coaching advice on how to adjust their training plan.
+Trainer is a **review-and-advise** platform that connects users' existing fitness data sources (MacroFactor, Hevy, Strava, Garmin) into a unified intelligence layer. Users review synced activity, view insights, and get AI coaching advice on how to adjust their training.
 
-**Hybro is NOT a workout tracker or launcher.** Users log/track workouts in their dedicated apps (Hevy, Strava, etc.). Hybro's value is the intelligence layer on top — all UI should be oriented around reviewing, analyzing, and advising.
+**Trainer is NOT a workout tracker or launcher.** Users log/track workouts in their dedicated apps (Hevy, Strava, etc.). Trainer's value is the intelligence layer on top — all UI should be oriented around reviewing, analyzing, and advising.
 
-- **App name:** Hybro (use everywhere in UI, commits, docs)
+- **App name:** Trainer (use everywhere in UI, commits, docs)
 - **Target user:** Serious fitness enthusiasts (lifters, runners, hybrid athletes)
 - **Monetization:** Free for MVP, monetize later
 
 ## Tech Stack
 
-- **Frontend:** Next.js 16 (App Router), TypeScript, Tailwind CSS v4, shadcn/ui
+- **Frontend:** Next.js 16 (App Router), TypeScript, Tailwind CSS v4, inline styles
 - **Auth:** Clerk
 - **Database:** Supabase (PostgreSQL) with RLS — hosted at `anjthenupycxzkvihzyf.supabase.co`
-- **AI:** Claude API via Vercel AI SDK (future)
-- **Backend API:** Express/Fastify on Railway (future)
-- **Garmin:** Python FastAPI microservice (future)
+- **AI:** Claude API via Vercel AI SDK (`@ai-sdk/anthropic`, `@ai-sdk/react`)
+- **Backend API:** Express on Railway (`server/` directory)
+- **Garmin:** Python FastAPI microservice (`services/garmin/`)
+- **Charts:** Custom SVG chart components (`src/components/charts/`)
+
+## App Structure
+
+### Navigation
+Top nav bar with three tabs: **Calendar** | **Coach** | **Settings**
+
+### Pages
+- `/dashboard` — Calendar page: month view with workout/cardio/recovery cards, fitness/fatigue/form charts, HR zone distribution, training load, recovery trend sparklines, weekly muscle body diagram (SVG), clickable workout cards with detail modal
+- `/dashboard/coach` — AI Coach chat: streaming Claude responses with 7 data tools, conversation history, suggested prompts
+- `/dashboard/settings` — Settings: Integrations (connect/disconnect providers), Preferences (distance mi/km, weight lbs/kg), Account, Goals, Notifications, Privacy, Subscription tabs
+
+## Key Features
+
+### Calendar Dashboard
+- Monthly training calendar with week rows showing daily workout/cardio/recovery data
+- Week sidebar: total time, load, distance, kcal, elevation, fitness/fatigue/form (CTL/ATL/TSB), per-type breakdown, anatomical muscle diagram (front + back SVG)
+- Clickable workout cards → detail modal with: total volume/tonnage, working sets, exercises, avg RPE, exercise breakdown table (best set, volume, e1RM via Epley), muscle groups hit
+- Chart cards (click to expand): Fitness/Fatigue/Form, HR Zone Distribution, Training Load, HRV, Sleep, Resting HR, Body Battery, Stress
+- AI insights in expanded chart modals
+- Planned workout cards for future dates with compliance badges
+- Connection bar with sync buttons per provider
+- Unit-aware display (mi/km, lbs/kg from user preferences)
+
+### AI Coach
+- Streaming chat via Vercel AI SDK `streamText` + `useChat` from `@ai-sdk/react`
+- 7 tools: `get_nutrition`, `get_workouts`, `get_cardio`, `get_recovery`, `get_weight_trend`, `get_training_plan`, `update_planned_workout`
+- Coach personality: direct, data-driven, concise, opinionated
+- Dynamic system prompt rebuilt per request with fresh user context
+- Single conversation per user, persisted to Supabase `chat_messages`
+- Plan regeneration: coach can propose plan changes, user approves/rejects
+
+### Integrations
+- **Hevy** — Workout logs (exercises, sets, reps, weight, RPE) via API key
+- **Strava** — Cardio logs (runs, rides, swims) via OAuth
+- **Garmin** — Recovery data (HRV, sleep, RHR, body battery, stress, steps) via Python microservice
+- **MacroFactor** — Nutrition logs (calories, macros) via Firebase auth
+- Encrypted credential storage (AES-256-GCM)
+- Cron-based sync workers on Railway Express backend
+
+### Training Plan
+- AI-generated plans via Claude `generateObject` with structured output
+- Rolling 2-week plan generation based on recent activity data
+- Planned workouts with targets (distance, duration, pace, HR zone, muscle focus)
+- Compliance tracking: matches planned sessions to actual Hevy/Strava data
+- Plan edit/approve/reject via API endpoints
+
+### Exercise → Muscle Mapping
+- `src/lib/exercise-muscles.ts` — keyword-based fuzzy matching of Hevy exercise names to 11 muscle groups
+- `computeMuscleVolume()` computes sets + volume per muscle group
+- Anatomical SVG body diagram (front + back) with red intensity coloring per volume
 
 ## Key Documents
 
 - **Design spec:** `docs/superpowers/specs/2026-04-25-hybrid-fitness-coach-design.md`
-- **Phase 1 plan (Foundation):** `docs/superpowers/plans/2026-04-25-phase1-foundation.md`
-- **Phase 2 plan (Onboarding):** `docs/superpowers/plans/2026-04-26-phase2-onboarding.md`
+- **Phase 1 plan:** `docs/superpowers/plans/2026-04-25-phase1-foundation.md`
+- **Phase 2 plan:** `docs/superpowers/plans/2026-04-26-phase2-onboarding.md`
+- **Phase 3 plan:** `docs/superpowers/plans/2026-04-29-phase3-integrations.md`
+- **Phase 4 plan:** `docs/superpowers/plans/2026-05-01-phase4-training-engine.md`
+- **Phase 5 plan:** `docs/superpowers/plans/2026-05-01-phase5-ai-chat-coach.md`
 
 ## Development Status
 
 ### Completed
 
-**Phase 1: Foundation** — all 7 tasks done
-- Next.js scaffold with TypeScript, Tailwind v4, Vitest
-- Clerk auth (sign-up, sign-in, middleware, webhook user sync)
-- Supabase database: 13 tables, RLS policies, indexes (migration applied)
-- Type-safe Supabase clients (browser + server)
-- App shell: sidebar navigation (Dashboard + Settings), topbar, dashboard layout
-- Dashboard shows integration test page (connections, 30-day calendar, synced data)
+**Phase 1: Foundation** — Next.js scaffold, Clerk auth, Supabase DB, app shell
 
-**Phase 2: Onboarding** — all 9 tasks done
-- Onboarding data types with conditional step visibility
-- 10 step components: profile, body goal, emphasis, race, race details, cardio, experience, availability, integrations (placeholder), split result
-- Height input uses feet/inches (stores cm in DB)
-- Basic split recommendation logic (PPL, Arnold, Upper/Lower, Full Body, hybrid)
-- Server action persists profile + goals to Supabase
-- Onboarding guard redirects incomplete users from dashboard
-- 24 tests passing across 7 test files
+**Phase 2: Onboarding** — 10-step flow, profile/goals persistence, onboarding guard
 
-**Phase 3: Integrations** — all 13 tasks done
-- Encryption utilities (AES-256-GCM) + sync_logs migration
-- Railway Express backend (server/) with config, auth, health endpoint
-- MacroFactor API client (Firebase auth + Firestore)
-- Hevy API client (REST with pagination, incremental events)
-- Strava API client + OAuth token manager
-- Sync workers: MacroFactor (nutrition), Hevy (workouts), Strava (cardio), Garmin (recovery)
-- Garmin Python FastAPI microservice (services/garmin/)
-- Cron scheduler, sync trigger/backfill routes, Strava webhook handler
-- Next.js API routes: connect, disconnect, status, sync for all 4 providers
-- Settings page with integration management UI + connection modals
-- Dashboard sync status + onboarding integrations wiring
-- 81 tests passing (57 frontend + 24 server) across 27 test files
+**Phase 3: Integrations** — All 4 providers (MacroFactor, Hevy, Strava, Garmin), Railway Express backend, sync workers, cron scheduler, settings UI
 
-### Current State
+**Phase 4: Training Plan Engine** — AI plan generation, planned workouts with targets, compliance badges, plan approval flow
 
-- Dashboard is the integration test page (connections, data calendar, raw tables)
-- Plan, Chat, Review pages removed — will be rebuilt as review/insights features
-- Sidebar: Dashboard + Settings only
-- Landing page mockups updated to reflect review-only philosophy
+**Phase 5: AI Chat Coach** — Streaming chat with 7 tools, coach personality, conversation persistence, plan regeneration via chat
 
-### Next Up
-
-- Google Calendar OAuth integration
-- AI-powered insights and coaching advice (review-oriented, not workout execution)
-- Training plan visibility (read-only view of AI-generated plan)
+**Post-phase polish:**
+- Unit preferences (mi/km, lbs/kg) in settings
+- Mobile responsiveness (collapsible sidebar, scrollable grids, full-width chat panel)
+- Workout detail modal (volume, e1RM, RPE, muscle breakdown)
+- Anatomical muscle body diagram (SVG front + back view per week)
+- Exercise-to-muscle-group mapping utility
+- App renamed from Hybro to Trainer
+- Calendar page with charts, fitness curves, recovery trends
+- AI insights in chart modals
 
 ## Development Rules
 
@@ -84,13 +114,30 @@ Hybro is a **review-and-advise** platform that connects users' existing fitness 
 ## Running
 
 ```bash
-npm run dev          # Start dev server
-npm test             # Run all tests
-npm run test:watch   # Watch mode
+npm run dev          # Start Next.js dev server
+npm test             # Run all frontend tests
+cd server && npx tsx src/index.ts  # Start Express backend (needs server/.env)
 ```
 
 ## Database
 
 - Supabase project ref: `anjthenupycxzkvihzyf`
-- Migration file: `supabase/migrations/001_initial_schema.sql` (already applied)
+- Migrations: `supabase/migrations/001_initial_schema.sql` through `004_planned_workouts_time.sql`
 - Supabase CLI linked: `npx supabase db push` to apply new migrations
+
+## Environment Variables
+
+### Next.js (`.env.local`)
+- `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+- `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+- `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REDIRECT_URI`
+- `MACROFACTOR_FIREBASE_API_KEY`, `ENCRYPTION_KEY`
+- `ANTHROPIC_API_KEY`
+- `RAILWAY_BACKEND_URL`, `RAILWAY_API_SECRET`
+
+### Express Backend (`server/.env`)
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+- `API_SECRET`, `ENCRYPTION_KEY`, `ANTHROPIC_API_KEY`
+- `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`
+- `MACROFACTOR_FIREBASE_API_KEY`
+- `GARMIN_SERVICE_URL`
