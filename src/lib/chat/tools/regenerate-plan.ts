@@ -4,6 +4,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { generateMultiWeekPlan } from "@/lib/training/generate-plan";
 import { computeComplianceStats, formatComplianceForPrompt, type ComplianceInput } from "@/lib/training/compliance";
 import { SPLIT_TYPES } from "@/lib/training/schemas";
+import { getActiveBlock } from "@/lib/training/blocks";
 
 export function regeneratePlanTool(userId: string) {
   return tool({
@@ -44,19 +45,28 @@ export function regeneratePlanTool(userId: string) {
         .eq("status", "active")
         .single();
 
-      // Build compliance stats from last 2 weeks
+      const activeBlock = activePlan ? await getActiveBlock(activePlan.id) : null;
+
+      // Build compliance stats from the active block's date range, or last 2 weeks as fallback
       let complianceText: string | null = null;
       if (activePlan) {
-        const twoWeeksAgo = new Date();
-        twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-        const sinceStr = twoWeeksAgo.toISOString().slice(0, 10);
+        const sinceStr = activeBlock
+          ? activeBlock.start_date
+          : (() => {
+              const twoWeeksAgo = new Date();
+              twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+              return twoWeeksAgo.toISOString().slice(0, 10);
+            })();
+        const untilStr = activeBlock
+          ? activeBlock.end_date
+          : new Date().toISOString().slice(0, 10);
 
         const [plannedRes, liftRes, cardioRes] = await Promise.all([
           supabase.from("planned_workouts")
             .select("date, session_type")
             .eq("plan_id", activePlan.id)
             .gte("date", sinceStr)
-            .lte("date", new Date().toISOString().slice(0, 10)),
+            .lte("date", untilStr),
           supabase.from("workout_logs")
             .select("date, name")
             .eq("user_id", userId)
@@ -113,7 +123,7 @@ export function regeneratePlanTool(userId: string) {
           does_cardio: goals?.does_cardio ?? false,
           cardio_types: goals?.cardio_types ?? [],
         },
-        weeks: 2,
+        weeks: activeBlock?.week_count ?? 2,
         compliance: complianceText,
         userRequest: user_request,
       });
@@ -144,6 +154,7 @@ export function regeneratePlanTool(userId: string) {
         plan_config: plan.plan_config,
         body_goal: goals?.body_goal || "general_fitness",
         race_type: goals?.race_type || null,
+        block_id: activeBlock?.id ?? null,
       };
     },
   });
