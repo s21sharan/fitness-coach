@@ -5,13 +5,14 @@ import { FitnessChart, type FitnessPoint } from "@/components/charts/fitness-cha
 import { RecoveryTrendChart, HrZoneChart, TrainingLoadChart, computeHrZones, type RecoveryPoint, type LoadPoint } from "@/components/charts/recovery-charts";
 import { ChartModal } from "@/components/charts/chart-modal";
 import { getUnitPreferences, fmtDist as fmtDistUnit, fmtPace as fmtPaceUnit, distanceLabel, type UnitPreferences } from "@/lib/units";
-import { PlannedCard } from "@/components/calendar/planned-card";
+import { PlannedCard, splitAmPmSessions } from "@/components/calendar/planned-card";
 import { ComplianceBadge, getComplianceStatus } from "@/components/calendar/compliance-badge";
 import { WorkoutModal } from "@/components/calendar/workout-modal";
 import { MuscleDiagram } from "@/components/calendar/muscle-diagram";
 import { computeMuscleVolume } from "@/lib/exercise-muscles";
 import { formatCalendarDateLocal } from "@/lib/dates/local-calendar";
 import type { WorkoutContractV1 } from "@/lib/training/workout-contract";
+import { ActivityDetailModal } from "@/components/charts/activity-detail-modal";
 
 /* ═══════════════════════════════════════════════
    DATA INTERFACES
@@ -44,6 +45,19 @@ interface CardioLog {
   pace_or_speed: number | null;
   calories: number | null;
   elevation: number | null;
+  start_time: string | null;
+  max_hr: number | null;
+  training_effect_aerobic: number | null;
+  training_effect_anaerobic: number | null;
+  vo2_max: number | null;
+  recovery_time_min: number | null;
+  avg_respiration: number | null;
+  avg_cadence: number | null;
+  avg_stride_length: number | null;
+  ground_contact_time: number | null;
+  hr_zones: Array<{ zone: number; low: number; high: number; minutes: number }> | null;
+  splits: Array<{ km: number; distance_m: number | null; pace_min_km: number | null; avg_hr: number | null; elevation: number | null; cadence: number | null }> | null;
+  source: string | null;
 }
 
 interface RecoveryLog {
@@ -260,22 +274,40 @@ function WorkoutCard({ w, onClick }: { w: WorkoutLog; onClick?: () => void }) {
   );
 }
 
-function CardioCard({ c: a }: { c: CardioLog }) {
+function teColor(te: number): string {
+  if (te < 2) return "#22c55e";
+  if (te < 3) return "#eab308";
+  if (te < 4) return "#f97316";
+  return "#ef4444";
+}
+
+const SOURCE_COLORS: Record<string, string> = {
+  strava: "#FC4C02",
+  garmin: "#0091D5",
+  merged: "#8b5cf6",
+};
+
+function CardioCard({ c: a, onClick }: { c: CardioLog; onClick?: () => void }) {
   const t = cType(a.type); const cl = TYPE_COLORS[t];
-  const load = estimateLoad(a.avg_hr, a.duration); const zone = hrZone(a.avg_hr);
+  const zone = hrZone(a.avg_hr);
   return (
-    <div style={{ background: cl.bg, borderLeft: `3px solid ${cl.border}`, borderRadius: 5, padding: "6px 8px", fontSize: 10, lineHeight: 1.5 }}>
+    <div onClick={onClick} style={{ background: cl.bg, borderLeft: `3px solid ${cl.border}`, borderRadius: 5, padding: "6px 8px", fontSize: 10, lineHeight: 1.5, cursor: onClick ? "pointer" : "default" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
         <span style={{ fontSize: 12 }}>{cl.icon}</span>
         <span style={{ fontWeight: 700, color: cl.text, fontSize: 11, flex: 1 }}>{fmtSec(a.duration)}</span>
-        {zone > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: ZONE_COLORS[zone - 1], background: "rgba(0,0,0,0.05)", borderRadius: 3, padding: "1px 4px" }}>Z{zone}</span>}
+        {a.training_effect_aerobic != null && (
+          <span style={{ fontSize: 9, fontWeight: 800, color: "#fff", background: teColor(a.training_effect_aerobic), borderRadius: 3, padding: "1px 4px" }}>
+            TE {a.training_effect_aerobic.toFixed(1)}
+          </span>
+        )}
+        {zone > 0 && !a.training_effect_aerobic && <span style={{ fontSize: 9, fontWeight: 700, color: ZONE_COLORS[zone - 1], background: "rgba(0,0,0,0.05)", borderRadius: 3, padding: "1px 4px" }}>Z{zone}</span>}
       </div>
       {a.distance > 0 && <div style={{ fontWeight: 800, color: cl.text, fontSize: 12 }}>{fmtDist(a.distance)} {distUnit()}</div>}
       <HrZoneBar avgHr={a.avg_hr} />
       <div style={{ color: "#6b7280", display: "flex", flexWrap: "wrap", gap: "0 6px", marginTop: 2 }}>
-        {load > 0 && <span>Load <b style={{ color: cl.text }}>{load}</b></span>}
         {a.pace_or_speed != null && a.pace_or_speed > 0 && <span>Pace {fmtPace(a.pace_or_speed)}</span>}
-        {a.avg_hr != null && <span><span style={{ color: "#ef4444" }}>♥</span> {a.avg_hr}</span>}
+        {a.avg_hr != null && <span><span style={{ color: "#ef4444" }}>♥</span> {a.avg_hr}{a.max_hr ? ` / ${a.max_hr}` : ""}</span>}
+        {a.vo2_max != null && <span style={{ color: "#6366f1" }}>V̇O₂ {Math.round(a.vo2_max)}</span>}
       </div>
       {(a.calories != null || a.elevation != null) && (
         <div style={{ color: "#9ca3af", display: "flex", gap: 6, marginTop: 1 }}>
@@ -283,12 +315,15 @@ function CardioCard({ c: a }: { c: CardioLog }) {
           {a.elevation != null && a.elevation > 0 && <span>↑{Math.round(a.elevation)}m</span>}
         </div>
       )}
-      <div style={{ marginTop: 3, fontSize: 9, color: "#9ca3af" }}>{cl.label}</div>
+      <div style={{ marginTop: 3, display: "flex", alignItems: "center", gap: 4 }}>
+        <span style={{ fontSize: 9, color: "#9ca3af" }}>{cl.label}</span>
+        {a.source && <span style={{ width: 5, height: 5, borderRadius: "50%", background: SOURCE_COLORS[a.source] || "#9ca3af", display: "inline-block" }} title={a.source} />}
+      </div>
     </div>
   );
 }
 
-function RecoveryBar({ r }: { r: RecoveryLog }) {
+function RecoveryBar({ r, recoveryTimeMin }: { r: RecoveryLog; recoveryTimeMin?: number | null }) {
   const metrics: { icon: string; value: string; label: string; color: string }[] = [];
   if (r.sleep_hours !== null) {
     const c = r.sleep_hours >= 7 ? "#16a34a" : r.sleep_hours >= 6 ? "#ca8a04" : "#dc2626";
@@ -308,6 +343,9 @@ function RecoveryBar({ r }: { r: RecoveryLog }) {
   }
   if (r.steps !== null && r.steps > 0) {
     metrics.push({ icon: "👟", value: r.steps >= 1000 ? `${(r.steps / 1000).toFixed(1)}k` : `${r.steps}`, label: "Steps", color: "#6b7280" });
+  }
+  if (recoveryTimeMin != null && recoveryTimeMin > 0) {
+    metrics.push({ icon: "⏱", value: `${Math.round(recoveryTimeMin / 60)}h`, label: "Recover", color: "#f97316" });
   }
   if (metrics.length === 0) return null;
   return (
@@ -332,7 +370,7 @@ function RecoveryBar({ r }: { r: RecoveryLog }) {
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-function DayColumn({ day, dayIndex, onWorkoutClick }: { day: DayData; dayIndex: number; onWorkoutClick?: (w: WorkoutLog) => void }) {
+function DayColumn({ day, dayIndex, onWorkoutClick, onActivityClick }: { day: DayData; dayIndex: number; onWorkoutClick?: (w: WorkoutLog) => void; onActivityClick?: (c: CardioLog) => void }) {
   const today = toDS(new Date());
   const isToday = day.date === today;
   const isFuture = day.date > today;
@@ -344,28 +382,32 @@ function DayColumn({ day, dayIndex, onWorkoutClick }: { day: DayData; dayIndex: 
     ? getComplianceStatus(day.planned.session_type, day.workouts, day.cardio)
     : null;
 
+  const maxRecoveryTime = day.cardio.reduce((max, c) => Math.max(max, c.recovery_time_min || 0), 0);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4, minHeight: (hasActivity || day.planned) ? 120 : 60, padding: "0 2px" }}>
       <div style={{ textAlign: "center", padding: "4px 0 2px", borderBottom: isToday ? "2px solid #3b82f6" : "1px solid #f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
         <div style={{ fontSize: 13, fontWeight: 800, color: isToday ? "#fff" : "#374151", background: isToday ? "#3b82f6" : "transparent", width: 24, height: 24, borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{dayNum}</div>
         {compliance && <ComplianceBadge status={compliance} />}
       </div>
-      {day.recovery && <RecoveryBar r={day.recovery} />}
+      {day.recovery && <RecoveryBar r={day.recovery} recoveryTimeMin={maxRecoveryTime || null} />}
       {day.workouts.map((w, i) => <WorkoutCard key={`w-${i}`} w={w} onClick={() => onWorkoutClick?.(w)} />)}
-      {day.cardio.map((c, i) => <CardioCard key={`c-${i}`} c={c} />)}
-      {day.planned && (
+      {day.cardio.map((c, i) => <CardioCard key={`c-${i}`} c={c} onClick={onActivityClick ? () => onActivityClick(c) : undefined} />)}
+      {day.planned && splitAmPmSessions(day.planned.session_type, day.planned.ai_notes, day.planned.targets).map((s, i) => (
         <PlannedCard
+          key={`p-${i}`}
           variant={isToday ? "today" : isFuture ? "future" : "past"}
-          sessionType={day.planned.session_type}
-          aiNotes={day.planned.ai_notes}
-          targets={day.planned.targets}
+          sessionType={s.label}
+          aiNotes={s.aiNotes}
+          slot={s.slot}
+          targets={s.targets}
         />
-      )}
+      ))}
     </div>
   );
 }
 
-function WeekRow({ days, weekNum, fitnessCurve, onWorkoutClick }: { days: DayData[]; weekNum: number; fitnessCurve: FitnessPoint[]; onWorkoutClick?: (w: WorkoutLog) => void }) {
+function WeekRow({ days, weekNum, fitnessCurve, onWorkoutClick, onActivityClick }: { days: DayData[]; weekNum: number; fitnessCurve: FitnessPoint[]; onWorkoutClick?: (w: WorkoutLog) => void; onActivityClick?: (c: CardioLog) => void }) {
   const todayStr = toDS(new Date());
   // A week is "future" if its first day is after today
   const isFutureWeek = days[0].date > todayStr;
@@ -451,7 +493,7 @@ function WeekRow({ days, weekNum, fitnessCurve, onWorkoutClick }: { days: DayDat
       <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 0, minWidth: 0 }}>
         {days.map((day, i) => (
           <div key={day.date} style={{ borderRight: i < 6 ? "1px solid #f3f4f6" : "none", padding: "0 1px" }}>
-            <DayColumn day={day} dayIndex={i} onWorkoutClick={onWorkoutClick} />
+            <DayColumn day={day} dayIndex={i} onWorkoutClick={onWorkoutClick} onActivityClick={onActivityClick} />
           </div>
         ))}
       </div>
@@ -545,6 +587,7 @@ export default function DashboardPage() {
   const [insightLoading, setInsightLoading] = useState<string | null>(null);
   const [units, setUnits] = useState<UnitPreferences>({ distance: "mi", weight: "lbs" });
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutLog | null>(null);
+  const [selectedActivity, setSelectedActivity] = useState<CardioLog | null>(null);
 
   // Load unit preferences
   useEffect(() => {
@@ -695,7 +738,7 @@ export default function DashboardPage() {
       </div>
 
       <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "auto" }}>
-        {weeks.map((weekDays, wi) => <WeekRow key={weekDays[0].date} days={weekDays} weekNum={weekNumbers[wi]} fitnessCurve={fitnessCurve} onWorkoutClick={setSelectedWorkout} />)}
+        {weeks.map((weekDays, wi) => <WeekRow key={weekDays[0].date} days={weekDays} weekNum={weekNumbers[wi]} fitnessCurve={fitnessCurve} onWorkoutClick={setSelectedWorkout} onActivityClick={setSelectedActivity} />)}
       </div>
 
       {/* Legend */}
@@ -776,6 +819,12 @@ export default function DashboardPage() {
           onClose={() => setSelectedWorkout(null)}
         />
       )}
+
+      <ActivityDetailModal
+        open={!!selectedActivity}
+        onClose={() => setSelectedActivity(null)}
+        activity={selectedActivity}
+      />
     </div>
   );
 }
