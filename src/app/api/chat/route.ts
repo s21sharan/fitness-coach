@@ -16,7 +16,9 @@ import {
   updatePlannedWorkoutTool,
   regeneratePlanTool,
   getSearchResearchTool,
+  proposeNextBlockTool,
 } from "@/lib/chat/tools";
+import { getActiveBlock, getBlockComplianceStats, computeBlockWeekNumber } from "@/lib/training/blocks";
 
 export const maxDuration = 30;
 
@@ -143,6 +145,28 @@ export async function POST(request: Request) {
     }
   }
 
+  // Fetch active block if plan exists
+  let blockContext = null;
+  if (plan) {
+    const activeBlock = await getActiveBlock(plan.id);
+    if (activeBlock) {
+      const compliance = await getBlockComplianceStats(activeBlock.id);
+      const today = new Date().toISOString().slice(0, 10);
+      const endDate = new Date(activeBlock.end_date);
+      const daysUntilEnd = Math.ceil((endDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+      blockContext = {
+        block_type: activeBlock.block_type,
+        block_label: activeBlock.block_label,
+        block_number: activeBlock.block_number,
+        week_count: activeBlock.week_count,
+        current_week: computeBlockWeekNumber(activeBlock.start_date, today),
+        end_date: activeBlock.end_date,
+        days_until_end: Math.max(0, daysUntilEnd),
+        compliance_pct: compliance.pct,
+      };
+    }
+  }
+
   const systemPrompt = buildSystemPrompt({
     profile: profile
       ? {
@@ -188,6 +212,7 @@ export async function POST(request: Request) {
     recovery,
     weekStats,
     hrZones,
+    block: blockContext,
   });
 
   // Convert UIMessages from client using AI SDK's proper converter
@@ -210,6 +235,7 @@ export async function POST(request: Request) {
       update_planned_workout: updatePlannedWorkoutTool(userId),
       regenerate_plan: regeneratePlanTool(userId),
       search_research: getSearchResearchTool(),
+      propose_next_block: proposeNextBlockTool(userId),
     },
     stopWhen: stepCountIs(5),
     onFinish: async (event) => {
