@@ -37,13 +37,13 @@ export function FitnessChart({ data, compact = false }: FitnessChartProps) {
       {!compact && (
         <div style={{ display: "flex", gap: 18, marginBottom: 12, fontSize: 12, fontWeight: 600 }}>
           <span style={{ color: chartColors.fitness, display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 3, background: chartColors.fitness }} /> Fitness (CTL) <b>{lastP.ctl}</b>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: chartColors.fitness }} /> Fitness <b>{lastP.ctl}</b>
           </span>
           <span style={{ color: chartColors.fatigue, display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 3, background: chartColors.fatigue }} /> Fatigue (ATL) <b>{lastP.atl}</b>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: chartColors.fatigue }} /> Fatigue <b>{lastP.atl}</b>
           </span>
           <span style={{ color: formColor, display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 3, background: formColor }} /> Form (TSB) <b>{lastP.tsb}</b>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: formColor }} /> Form <b>{lastP.tsb}</b>
           </span>
         </div>
       )}

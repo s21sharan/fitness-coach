@@ -5,7 +5,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ReferenceLine,
 } from "recharts";
 import { chartColors, tooltipStyle, tooltipItemStyle, tooltipLabelStyle, gridProps, axisProps } from "@/components/charts/chart-theme";
-import { TYPE_COLORS, ZONE_COLORS, estimateLoad, hrZone, fmtSec, cType, fmtMin } from "@/lib/training/calendar-data";
+import { TYPE_COLORS, ZONE_COLORS, estimateLoad, hrZone, fmtSec, cType, fmtMin, type ZoneBoundary } from "@/lib/training/calendar-data";
 import { fmtDist as fmtDistUnit, fmtPace as fmtPaceUnit, distanceLabel, type UnitPreferences } from "@/lib/units";
 import type { CardioLog } from "@/lib/hooks/use-dashboard-data";
 
@@ -13,12 +13,28 @@ interface CardioModalProps {
   cardio: CardioLog;
   allCardio: CardioLog[];
   units: UnitPreferences;
+  hrZoneBoundaries?: ZoneBoundary[] | null;
   open: boolean;
   onClose: () => void;
 }
 
 const ZONE_LABELS = ["Recovery", "Aerobic", "Tempo", "Threshold", "Anaerobic"];
-const ZONE_RANGES = ["< 120 bpm", "120-140", "140-155", "155-170", "170+ bpm"];
+
+function zoneRangeStr(boundaries: ZoneBoundary[] | null | undefined, i: number): string {
+  const bs = boundaries && boundaries.length === 5
+    ? boundaries
+    : [
+        { zone: 1, low: 0, high: 120 },
+        { zone: 2, low: 120, high: 140 },
+        { zone: 3, low: 140, high: 155 },
+        { zone: 4, low: 155, high: 170 },
+        { zone: 5, low: 170, high: 250 },
+      ];
+  const b = bs[i];
+  if (i === 0) return `< ${b.high} bpm`;
+  if (i === 4) return `${b.low}+ bpm`;
+  return `${b.low}-${b.high} bpm`;
+}
 
 function formatDate(dateStr: string): string {
   try {
@@ -29,22 +45,19 @@ function formatDate(dateStr: string): string {
   }
 }
 
-function effortLabel(avgHr: number | null): string {
-  if (!avgHr) return "Unknown";
-  if (avgHr < 120) return "Easy";
-  if (avgHr < 140) return "Aerobic";
-  if (avgHr < 155) return "Tempo";
-  if (avgHr < 170) return "Threshold";
-  return "Anaerobic";
+function effortLabel(zone: number): string {
+  if (zone <= 0) return "Unknown";
+  return ZONE_LABELS[zone - 1] ?? "Unknown";
 }
 
-// Intensity factor: avg_hr / theoretical threshold (~170)
-function intensityFactor(avgHr: number | null): number {
+// Intensity factor: avg_hr / Z4 lower bound (default 170 if no zones).
+function intensityFactor(avgHr: number | null, boundaries: ZoneBoundary[] | null | undefined): number {
   if (!avgHr) return 0;
-  return Math.round((avgHr / 170) * 100) / 100;
+  const threshold = boundaries && boundaries.length === 5 ? boundaries[3].low : 170;
+  return Math.round((avgHr / threshold) * 100) / 100;
 }
 
-export function CardioModal({ cardio, allCardio, units, open, onClose }: CardioModalProps) {
+export function CardioModal({ cardio, allCardio, units, hrZoneBoundaries, open, onClose }: CardioModalProps) {
   const handleEsc = useCallback((e: KeyboardEvent) => {
     if (e.key === "Escape") onClose();
   }, [onClose]);
@@ -62,10 +75,10 @@ export function CardioModal({ cardio, allCardio, units, open, onClose }: CardioM
 
   const type = cType(cardio.type);
   const color = TYPE_COLORS[type];
-  const zone = hrZone(cardio.avg_hr);
+  const zone = hrZone(cardio.avg_hr, hrZoneBoundaries);
   const load = estimateLoad(cardio.avg_hr, cardio.duration);
-  const ifactor = intensityFactor(cardio.avg_hr);
-  const effort = effortLabel(cardio.avg_hr);
+  const ifactor = intensityFactor(cardio.avg_hr, hrZoneBoundaries);
+  const effort = effortLabel(zone);
 
   // Comparison: last 8 activities of the same type (including this one)
   const recent = useMemo(() => {
@@ -188,13 +201,15 @@ export function CardioModal({ cardio, allCardio, units, open, onClose }: CardioM
                   Z{zone} · {ZONE_LABELS[zone - 1]}
                 </div>
                 <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
-                  {ZONE_RANGES[zone - 1]} · session avg {cardio.avg_hr} bpm
+                  {zoneRangeStr(hrZoneBoundaries, zone - 1)} · session avg {cardio.avg_hr} bpm
                 </div>
               </div>
               <div style={{ flex: 1, minWidth: 240 }}>
-                <ZoneScale activeZone={zone} avgHr={cardio.avg_hr} />
+                <ZoneScale activeZone={zone} avgHr={cardio.avg_hr} boundaries={hrZoneBoundaries} />
                 <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 8, lineHeight: 1.4 }}>
-                  Single-zone classification from average HR. Per-second time-in-zone breakdown isn{"'"}t available from Strava{"'"}s API.
+                  {Array.isArray(cardio.hr_zones) && cardio.hr_zones.length > 0
+                    ? "Zones synced from Garmin (per-second time-in-zone)."
+                    : "Single-zone classification from average HR. Strava activities don't carry per-second HR."}
                 </div>
               </div>
             </div>
@@ -209,7 +224,12 @@ export function CardioModal({ cardio, allCardio, units, open, onClose }: CardioM
             gap: 10,
           }}>
             <PerfCard label="Training load" value={`${load}`} sub="TRIMP-style" hint="duration × HR intensity²" />
-            <PerfCard label="Intensity factor" value={ifactor > 0 ? ifactor.toFixed(2) : "—"} sub={`vs 170 bpm threshold`} hint="<0.75 easy · 0.85+ hard" />
+            <PerfCard
+              label="Intensity factor"
+              value={ifactor > 0 ? ifactor.toFixed(2) : "—"}
+              sub={`vs ${hrZoneBoundaries?.length === 5 ? hrZoneBoundaries[3].low : 170} bpm threshold`}
+              hint="<0.75 easy · 0.85+ hard"
+            />
             <PerfCard label="Effort" value={effort} sub="from avg HR" />
             {stats && (
               <PerfCard
@@ -342,10 +362,16 @@ function Delta({ label, delta, format, positiveIsGood }: { label: string; delta:
   );
 }
 
-function ZoneScale({ activeZone, avgHr }: { activeZone: number; avgHr: number }) {
-  // Position avgHr on a 100..190 scale
-  const minHr = 100;
-  const maxHr = 190;
+function ZoneScale({ activeZone, avgHr, boundaries }: { activeZone: number; avgHr: number; boundaries?: ZoneBoundary[] | null }) {
+  const bs = boundaries && boundaries.length === 5 ? boundaries : [
+    { zone: 1, low: 100, high: 120 },
+    { zone: 2, low: 120, high: 140 },
+    { zone: 3, low: 140, high: 155 },
+    { zone: 4, low: 155, high: 170 },
+    { zone: 5, low: 170, high: 190 },
+  ];
+  const minHr = Math.max(60, bs[0].low > 0 ? bs[0].low : bs[1].low - 20);
+  const maxHr = bs[4].high < 250 ? bs[4].high : Math.max(bs[4].low + 20, 190);
   const pct = Math.min(100, Math.max(0, ((avgHr - minHr) / (maxHr - minHr)) * 100));
   return (
     <div>
@@ -375,12 +401,12 @@ function ZoneScale({ activeZone, avgHr }: { activeZone: number; avgHr: number })
         }} />
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 9, color: "#9ca3af", fontWeight: 600 }}>
-        <span>100</span>
-        <span>120</span>
-        <span>140</span>
-        <span>155</span>
-        <span>170</span>
-        <span>190 bpm</span>
+        <span>{minHr}</span>
+        <span>{bs[1].low}</span>
+        <span>{bs[2].low}</span>
+        <span>{bs[3].low}</span>
+        <span>{bs[4].low}</span>
+        <span>{maxHr} bpm</span>
       </div>
     </div>
   );

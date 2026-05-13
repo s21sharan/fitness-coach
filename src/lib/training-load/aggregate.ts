@@ -72,6 +72,7 @@ export async function aggregateAthleteLoad(
       .from("cardio_logs")
       .select("date, type, distance, duration")
       .eq("user_id", userId)
+      .eq("is_suppressed", false)
       .gte("date", since)
       .order("date", { ascending: false })
       .returns<CardioRow[]>(),
@@ -79,6 +80,7 @@ export async function aggregateAthleteLoad(
       .from("workout_logs")
       .select("date, duration_minutes")
       .eq("user_id", userId)
+      .eq("is_suppressed", false)
       .gte("date", since)
       .order("date", { ascending: false })
       .returns<WorkoutRow[]>(),

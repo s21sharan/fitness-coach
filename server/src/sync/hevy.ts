@@ -5,6 +5,7 @@ import { decrypt } from "../utils/encryption.js";
 import { calendarDateInTimeZone } from "../utils/activity-calendar-date.js";
 import { fetchUserTimeZone } from "../utils/user-timezone.js";
 import { getActiveIntegrations, logSync, updateSyncTimestamp, markIntegrationError } from "./base.js";
+import { reconcileUserActivities } from "./reconcile.js";
 
 interface NormalizedExercise {
   name: string;
@@ -34,6 +35,8 @@ export function normalizeWorkout(userId: string, workout: HevyWorkout, timeZone 
     name: workout.title,
     duration_minutes: durationMinutes,
     exercises,
+    provider: "hevy",
+    start_time: workout.start_time,
     synced_at: new Date().toISOString(),
   };
 }
@@ -43,6 +46,7 @@ export async function syncHevyForUser(userId: string, apiKeyEncrypted: string, s
   const client = new HevyClient(apiKey);
 
   let workouts: HevyWorkout[];
+  let hadDeletes = false;
 
   if (since) {
     const events = await client.getWorkoutEvents(since);
@@ -60,6 +64,7 @@ export async function syncHevyForUser(userId: string, apiKeyEncrypted: string, s
         .delete()
         .eq("user_id", userId)
         .in("workout_id", deletedIds);
+      hadDeletes = true;
     }
   } else {
     workouts = await client.getWorkouts();
@@ -74,6 +79,18 @@ export async function syncHevyForUser(userId: string, apiKeyEncrypted: string, s
       .upsert(rows, { onConflict: "user_id,workout_id" });
 
     if (error) throw error;
+  }
+
+  if (rows.length > 0 || hadDeletes) {
+    // Reconcile across the affected date range so deleted Hevy rows
+    // un-suppress lower-priority duplicates (e.g. Strava strength).
+    const dates = rows.map((r) => r.date);
+    if (hadDeletes) {
+      await reconcileUserActivities(userId);
+    } else if (dates.length > 0) {
+      dates.sort();
+      await reconcileUserActivities(userId, { from: dates[0], to: dates[dates.length - 1] });
+    }
   }
 
   return rows.length;

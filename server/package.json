@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --env-file=.env node_modules/.bin/tsx watch src/index.ts",
+    "dev": "concurrently -n express,garmin -c blue,green --kill-others-on-fail \"npm:dev:express\" \"npm:dev:garmin\"",
+    "dev:express": "node --env-file=.env node_modules/.bin/tsx watch src/index.ts",
+    "dev:garmin": "cd ../services/garmin && (test -d .venv || python3 -m venv .venv) && .venv/bin/pip install -q -r requirements.txt && .venv/bin/uvicorn main:app --port 8001 --reload",
+    "dev:express-only": "node --env-file=.env node_modules/.bin/tsx watch src/index.ts",
     "start": "node dist/index.js",
     "build": "tsc",
     "test": "vitest run",
@@ -21,6 +24,7 @@
   "devDependencies": {
     "@types/express": "^5.0.2",
     "@types/node": "^20",
+    "concurrently": "^9.1.0",
     "tsx": "^4.19.0",
     "typescript": "^5",
     "vitest": "^4.1.5"

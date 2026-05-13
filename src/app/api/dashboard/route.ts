@@ -79,12 +79,14 @@ export async function GET() {
       .from("workout_logs")
       .select("date, name, duration_minutes, exercises")
       .eq("user_id", userId)
+      .eq("is_suppressed", false)
       .gte("date", weekStartStr)
       .lte("date", weekEndStr),
     supabase
       .from("cardio_logs")
       .select("date, type, distance, duration, avg_hr, pace_or_speed")
       .eq("user_id", userId)
+      .eq("is_suppressed", false)
       .gte("date", weekStartStr)
       .lte("date", weekEndStr),
   ]);

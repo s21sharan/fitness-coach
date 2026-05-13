@@ -38,12 +38,14 @@ export async function gatherWeekData(userId: string, planId: string, weekStartDa
       .from("workout_logs")
       .select("date, name, duration_minutes, exercises")
       .eq("user_id", userId)
+      .eq("is_suppressed", false)
       .gte("date", weekStartDate)
       .lte("date", endStr),
     supabase
       .from("cardio_logs")
       .select("date, type, distance, duration, avg_hr")
       .eq("user_id", userId)
+      .eq("is_suppressed", false)
       .gte("date", weekStartDate)
       .lte("date", endStr),
     supabase

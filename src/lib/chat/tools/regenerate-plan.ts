@@ -60,11 +60,15 @@ export function regeneratePlanTool(userId: string) {
           supabase.from("workout_logs")
             .select("date, name")
             .eq("user_id", userId)
-            .gte("date", sinceStr),
+            .eq("is_suppressed", false)
+            .gte("date", sinceStr)
+            .order("date", { ascending: false }),
           supabase.from("cardio_logs")
             .select("date, type, distance")
             .eq("user_id", userId)
-            .gte("date", sinceStr),
+            .eq("is_suppressed", false)
+            .gte("date", sinceStr)
+            .order("date", { ascending: false }),
         ]);
 
         if (plannedRes.data && plannedRes.data.length > 0) {

@@ -19,9 +19,9 @@ export async function POST(req: Request) {
   // Fetch user data in parallel
   const [workoutsRes, cardioRes, recoveryRes] = await Promise.all([
     supabase.from("workout_logs").select("date, name, duration_minutes, exercises")
-      .eq("user_id", userId).gte("date", sinceStr).order("date", { ascending: false }),
+      .eq("user_id", userId).eq("is_suppressed", false).gte("date", sinceStr).order("date", { ascending: false }),
     supabase.from("cardio_logs").select("date, type, distance, duration, avg_hr, calories, elevation, pace_or_speed")
-      .eq("user_id", userId).gte("date", sinceStr).order("date", { ascending: false }),
+      .eq("user_id", userId).eq("is_suppressed", false).gte("date", sinceStr).order("date", { ascending: false }),
     supabase.from("recovery_logs").select("date, resting_hr, hrv, sleep_hours, sleep_score, body_battery, stress_level, steps")
       .eq("user_id", userId).gte("date", sinceStr).order("date", { ascending: false }),
   ]);

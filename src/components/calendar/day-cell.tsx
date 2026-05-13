@@ -5,7 +5,7 @@ import { ComplianceBadge, getComplianceStatus } from "./compliance-badge";
 import {
   TYPE_COLORS, ZONE_COLORS,
   exerciseSummary, estimateLoad, hrZone, fmtMin, fmtSec, cType, toDS,
-  type DayData,
+  type DayData, type ZoneBoundary,
 } from "@/lib/training/calendar-data";
 import type { CardioLog, PlannedWorkout, RecoveryLog, WorkoutLog } from "@/lib/hooks/use-dashboard-data";
 import { fmtDist as fmtDistUnit, fmtPace as fmtPaceUnit, distanceLabel, type UnitPreferences } from "@/lib/units";
@@ -16,6 +16,7 @@ interface DayCellProps {
   day: DayData;
   variant?: DayCellVariant;
   units: UnitPreferences;
+  hrZoneBoundaries?: ZoneBoundary[] | null;
   onWorkoutClick?: (w: WorkoutLog) => void;
   onCardioClick?: (c: CardioLog) => void;
 }
@@ -26,8 +27,8 @@ function distUnit(units: UnitPreferences) { return distanceLabel(units.distance)
 
 /* ─── Tall (week-view) primitives ─── */
 
-function HrZoneBar({ avgHr }: { avgHr: number | null }) {
-  const zone = hrZone(avgHr);
+function HrZoneBar({ avgHr, boundaries }: { avgHr: number | null; boundaries?: ZoneBoundary[] | null }) {
+  const zone = hrZone(avgHr, boundaries);
   if (!zone) return null;
   return (
     <div style={{ display: "flex", gap: 1, height: 6, borderRadius: 2, overflow: "hidden", marginTop: 5 }}>
@@ -91,11 +92,11 @@ function WorkoutCardTall({ w, onClick }: { w: WorkoutLog; onClick?: () => void }
   );
 }
 
-function CardioCardTall({ c: a, units, onClick }: { c: CardioLog; units: UnitPreferences; onClick?: () => void }) {
+function CardioCardTall({ c: a, units, boundaries, onClick }: { c: CardioLog; units: UnitPreferences; boundaries?: ZoneBoundary[] | null; onClick?: () => void }) {
   const t = cType(a.type);
   const cl = TYPE_COLORS[t];
   const load = estimateLoad(a.avg_hr, a.duration);
-  const zone = hrZone(a.avg_hr);
+  const zone = hrZone(a.avg_hr, boundaries);
 
   return (
     <div
@@ -121,7 +122,7 @@ function CardioCardTall({ c: a, units, onClick }: { c: CardioLog; units: UnitPre
           {fmtDist(a.distance, units)} {distUnit(units)}
         </div>
       )}
-      <HrZoneBar avgHr={a.avg_hr} />
+      <HrZoneBar avgHr={a.avg_hr} boundaries={boundaries} />
       <div style={{ color: "#6b7280", display: "flex", flexWrap: "wrap", gap: "0 7px", marginTop: 3 }}>
         {load > 0 && <span>Load <b style={{ color: cl.text }}>{load}</b></span>}
         {a.pace_or_speed != null && a.pace_or_speed > 0 && <span>Pace {fmtPace(a.pace_or_speed, units)}</span>}
@@ -241,7 +242,7 @@ function inferTypeFromSession(session: string): string {
 
 /* ─── DayCell ─── */
 
-export function DayCell({ day, variant = "compact", units, onWorkoutClick, onCardioClick }: DayCellProps) {
+export function DayCell({ day, variant = "compact", units, hrZoneBoundaries, onWorkoutClick, onCardioClick }: DayCellProps) {
   const today = toDS(new Date());
   const isToday = day.date === today;
   const isFuture = day.date > today;
@@ -282,7 +283,7 @@ export function DayCell({ day, variant = "compact", units, onWorkoutClick, onCar
           <WorkoutCardTall key={`w-${i}`} w={w} onClick={onWorkoutClick ? () => onWorkoutClick(w) : undefined} />
         ))}
         {day.cardio.map((c, i) => (
-          <CardioCardTall key={`c-${i}`} c={c} units={units} onClick={onCardioClick ? () => onCardioClick(c) : undefined} />
+          <CardioCardTall key={`c-${i}`} c={c} units={units} boundaries={hrZoneBoundaries} onClick={onCardioClick ? () => onCardioClick(c) : undefined} />
         ))}
         {day.planned && splitAmPmSessions(
           day.planned.session_type,

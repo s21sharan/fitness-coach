@@ -72,6 +72,18 @@ export interface PlannedWorkout {
   status: string;
 }
 
+export interface ZoneBoundary {
+  zone: number;
+  low: number;
+  high: number;
+}
+
+export interface UserHrZones {
+  source: "garmin" | "legacy";
+  boundaries: ZoneBoundary[];
+  syncedAt: string | null;
+}
+
 export interface ApiData {
   integrations: Integration[];
   nutrition: unknown[];
@@ -79,6 +91,7 @@ export interface ApiData {
   cardio: CardioLog[];
   recovery: RecoveryLog[];
   planned: PlannedWorkout[];
+  hrZones: UserHrZones | null;
 }
 
 export interface UseDashboardData {
@@ -112,6 +125,7 @@ export function useDashboardData(): UseDashboardData {
       setData({
         ...json,
         planned: Array.isArray(json.planned) ? json.planned : [],
+        hrZones: json.hrZones ?? null,
       } as ApiData);
     }
     if (!opts?.silent) setLoading(false);

@@ -114,26 +114,69 @@ export interface HrZoneData {
 
 const ZONE_COLORS = chartColors.zones;
 const ZONE_LABELS = ["Z1 Recovery", "Z2 Aerobic", "Z3 Tempo", "Z4 Threshold", "Z5 Anaerobic"];
-const ZONE_RANGES = ["< 120 bpm", "120-140", "140-155", "155-170", "170+"];
 
-export function computeHrZones(cardio: { avg_hr: number | null; duration: number }[]): HrZoneData[] {
+const LEGACY_BOUNDARIES = [
+  { zone: 1, low: 0, high: 120 },
+  { zone: 2, low: 120, high: 140 },
+  { zone: 3, low: 140, high: 155 },
+  { zone: 4, low: 155, high: 170 },
+  { zone: 5, low: 170, high: 250 },
+];
+
+interface ZoneBoundary {
+  zone: number;
+  low: number;
+  high: number;
+}
+
+interface GarminZoneMinutes {
+  zone: number;
+  low: number;
+  high: number;
+  minutes: number;
+}
+
+export function computeHrZones(
+  cardio: { avg_hr: number | null; duration: number; hr_zones?: GarminZoneMinutes[] | null }[],
+  boundaries?: ZoneBoundary[] | null,
+): HrZoneData[] {
+  const bs = boundaries && boundaries.length === 5 ? boundaries : LEGACY_BOUNDARIES;
   const mins = [0, 0, 0, 0, 0];
   for (const c of cardio) {
+    // Prefer device-supplied per-second tally when present — Garmin already
+    // bucketed per-second HR using the user's actual zones.
+    if (Array.isArray(c.hr_zones) && c.hr_zones.length > 0) {
+      for (const z of c.hr_zones) {
+        if (typeof z?.zone === "number" && typeof z?.minutes === "number" && z.zone >= 1 && z.zone <= 5) {
+          mins[z.zone - 1] += z.minutes;
+        }
+      }
+      continue;
+    }
+    // Fallback: bucket the activity's avg_hr against the canonical boundaries
+    // and credit its full duration to that single zone.
     if (c.avg_hr && c.duration) {
       const m = c.duration / 60;
-      const z = c.avg_hr < 120 ? 0 : c.avg_hr < 140 ? 1 : c.avg_hr < 155 ? 2 : c.avg_hr < 170 ? 3 : 4;
+      let z = 0;
+      for (let i = bs.length - 1; i >= 0; i--) {
+        if (c.avg_hr >= bs[i].low) { z = i; break; }
+      }
       mins[z] += m;
     }
   }
   const total = mins.reduce((a, b) => a + b, 0) || 1;
-  return mins.map((m, i) => ({
-    zone: `Z${i + 1}`,
-    label: ZONE_LABELS[i],
-    range: ZONE_RANGES[i],
-    minutes: Math.round(m),
-    percent: Math.round(m / total * 100),
-    color: ZONE_COLORS[i],
-  }));
+  return mins.map((m, i) => {
+    const b = bs[i];
+    const range = i === 0 ? `< ${b.high} bpm` : i === bs.length - 1 ? `${b.low}+ bpm` : `${b.low}-${b.high} bpm`;
+    return {
+      zone: `Z${i + 1}`,
+      label: ZONE_LABELS[i],
+      range,
+      minutes: Math.round(m),
+      percent: Math.round(m / total * 100),
+      color: ZONE_COLORS[i],
+    };
+  });
 }
 
 export function HrZoneChart({ zones, compact = false }: { zones: HrZoneData[]; compact?: boolean }) {
@@ -208,52 +251,53 @@ function fmtZoneTime(mins: number): string {
   return h > 0 ? `${h}h${String(m).padStart(2, "0")}m` : `${m}m`;
 }
 
-/* ─── Training Load Bar Chart ─── */
+/* ─── Training Load Bar Chart (stacked by activity type) ─── */
 
-export interface LoadPoint {
-  date: string;
-  load: number;
-  type: string;
+export interface LoadByTypePoint {
+  week: string;
+  lift: number;
+  run: number;
+  bike: number;
+  swim: number;
+  other: number;
+  total: number;
 }
 
-export function TrainingLoadChart({ data, compact = false }: { data: LoadPoint[]; compact?: boolean }) {
+const TYPE_ORDER: Array<{ key: keyof Omit<LoadByTypePoint, "week" | "total">; label: string }> = [
+  { key: "lift", label: "Strength" },
+  { key: "run", label: "Run" },
+  { key: "bike", label: "Bike" },
+  { key: "swim", label: "Swim" },
+  { key: "other", label: "Other" },
+];
+
+export function TrainingLoadChart({ data, compact = false }: { data: LoadByTypePoint[]; compact?: boolean }) {
   if (data.length === 0) return <div style={{ color: chartColors.textFaint, fontSize: 11, padding: 8 }}>No training data</div>;
 
-  const weekMap = new Map<string, number>();
-  for (const d of data) {
-    const date = new Date(d.date + "T00:00:00");
-    const day = date.getDay();
-    const monday = new Date(date);
-    monday.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
-    const weekKey = monday.toISOString().slice(0, 10);
-    weekMap.set(weekKey, (weekMap.get(weekKey) || 0) + d.load);
-  }
-
-  const weekData = Array.from(weekMap.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-12)
-    .map(([week, load]) => ({ week, load }));
-
   const h = compact ? 112 : 220;
+  const presentTypes = TYPE_ORDER.filter((t) => data.some((d) => d[t.key] > 0));
 
-  // In compact mode, show every 3rd date label to avoid crowding
   const compactTickIndices = new Set<number>();
-  if (compact && weekData.length > 0) {
+  if (compact && data.length > 0) {
     compactTickIndices.add(0);
-    compactTickIndices.add(Math.floor(weekData.length / 2));
-    compactTickIndices.add(weekData.length - 1);
+    compactTickIndices.add(Math.floor(data.length / 2));
+    compactTickIndices.add(data.length - 1);
   }
 
   return (
     <div>
+      {!compact && presentTypes.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 10, fontSize: 11, color: chartColors.textMuted }}>
+          {presentTypes.map((t) => (
+            <span key={t.key} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 600 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: chartColors.byType[t.key] }} />
+              {t.label}
+            </span>
+          ))}
+        </div>
+      )}
       <ResponsiveContainer width="100%" height={h}>
-        <BarChart data={weekData} margin={{ top: 6, right: compact ? 4 : 6, bottom: compact ? 2 : 4, left: compact ? 4 : 0 }} barCategoryGap="22%">
-          <defs>
-            <linearGradient id="grad-load" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={chartColors.load} stopOpacity={1} />
-              <stop offset="100%" stopColor={chartColors.load} stopOpacity={0.55} />
-            </linearGradient>
-          </defs>
+        <BarChart data={data} margin={{ top: 6, right: compact ? 4 : 6, bottom: compact ? 2 : 4, left: compact ? 4 : 0 }} barCategoryGap="22%">
           {!compact && <CartesianGrid {...gridProps} />}
           <XAxis
             dataKey="week"
@@ -275,11 +319,25 @@ export function TrainingLoadChart({ data, compact = false }: { data: LoadPoint[]
               itemStyle={tooltipItemStyle}
               labelStyle={tooltipLabelStyle}
               cursor={{ fill: chartColors.grid, opacity: 0.4 }}
-              formatter={(val: number) => [`${val}`, "Load"]}
               labelFormatter={(w: string) => `Week of ${new Date(w + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
+              formatter={(val: number, name: string) => {
+                const label = TYPE_ORDER.find((t) => t.key === name)?.label ?? name;
+                return [`${val}`, label];
+              }}
             />
           )}
-          <Bar dataKey="load" fill="url(#grad-load)" radius={[6, 6, 0, 0]} />
+          {TYPE_ORDER.map((t, i) => {
+            const isTop = i === TYPE_ORDER.length - 1 - [...TYPE_ORDER].reverse().findIndex((x) => data.some((d) => d[x.key] > 0));
+            return (
+              <Bar
+                key={t.key}
+                dataKey={t.key}
+                stackId="load"
+                fill={chartColors.byType[t.key]}
+                radius={isTop ? [6, 6, 0, 0] : [0, 0, 0, 0]}
+              />
+            );
+          })}
         </BarChart>
       </ResponsiveContainer>
     </div>
