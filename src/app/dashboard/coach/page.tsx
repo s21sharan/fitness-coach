@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageBubble, TypingIndicator } from "@/components/chat/message-bubble";
 import { ChatInput } from "@/components/chat/chat-input";
 import { PlanProposalCard } from "@/components/chat/plan-proposal-card";
+import { BlockProposalCard } from "@/components/chat/block-proposal-card";
 import { Icon } from "@/components/app/icon";
 import { convertDBToUIMessage } from "@/lib/chat/conversation";
 
@@ -46,6 +47,35 @@ function extractPlanProposal(parts: unknown[]): unknown | null {
 
     // Generic: any part with toolName matching and an output/result
     if ((p as Record<string, unknown>).toolName === "regenerate_plan") {
+      if (p.output) return p.output;
+      if (p.result) return p.result;
+    }
+  }
+  return null;
+}
+
+function extractBlockProposal(parts: unknown[]): unknown | null {
+  for (const part of parts) {
+    const p = part as Record<string, unknown>;
+
+    if (p.type === "tool-result" && p.toolName === "propose_next_block" && p.result) {
+      return p.result;
+    }
+
+    if (p.type === "tool-invocation") {
+      const inv = p.toolInvocation as Record<string, unknown> | undefined;
+      if (inv?.toolName === "propose_next_block") {
+        if (inv.state === "result" && inv.result) return inv.result;
+        if (inv.output) return inv.output;
+      }
+    }
+
+    if (p.type === "tool-propose_next_block") {
+      if (p.state === "output-available" && p.output) return p.output;
+      if (p.state === "result" && p.result) return p.result;
+    }
+
+    if ((p as Record<string, unknown>).toolName === "propose_next_block") {
       if (p.output) return p.output;
       if (p.result) return p.result;
     }
@@ -205,6 +235,7 @@ export default function CoachPage() {
               const textContent = extractText(parts);
               const toolNames = extractToolNames(parts);
               const planData = m.role === "assistant" ? extractPlanProposal(parts) : null;
+              const blockData = m.role === "assistant" ? extractBlockProposal(parts) : null;
 
               return (
                 <div key={m.id} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -220,6 +251,14 @@ export default function CoachPage() {
                       <div style={{ width: 32, flexShrink: 0 }} />
                       <div style={{ maxWidth: 560, width: "100%" }}>
                         <PlanProposalCard data={planData as Parameters<typeof PlanProposalCard>[0]["data"]} />
+                      </div>
+                    </div>
+                  )}
+                  {blockData && (blockData as Record<string, unknown>).success && (
+                    <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <div style={{ width: 32, flexShrink: 0 }} />
+                      <div style={{ maxWidth: 560, width: "100%" }}>
+                        <BlockProposalCard data={blockData as Parameters<typeof BlockProposalCard>[0]["data"]} />
                       </div>
                     </div>
                   )}
