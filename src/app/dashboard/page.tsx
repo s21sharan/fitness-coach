@@ -6,7 +6,8 @@ import { ConnectionBar } from "@/components/app/connection-bar";
 import { MonthView } from "@/components/calendar/month-view";
 import { WeekView } from "@/components/calendar/week-view";
 import { WorkoutModal } from "@/components/calendar/workout-modal";
-import { useDashboardData, type WorkoutLog } from "@/lib/hooks/use-dashboard-data";
+import { CardioModal } from "@/components/calendar/cardio-modal";
+import { useDashboardData, type CardioLog, type WorkoutLog } from "@/lib/hooks/use-dashboard-data";
 
 type CalendarView = "month" | "week";
 
@@ -17,6 +18,7 @@ function DashboardPageInner() {
 
   const { data, loading, syncing, fixingDates, units, triggerSync, triggerFixDates } = useDashboardData();
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutLog | null>(null);
+  const [selectedCardio, setSelectedCardio] = useState<CardioLog | null>(null);
 
   const setView = (next: CalendarView) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -50,13 +52,22 @@ function DashboardPageInner() {
       </div>
 
       {view === "month" ? (
-        <MonthView data={data} units={units} onWorkoutClick={setSelectedWorkout} />
+        <MonthView data={data} units={units} onWorkoutClick={setSelectedWorkout} onCardioClick={setSelectedCardio} />
       ) : (
-        <WeekView data={data} units={units} onWorkoutClick={setSelectedWorkout} />
+        <WeekView data={data} units={units} onWorkoutClick={setSelectedWorkout} onCardioClick={setSelectedCardio} />
       )}
 
       {selectedWorkout && (
         <WorkoutModal workout={selectedWorkout} open={true} onClose={() => setSelectedWorkout(null)} />
+      )}
+      {selectedCardio && (
+        <CardioModal
+          cardio={selectedCardio}
+          allCardio={data.cardio}
+          units={units}
+          open={true}
+          onClose={() => setSelectedCardio(null)}
+        />
       )}
     </div>
   );

@@ -9,13 +9,14 @@ import {
   buildWeek, weekTotals, computeFitnessCurve, getMonday, addDays, toDS,
   weekNumberFor, fmtSec,
 } from "@/lib/training/calendar-data";
-import type { ApiData, WorkoutLog } from "@/lib/hooks/use-dashboard-data";
+import type { ApiData, CardioLog, WorkoutLog } from "@/lib/hooks/use-dashboard-data";
 import { fmtDist as fmtDistUnit, distanceLabel, type UnitPreferences } from "@/lib/units";
 
 interface WeekViewProps {
   data: ApiData;
   units: UnitPreferences;
   onWorkoutClick?: (w: WorkoutLog) => void;
+  onCardioClick?: (c: CardioLog) => void;
 }
 
 const navBtn: React.CSSProperties = {
@@ -24,7 +25,7 @@ const navBtn: React.CSSProperties = {
   display: "flex", alignItems: "center", color: "#374151",
 };
 
-export function WeekView({ data, units, onWorkoutClick }: WeekViewProps) {
+export function WeekView({ data, units, onWorkoutClick, onCardioClick }: WeekViewProps) {
   const [weekOffset, setWeekOffset] = useState(0);
 
   const monday = useMemo(() => addDays(getMonday(new Date()), weekOffset * 7), [weekOffset]);
@@ -94,7 +95,7 @@ export function WeekView({ data, units, onWorkoutClick }: WeekViewProps) {
               background: "#fafafa", border: "1px solid #f3f4f6", borderRadius: 10,
               minWidth: 150,
             }}>
-              <DayCell day={day} variant="tall" units={units} onWorkoutClick={onWorkoutClick} />
+              <DayCell day={day} variant="tall" units={units} onWorkoutClick={onWorkoutClick} onCardioClick={onCardioClick} />
             </div>
           ))}
         </div>

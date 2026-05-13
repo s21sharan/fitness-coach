@@ -5,7 +5,7 @@ import {
   weekTotals, toDS, fmtSec,
   type DayData,
 } from "@/lib/training/calendar-data";
-import type { WorkoutLog } from "@/lib/hooks/use-dashboard-data";
+import type { CardioLog, WorkoutLog } from "@/lib/hooks/use-dashboard-data";
 import { fmtDist as fmtDistUnit, distanceLabel, type UnitPreferences } from "@/lib/units";
 
 interface WeekRowProps {
@@ -13,9 +13,10 @@ interface WeekRowProps {
   weekNum: number;
   units: UnitPreferences;
   onWorkoutClick?: (w: WorkoutLog) => void;
+  onCardioClick?: (c: CardioLog) => void;
 }
 
-export function WeekRow({ days, weekNum, units, onWorkoutClick }: WeekRowProps) {
+export function WeekRow({ days, weekNum, units, onWorkoutClick, onCardioClick }: WeekRowProps) {
   const todayStr = toDS(new Date());
   const isFutureWeek = days[0].date > todayStr;
   const hasData = !isFutureWeek;
@@ -58,7 +59,7 @@ export function WeekRow({ days, weekNum, units, onWorkoutClick }: WeekRowProps) 
       <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 0, minWidth: 0 }}>
         {days.map((day, i) => (
           <div key={day.date} style={{ borderRight: i < 6 ? "1px solid #f3f4f6" : "none", padding: "0 2px" }}>
-            <DayCell day={day} variant="compact" units={units} onWorkoutClick={onWorkoutClick} />
+            <DayCell day={day} variant="compact" units={units} onWorkoutClick={onWorkoutClick} onCardioClick={onCardioClick} />
           </div>
         ))}
       </div>

@@ -17,6 +17,7 @@ interface DayCellProps {
   variant?: DayCellVariant;
   units: UnitPreferences;
   onWorkoutClick?: (w: WorkoutLog) => void;
+  onCardioClick?: (c: CardioLog) => void;
 }
 
 function fmtDist(km: number, units: UnitPreferences) { return fmtDistUnit(km, units.distance); }
@@ -90,18 +91,24 @@ function WorkoutCardTall({ w, onClick }: { w: WorkoutLog; onClick?: () => void }
   );
 }
 
-function CardioCardTall({ c: a, units }: { c: CardioLog; units: UnitPreferences }) {
+function CardioCardTall({ c: a, units, onClick }: { c: CardioLog; units: UnitPreferences; onClick?: () => void }) {
   const t = cType(a.type);
   const cl = TYPE_COLORS[t];
   const load = estimateLoad(a.avg_hr, a.duration);
   const zone = hrZone(a.avg_hr);
 
   return (
-    <div style={{
-      background: cl.bg, borderLeft: `3px solid ${cl.border}`,
-      borderRadius: 8, padding: "9px 11px",
-      fontSize: 12, lineHeight: 1.5,
-    }}>
+    <div
+      onClick={onClick}
+      onMouseEnter={(e) => onClick && (e.currentTarget.style.filter = "brightness(0.97)")}
+      onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
+      style={{
+        background: cl.bg, borderLeft: `3px solid ${cl.border}`,
+        borderRadius: 8, padding: "9px 11px",
+        fontSize: 12, lineHeight: 1.5,
+        cursor: onClick ? "pointer" : "default",
+        transition: "filter 0.1s",
+      }}>
       <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 2 }}>
         <span style={{ fontSize: 14 }}>{cl.icon}</span>
         <span style={{ fontWeight: 700, color: cl.text, fontSize: 13, flex: 1 }}>{fmtSec(a.duration)}</span>
@@ -234,7 +241,7 @@ function inferTypeFromSession(session: string): string {
 
 /* ─── DayCell ─── */
 
-export function DayCell({ day, variant = "compact", units, onWorkoutClick }: DayCellProps) {
+export function DayCell({ day, variant = "compact", units, onWorkoutClick, onCardioClick }: DayCellProps) {
   const today = toDS(new Date());
   const isToday = day.date === today;
   const isFuture = day.date > today;
@@ -275,7 +282,7 @@ export function DayCell({ day, variant = "compact", units, onWorkoutClick }: Day
           <WorkoutCardTall key={`w-${i}`} w={w} onClick={onWorkoutClick ? () => onWorkoutClick(w) : undefined} />
         ))}
         {day.cardio.map((c, i) => (
-          <CardioCardTall key={`c-${i}`} c={c} units={units} />
+          <CardioCardTall key={`c-${i}`} c={c} units={units} onClick={onCardioClick ? () => onCardioClick(c) : undefined} />
         ))}
         {day.planned && (
           <PlannedCard
@@ -327,7 +334,15 @@ export function DayCell({ day, variant = "compact", units, onWorkoutClick }: Day
         const t = cType(c.type);
         const cl = TYPE_COLORS[t];
         const label = c.distance > 0 ? `${fmtDist(c.distance, units)} ${distUnit(units)}` : fmtSec(c.duration);
-        return <ActivityChip key={`c-${i}`} icon={cl.icon} label={label} color={cl} />;
+        return (
+          <ActivityChip
+            key={`c-${i}`}
+            icon={cl.icon}
+            label={label}
+            color={cl}
+            onClick={onCardioClick ? () => onCardioClick(c) : undefined}
+          />
+        );
       })}
       {showPlanned && day.planned && <PlannedPill p={day.planned} isToday={isToday} isFuture={isFuture} />}
     </div>
