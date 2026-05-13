@@ -58,7 +58,7 @@ export function WeekRow({ days, weekNum, units, onWorkoutClick, onCardioClick }:
       </div>
       <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 0, minWidth: 0 }}>
         {days.map((day, i) => (
-          <div key={day.date} style={{ borderRight: i < 6 ? "1px solid #f3f4f6" : "none", padding: "0 2px" }}>
+          <div key={day.date} style={{ borderRight: i < 6 ? "1px solid #f3f4f6" : "none", padding: "0 3px" }}>
             <DayCell day={day} variant="compact" units={units} onWorkoutClick={onWorkoutClick} onCardioClick={onCardioClick} />
           </div>
         ))}

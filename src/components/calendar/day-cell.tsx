@@ -190,18 +190,18 @@ function ActivityChip({
     <div
       onClick={onClick}
       style={{
-        display: "flex", alignItems: "center", gap: 5,
+        display: "flex", alignItems: "flex-start", gap: 5,
         background: color.bg, borderLeft: `3px solid ${color.border}`,
-        borderRadius: 5, padding: "4px 7px",
+        borderRadius: 5, padding: "5px 7px",
         fontSize: 12, fontWeight: 700, color: color.text,
         cursor: onClick ? "pointer" : "default",
-        lineHeight: 1.2,
+        lineHeight: 1.3,
       }}
       onMouseEnter={(e) => onClick && (e.currentTarget.style.filter = "brightness(0.96)")}
       onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
     >
-      <span style={{ fontSize: 13 }}>{icon}</span>
-      <span>{label}</span>
+      <span style={{ fontSize: 13, flexShrink: 0 }}>{icon}</span>
+      <span style={{ wordBreak: "break-word" }}>{label}</span>
     </div>
   );
 }
@@ -213,19 +213,19 @@ function PlannedPill({ label, isToday, isFuture }: { label: string; isToday: boo
   return (
     <div
       style={{
-        display: "flex", alignItems: "center", gap: 5,
+        display: "flex", alignItems: "flex-start", gap: 5,
         background: dimmed ? "#f9fafb" : "#fff",
         border: `1px dashed ${c.border}`,
-        borderRadius: 5, padding: "3px 7px",
+        borderRadius: 5, padding: "4px 7px",
         fontSize: 11, fontWeight: 700,
         color: dimmed ? "#9ca3af" : c.text,
-        lineHeight: 1.2,
+        lineHeight: 1.3,
         opacity: dimmed ? 0.7 : 1,
       }}
       title="Planned"
     >
-      <span style={{ fontSize: 12 }}>{c.icon}</span>
-      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+      <span style={{ fontSize: 12, flexShrink: 0 }}>{c.icon}</span>
+      <span style={{ wordBreak: "break-word" }}>{label}</span>
     </div>
   );
 }
@@ -309,9 +309,9 @@ export function DayCell({ day, variant = "compact", units, onWorkoutClick, onCar
   return (
     <div style={{
       display: "flex", flexDirection: "column",
-      gap: 4,
-      minHeight: hasActual || showPlanned ? 92 : 56,
-      padding: "4px 4px 6px",
+      gap: 5,
+      minHeight: hasActual || showPlanned ? 130 : 70,
+      padding: "5px 5px 8px",
     }}>
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
