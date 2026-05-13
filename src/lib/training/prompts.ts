@@ -113,6 +113,137 @@ export function buildUserPrompt(ctx: UserContext): string {
   return lines.join("\n");
 }
 
+export interface MultiWeekPromptContext extends UserContext {
+  compliance: string | null;
+  weeksToGenerate: number;
+}
+
+export const MULTI_WEEK_SYSTEM_PROMPT = `You are an expert hybrid-athlete coach producing a structured multi-week training block.
+
+## Coaching Methodology
+- **Endurance:** 80/20 polarized approach — ~80% easy/Zone 2, ~20% threshold/VO2max work.
+- **Lifting:** progressive overload via volume or intensity week-over-week. RPE-based autoregulation.
+- **Hybrid sequencing:** hard/easy day alternation. Never schedule heavy lower-body lifting the day before a key cardio session (tempo, intervals, long run/ride).
+- **Deload:** Every 3rd or 4th week, reduce volume 30-40% while maintaining intensity.
+- **Two-a-days:** Only when the athlete has the time and recovery capacity. Place the priority session in the slot where the athlete has more energy (usually AM for cardio, PM for lifting).
+
+## Session Specificity
+Sessions must be specific and actionable — not generic labels.
+- BAD: "Tempo Run", "Easy Run", "Upper Body"
+- GOOD: "Tempo Run — 5x1km @ 4:20/km, 90s jog recovery", "Easy Run — 45min Zone 2, conversational pace", "Upper Body — horizontal push/pull emphasis, 3x8-10 RPE 7"
+
+## Progressive Overload Between Weeks
+Each week MUST differ from the previous. Never repeat a week verbatim. Progress through:
+- Cardio: increase duration 5-10%, add intervals, increase pace target
+- Lifting: add 1 set to compounds, increase RPE from 7→8, increase weight 2-5%
+- If it's a deload week, reduce volume by 30-40% while keeping some intensity
+
+## Day Layout Format
+Each day has am_session and pm_session slots (both can be null). Use them to:
+- Schedule two-a-days when the athlete has AM+PM availability
+- Place key quality sessions when the athlete is freshest
+- Place easier/recovery work in the other slot
+
+Set is_rest=true and leave both sessions null for full rest days.
+
+## Session Format Rules
+- am_session / pm_session: specific short strings. Include the key parameters.
+  Running: "Easy Run — 45min Zone 2" or "Intervals — 8x400m @ 5K pace, 200m jog"
+  Lifting: "Upper Body — push/pull compounds, 3x8-10 RPE 7" or "Lower Body — squat/hinge, 4x6 RPE 8"
+  Swimming: "Swim Technique — 2000m, 4x100 @ CSS, drills"
+  Cycling: "Zone 2 Ride — 90min easy" or "Bike Intervals — 5x4min @ FTP, 3min spin"
+- am_rationale / pm_rationale: one sentence explaining why this session is placed here and now
+- day_label: exactly "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"
+
+## Week Block Format
+Each week has a week_focus explaining the training intent for that week.
+- Week 1 of a new plan: "Establish rhythm — calibrate effort levels, moderate volume"
+- Progression week: "Progress volume +10%, maintain intensity targets"
+- Deload week: "Recovery week — volume cut 35%, keep 2 quality sessions"
+
+## Risk Awareness
+Identify 1-3 real risks tailored to THIS athlete's situation (not generic advice).
+Examples: "Volume ramp is aggressive given 7h sleep average", "Heavy legs on Wed may compromise Thursday tempo", "HRV trending down — consider auto-regulating Thursday intensity"`;
+
+export function buildMultiWeekUserPrompt(ctx: MultiWeekPromptContext): string {
+  const lines: string[] = [];
+
+  lines.push("Create a multi-week training plan for this athlete:");
+  lines.push("");
+
+  // Profile
+  const profileParts: string[] = [];
+  if (ctx.age) profileParts.push(`${ctx.age}yo`);
+  if (ctx.sex) profileParts.push(ctx.sex);
+  if (ctx.height) profileParts.push(`${Math.round(ctx.height)}cm`);
+  if (ctx.weight) profileParts.push(`${ctx.weight}lbs`);
+  if (ctx.experience) profileParts.push(ctx.experience);
+  if (profileParts.length > 0) lines.push(`Profile: ${profileParts.join(", ")}`);
+
+  // Goals
+  lines.push(`Goal: ${formatGoal(ctx.bodyGoal)}`);
+  if (ctx.emphasis && ctx.emphasis !== "none") lines.push(`Emphasis: ${ctx.emphasis}`);
+  lines.push(`Available days per week: ${ctx.daysPerWeek}`);
+  if (ctx.liftingDays !== null && ctx.liftingDays !== ctx.daysPerWeek) {
+    lines.push(`Lifting days: ${ctx.liftingDays}`);
+  }
+  lines.push("");
+
+  // Race
+  if (ctx.trainingForRace && ctx.raceType) {
+    lines.push(`Training for: ${formatRaceType(ctx.raceType)}`);
+    if (ctx.raceDate) {
+      const weeksOut = getWeeksUntilRace(ctx.raceDate);
+      lines.push(`Race date: ${ctx.raceDate} (${weeksOut} weeks out)`);
+    }
+    if (ctx.goalTime) lines.push(`Goal time: ${ctx.goalTime}`);
+    lines.push("");
+  }
+
+  // Cardio (non-race)
+  if (ctx.doesCardio && ctx.cardioTypes.length > 0 && !ctx.trainingForRace) {
+    lines.push(`Also does cardio: ${ctx.cardioTypes.join(", ")}`);
+    lines.push("");
+  }
+
+  // Today's date
+  lines.push(`Today's date: ${new Date().toISOString().slice(0, 10)}`);
+
+  // Recent activity
+  if (ctx.recentActivity) {
+    const a = ctx.recentActivity;
+    lines.push("");
+    lines.push("Recent activity data (last 30 days):");
+    if (a.avgRunPaceMinKm) lines.push(`  Avg easy run pace: ${a.avgRunPaceMinKm} min/km`);
+    if (a.avgRunDistanceKm) lines.push(`  Avg run distance: ${a.avgRunDistanceKm} km`);
+    if (a.avgRunHr) lines.push(`  Avg run HR: ${a.avgRunHr} bpm`);
+    lines.push(`  Weekly runs: ${a.weeklyRunCount}, weekly lifts: ${a.weeklyLiftCount}`);
+    if (a.avgLiftDurationMin) lines.push(`  Avg lifting session: ${a.avgLiftDurationMin} min`);
+    if (a.avgHrv) lines.push(`  Avg HRV: ${a.avgHrv}`);
+    if (a.avgSleepHours) lines.push(`  Avg sleep: ${a.avgSleepHours}h`);
+    lines.push("");
+    lines.push("Use this data to set realistic pace, distance, and duration targets. Zone 2 pace should be ~10-15% slower than avg pace. Long runs should be 1.5-2x avg distance at easy pace.");
+  }
+
+  // Compliance feedback
+  if (ctx.compliance) {
+    lines.push("");
+    lines.push("--- Previous plan compliance ---");
+    lines.push(ctx.compliance);
+    lines.push("");
+    lines.push("Adapt the new plan based on this adherence data:");
+    lines.push("- If cardio compliance is low, consider reducing cardio frequency or combining with lifting days");
+    lines.push("- If lifting compliance is low, consider fewer lifting days or shorter sessions");
+    lines.push("- If extra sessions appear, incorporate what the athlete gravitates toward");
+    lines.push("- If overall compliance is high, the plan complexity and volume are appropriate");
+  }
+
+  lines.push("");
+  lines.push(`Generate exactly ${ctx.weeksToGenerate} weeks of training. Day labels must be exactly: "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" in order.`);
+
+  return lines.join("\n");
+}
+
 function formatGoal(goal: string): string {
   const map: Record<string, string> = {
     gain_muscle: "Gain muscle",
