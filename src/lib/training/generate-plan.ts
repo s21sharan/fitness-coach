@@ -6,6 +6,8 @@ import { planGenerationSchema, type PlanGeneration, type DayLayout, type MultiWe
 import { PLAN_SYSTEM_PROMPT, buildUserPrompt, type RecentActivity, MULTI_WEEK_SYSTEM_PROMPT, buildMultiWeekUserPrompt, type MultiWeekPromptContext } from "./prompts";
 import { combineDaySessions } from "./seed-plan-from-onboarding";
 import type { PlanPreviewDay } from "@/lib/onboarding/types";
+import { getNextBlockType, blockTypeLabel } from "./phase-rules";
+import { createBlock } from "./blocks";
 
 interface GeneratePlanInput {
   userId: string;
@@ -173,13 +175,43 @@ export async function generateTrainingPlan(input: GeneratePlanInput): Promise<{
 
   if (planError || !newPlan) throw new Error("Failed to create training plan");
 
-  // Generate 4 weeks starting next Monday
+  // Determine initial block type from phase rules
+  const blockType = getNextBlockType({
+    raceDate: input.goals.race_date,
+    currentBlockType: null,
+    blockNumber: 0,
+  });
+
+  const weekCount = plan.plan_config?.deload_frequency || 4;
   const nextMonday = getNextMonday();
-  const workouts = generatePlannedWorkouts(newPlan.id, plan.weekly_layout, nextMonday, 4);
+  const endDate = new Date(nextMonday);
+  endDate.setDate(endDate.getDate() + weekCount * 7 - 1);
+
+  // Create the initial block
+  const block = await createBlock({
+    planId: newPlan.id,
+    blockNumber: 1,
+    blockType,
+    blockLabel: `${blockTypeLabel(blockType)} Block`,
+    weekCount,
+    startDate: nextMonday.toISOString().slice(0, 10),
+    endDate: endDate.toISOString().slice(0, 10),
+    status: "active",
+    generationContext: {
+      source: "onboarding",
+      raceDate: input.goals.race_date,
+    },
+  });
+
+  // Generate workouts for the block duration
+  const workouts = generatePlannedWorkouts(newPlan.id, plan.weekly_layout, nextMonday, weekCount);
+
+  // Set block_id on all workouts
+  const workoutsWithBlock = workouts.map((w) => ({ ...w, block_id: block.id }));
 
   const { error: workoutsError } = await supabase
     .from("planned_workouts")
-    .insert(workouts);
+    .insert(workoutsWithBlock);
 
   if (workoutsError) throw new Error("Failed to create planned workouts");
 
