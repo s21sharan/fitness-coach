@@ -6,3 +6,4 @@ export { getWeightTrendTool } from "./get-weight-trend";
 export { getTrainingPlanTool } from "./get-training-plan";
 export { updatePlannedWorkoutTool } from "./update-planned-workout";
 export { regeneratePlanTool } from "./regenerate-plan";
+export { getSearchResearchTool } from "./search-research";

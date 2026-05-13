@@ -55,3 +55,7 @@ supabase/.temp
 next-env.d.ts
 .playwright-mcp/
 *.png
+
+# Research paper pipeline
+tools/data/pdfs/
+tools/.venv/
