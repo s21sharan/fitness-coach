@@ -197,6 +197,21 @@ export function Icon({ name, size = 18, ...rest }: IconProps) {
           <path d="M10 11v6M14 11v6" />
         </svg>
       );
+    case "more":
+      return (
+        <svg {...props}>
+          <circle cx="12" cy="5" r="1.5" fill={stroke} stroke="none" />
+          <circle cx="12" cy="12" r="1.5" fill={stroke} stroke="none" />
+          <circle cx="12" cy="19" r="1.5" fill={stroke} stroke="none" />
+        </svg>
+      );
+    case "camera":
+      return (
+        <svg {...props}>
+          <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
+          <circle cx="12" cy="13" r="4" />
+        </svg>
+      );
     default:
       return null;
   }

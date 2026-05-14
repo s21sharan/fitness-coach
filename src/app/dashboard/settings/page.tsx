@@ -7,6 +7,7 @@ import { ApiKeyModal } from "@/components/settings/api-key-modal";
 import { Topbar } from "@/components/topbar";
 import { Icon } from "@/components/app/icon";
 import { getUnitPreferences, saveUnitPreferences, type DistanceUnit, type WeightUnit, type UnitPreferences } from "@/lib/units";
+import { getCheckinPreferences, saveCheckinPreferences, type CheckinPreferences } from "@/lib/checkin-preferences";
 
 interface IntegrationStatus {
   provider: string;
@@ -48,6 +49,7 @@ export default function SettingsPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeNav, setActiveNav] = useState("integrations");
   const [unitPrefs, setUnitPrefs] = useState<UnitPreferences>({ distance: "mi", weight: "lbs" });
+  const [checkinPrefs, setCheckinPrefs] = useState<CheckinPreferences>({ enabled: true, frequencyWeeks: 1 });
 
   const fetchStatuses = useCallback(async () => {
     const res = await fetch("/api/integrations/status");
@@ -59,6 +61,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setUnitPrefs(getUnitPreferences());
+    setCheckinPrefs(getCheckinPreferences());
     fetchStatuses();
 
     const params = new URLSearchParams(window.location.search);
@@ -363,6 +366,62 @@ export default function SettingsPage() {
                         Affects body weight and lifting weight display
                       </div>
                     </div>
+                  </div>
+
+                  {/* Check-in settings */}
+                  <div style={{ marginTop: 32 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>
+                      Physique Check-ins
+                    </div>
+                    <p style={{ fontSize: 13, color: "var(--ink-2)", marginBottom: 16 }}>
+                      Your coach will prompt you during chat when it&apos;s time
+                    </p>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                      <span style={{ fontSize: 13, color: "var(--ink)" }}>Enable weekly check-ins</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = { ...checkinPrefs, enabled: !checkinPrefs.enabled };
+                          setCheckinPrefs(updated);
+                          saveCheckinPreferences(updated);
+                        }}
+                        style={{
+                          width: 44, height: 24, borderRadius: 999, border: "none",
+                          background: checkinPrefs.enabled ? "var(--coral)" : "#d1d5db",
+                          cursor: "pointer", position: "relative", transition: "background 0.2s",
+                        }}
+                      >
+                        <div style={{
+                          width: 18, height: 18, borderRadius: "50%", background: "#fff",
+                          position: "absolute", top: 3,
+                          left: checkinPrefs.enabled ? 23 : 3,
+                          transition: "left 0.2s",
+                        }} />
+                      </button>
+                    </div>
+
+                    {checkinPrefs.enabled && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ fontSize: 13, color: "var(--ink-2)" }}>Remind me every</span>
+                        <select
+                          value={checkinPrefs.frequencyWeeks}
+                          onChange={(e) => {
+                            const updated = { ...checkinPrefs, frequencyWeeks: Number(e.target.value) };
+                            setCheckinPrefs(updated);
+                            saveCheckinPreferences(updated);
+                          }}
+                          style={{
+                            padding: "6px 10px", borderRadius: 8, border: "1px solid var(--line)",
+                            fontSize: 13, background: "#fff", cursor: "pointer",
+                          }}
+                        >
+                          <option value={1}>1 week</option>
+                          <option value={2}>2 weeks</option>
+                          <option value={4}>4 weeks</option>
+                        </select>
+                      </div>
+                    )}
                   </div>
                 </div>
               </>

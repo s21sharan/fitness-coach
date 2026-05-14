@@ -2,15 +2,17 @@
 
 import { type FormEvent } from "react";
 import { Icon } from "@/components/app/icon";
+import { ChatInputDropdown } from "./chat-input-dropdown";
 
 interface ChatInputProps {
   input: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onSubmit: (e: FormEvent) => void;
   isLoading: boolean;
+  onReviewCheckins?: () => void;
 }
 
-export function ChatInput({ input, onChange, onSubmit, isLoading }: ChatInputProps) {
+export function ChatInput({ input, onChange, onSubmit, isLoading, onReviewCheckins }: ChatInputProps) {
   return (
     <div
       style={{
@@ -35,6 +37,9 @@ export function ChatInput({ input, onChange, onSubmit, isLoading }: ChatInputPro
         }}
       >
         <Icon name="sparkle" size={16} style={{ color: "var(--coral-deep)", flexShrink: 0 }} />
+        {onReviewCheckins && (
+          <ChatInputDropdown onReviewCheckins={onReviewCheckins} />
+        )}
         <input
           type="text"
           value={input}
