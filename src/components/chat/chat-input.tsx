@@ -16,10 +16,8 @@ export function ChatInput({ input, onChange, onSubmit, isLoading, onReviewChecki
   return (
     <div
       style={{
-        padding: "14px 32px 22px",
-        borderTop: "1px solid var(--line)",
-        background: "rgba(255,255,255,0.6)",
-        backdropFilter: "blur(10px)",
+        padding: "12px 32px 22px",
+        background: "transparent",
       }}
     >
       <form
@@ -30,10 +28,11 @@ export function ChatInput({ input, onChange, onSubmit, isLoading, onReviewChecki
           display: "flex",
           alignItems: "center",
           gap: 10,
-          background: "#fff",
+          background: "rgba(255,255,255,0.8)",
+          backdropFilter: "blur(12px)",
           borderRadius: 999,
           padding: "8px 8px 8px 18px",
-          border: "1px solid var(--line)",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04)",
         }}
       >
         <Icon name="sparkle" size={16} style={{ color: "var(--coral-deep)", flexShrink: 0 }} />

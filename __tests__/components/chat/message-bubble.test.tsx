@@ -8,10 +8,10 @@ describe("MessageBubble", () => {
     expect(screen.getByText("Should I train today?")).toBeDefined();
   });
 
-  it("renders assistant message with H avatar", () => {
+  it("renders assistant message with T avatar", () => {
     render(<MessageBubble role="assistant" content="Let me check your recovery data." />);
     expect(screen.getByText("Let me check your recovery data.")).toBeDefined();
-    expect(screen.getByText("H")).toBeDefined();
+    expect(screen.getByText("T")).toBeDefined();
   });
 
   it("renders tool pills for assistant messages", () => {
@@ -36,8 +36,8 @@ describe("MessageBubble", () => {
     expect(screen.getByText("52g P · 620 kcal")).toBeDefined();
   });
 
-  it("renders typing indicator with H avatar", () => {
+  it("renders typing indicator with T avatar", () => {
     render(<TypingIndicator />);
-    expect(screen.getByText("H")).toBeDefined();
+    expect(screen.getByText("T")).toBeDefined();
   });
 });

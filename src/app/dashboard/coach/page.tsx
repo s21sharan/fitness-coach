@@ -224,7 +224,7 @@ export default function CoachPage() {
             style={{
               display: "flex", alignItems: "center", gap: 5,
               padding: "5px 10px", borderRadius: 8,
-              border: "1px solid #e5e7eb", background: "#fff",
+              border: "none", background: "rgba(0,0,0,0.04)",
               fontSize: 12, color: "#9ca3af", cursor: "pointer",
             }}
           >
@@ -237,11 +237,11 @@ export default function CoachPage() {
       <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "24px 20px" }}>
         {showEmptyState ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", textAlign: "center" }}>
-            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--ink, #0F1B22)", display: "grid", placeItems: "center" }}>
-              <span style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>H</span>
+            <div style={{ width: 52, height: 52, borderRadius: "50%", background: "var(--ink, #0F1B22)", display: "grid", placeItems: "center" }}>
+              <span style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>T</span>
             </div>
-            <h2 style={{ marginTop: 16, fontSize: 18, fontWeight: 700 }}>Hey! I&apos;m your Coach.</h2>
-            <p style={{ marginTop: 6, fontSize: 14, color: "#6b7280", maxWidth: 360 }}>
+            <h2 style={{ marginTop: 16, fontSize: 18, fontWeight: 700, color: "var(--ink)" }}>Hey! I&apos;m your Coach.</h2>
+            <p style={{ marginTop: 6, fontSize: 14, color: "#8896a4", maxWidth: 360, lineHeight: 1.5 }}>
               I have access to all your fitness data — workouts, cardio, recovery, and more. Ask me anything.
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 24, maxWidth: 480 }}>
@@ -251,9 +251,13 @@ export default function CoachPage() {
                   type="button"
                   onClick={() => sendMessage({ text: prompt })}
                   style={{
-                    padding: "8px 14px", borderRadius: 20, border: "1px solid #e5e7eb",
-                    background: "#fff", fontSize: 12, color: "#6b7280", cursor: "pointer",
+                    padding: "8px 14px", borderRadius: 20, border: "none",
+                    background: "rgba(255,255,255,0.7)", fontSize: 12, color: "#6b7280", cursor: "pointer",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                    transition: "background 0.15s",
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.95)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.7)")}
                 >
                   {prompt}
                 </button>
@@ -261,7 +265,7 @@ export default function CoachPage() {
             </div>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
             {messages.map((m) => {
               const parts = (m.parts || []) as unknown[];
               const textContent = extractText(parts);
@@ -281,7 +285,7 @@ export default function CoachPage() {
                   )}
                   {planData && (planData as Record<string, unknown>).success && (
                     <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                      <div style={{ width: 32, flexShrink: 0 }} />
+                      <div style={{ width: 28, flexShrink: 0 }} />
                       <div style={{ maxWidth: 560, width: "100%" }}>
                         <PlanProposalCard data={planData as Parameters<typeof PlanProposalCard>[0]["data"]} />
                       </div>
@@ -289,7 +293,7 @@ export default function CoachPage() {
                   )}
                   {blockData && (blockData as Record<string, unknown>).success && (
                     <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                      <div style={{ width: 32, flexShrink: 0 }} />
+                      <div style={{ width: 28, flexShrink: 0 }} />
                       <div style={{ maxWidth: 560, width: "100%" }}>
                         <BlockProposalCard data={blockData as Parameters<typeof BlockProposalCard>[0]["data"]} />
                       </div>
@@ -297,7 +301,7 @@ export default function CoachPage() {
                   )}
                   {checkinData && (checkinData as Record<string, unknown>).type === "checkin_prompt" && (
                     <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                      <div style={{ width: 32, flexShrink: 0 }} />
+                      <div style={{ width: 28, flexShrink: 0 }} />
                       <div style={{ maxWidth: 560, width: "100%" }}>
                         <CheckInCard data={checkinData as Parameters<typeof CheckInCard>[0]["data"]} />
                       </div>

@@ -29,13 +29,13 @@ export function MessageBubble({ role, content, tools, actions, kind, meals }: Me
         <div style={{ maxWidth: "78%" }}>
           <div
             style={{
-              padding: "11px 15px",
-              borderRadius: 18,
-              borderTopRightRadius: 6,
+              padding: "12px 16px",
+              borderRadius: 20,
+              borderTopRightRadius: 8,
               background: "var(--ink)",
               color: "#fff",
               fontSize: 14,
-              lineHeight: 1.5,
+              lineHeight: 1.55,
             }}
           >
             {content}
@@ -50,21 +50,22 @@ export function MessageBubble({ role, content, tools, actions, kind, meals }: Me
     <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
       <div
         style={{
-          width: 32,
-          height: 32,
+          width: 28,
+          height: 28,
           borderRadius: "50%",
           background: "var(--ink)",
           color: "#fff",
           display: "grid",
           placeItems: "center",
           fontWeight: 800,
-          fontSize: 13,
+          fontSize: 11,
           flexShrink: 0,
+          marginTop: 2,
         }}
       >
-        H
+        T
       </div>
-      <div style={{ maxWidth: "78%" }}>
+      <div style={{ maxWidth: "80%", minWidth: 0 }}>
         {kind === "meals" ? (
           <div style={{ display: "grid", gap: 8 }}>
             {(meals ?? []).map((meal, j) => (
@@ -96,16 +97,17 @@ export function MessageBubble({ role, content, tools, actions, kind, meals }: Me
         ) : (
           <div
             style={{
-              padding: "11px 15px",
-              borderRadius: 18,
-              borderTopLeftRadius: 6,
-              background: "#fff",
+              padding: "13px 17px",
+              borderRadius: 20,
+              borderTopLeftRadius: 8,
+              background: "rgba(255,255,255,0.75)",
+              backdropFilter: "blur(8px)",
               color: "var(--ink)",
               fontSize: 13.5,
-              lineHeight: 1.55,
+              lineHeight: 1.6,
               fontWeight: 400,
               letterSpacing: "0.005em",
-              boxShadow: "0 1px 0 var(--line-2)",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.03)",
             }}
             dangerouslySetInnerHTML={{ __html: formatContent(content) }}
           />
@@ -157,29 +159,31 @@ export function TypingIndicator() {
     <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
       <div
         style={{
-          width: 32,
-          height: 32,
+          width: 28,
+          height: 28,
           borderRadius: "50%",
           background: "var(--ink)",
           color: "#fff",
           display: "grid",
           placeItems: "center",
           fontWeight: 800,
-          fontSize: 13,
+          fontSize: 11,
           flexShrink: 0,
+          marginTop: 2,
         }}
       >
-        H
+        T
       </div>
       <div
         style={{
           padding: "11px 15px",
-          borderRadius: 18,
-          borderTopLeftRadius: 6,
-          background: "#fff",
+          borderRadius: 20,
+          borderTopLeftRadius: 8,
+          background: "rgba(255,255,255,0.75)",
+          backdropFilter: "blur(8px)",
           display: "inline-flex",
           gap: 4,
-          boxShadow: "0 1px 0 var(--line-2)",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.03)",
         }}
       >
         {[0, 1, 2].map((i) => (
@@ -204,15 +208,15 @@ export function TypingIndicator() {
 function formatContent(content: string): string {
   return content
     // Headers — consume surrounding newlines so they don't become extra <br>s
-    .replace(/\n*^### (.+)$\n*/gm, '<span style="font-weight:700;font-size:13.5px;display:block;margin:6px 0 3px">$1</span>')
-    .replace(/\n*^## (.+)$\n*/gm, '<span style="font-weight:700;font-size:15px;display:block;margin:8px 0 3px">$1</span>')
+    .replace(/\n*^### (.+)$\n*/gm, '<div style="font-weight:700;font-size:13.5px;margin:10px 0 4px;color:var(--ink)">$1</div>')
+    .replace(/\n*^## (.+)$\n*/gm, '<div style="font-weight:700;font-size:14.5px;margin:12px 0 4px;color:var(--ink)">$1</div>')
     // Bold
-    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-    // Bullet points
-    .replace(/\n- /g, "<br>• ")
-    .replace(/^- /gm, "• ")
-    // Collapse double newlines into single break
-    .replace(/\n\n+/g, "<br>")
+    .replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight:600">$1</strong>')
+    // Bullet points — use proper list styling
+    .replace(/\n- /g, '<br><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--coral);margin:0 8px 1px 2px;vertical-align:middle"></span>')
+    .replace(/^- /gm, '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--coral);margin:0 8px 1px 2px;vertical-align:middle"></span>')
+    // Collapse double newlines into paragraph break
+    .replace(/\n\n+/g, '<div style="height:8px"></div>')
     // Remaining single newlines
     .replace(/\n/g, "<br>");
 }
