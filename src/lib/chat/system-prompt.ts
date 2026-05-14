@@ -204,6 +204,9 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   lines.push('- Format citations as: Author et al. (Year) — "Paper Title", Journal');
   lines.push("- Don't over-cite — only cite when the evidence meaningfully supports your advice");
   lines.push("- Don't cite for obvious or basic advice like drinking water or sleeping 8 hours");
+  lines.push("- You have access to physique check-in tools. Use get_checkin_history to see when the user last did a check-in.");
+  lines.push("- If their last check-in was more than 7 days ago (or they've never done one), suggest a check-in using prompt_checkin — but only at the start of a conversation or when discussing body composition, not every message.");
+  lines.push("- When prompting a check-in, give a brief motivating message like 'Time for your weekly progress photos!' or 'Let's see how things are looking this week.'");
   lines.push("");
   lines.push(REASONING_FRAMEWORK);
   lines.push(TOOL_STRATEGY);

@@ -18,6 +18,8 @@ import {
   getSearchResearchTool,
   proposeNextBlockTool,
 } from "@/lib/chat/tools";
+import { getCheckinHistoryTool } from "@/lib/chat/tools/get-checkin-history";
+import { promptCheckinTool } from "@/lib/chat/tools/prompt-checkin";
 import { getActiveBlock, getBlockComplianceStats, computeBlockWeekNumber } from "@/lib/training/blocks";
 
 export const maxDuration = 30;
@@ -236,6 +238,8 @@ export async function POST(request: Request) {
       regenerate_plan: regeneratePlanTool(userId),
       search_research: getSearchResearchTool(),
       propose_next_block: proposeNextBlockTool(userId),
+      get_checkin_history: getCheckinHistoryTool(userId),
+      prompt_checkin: promptCheckinTool(),
     },
     stopWhen: stepCountIs(5),
     onFinish: async (event) => {

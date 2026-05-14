@@ -7,6 +7,8 @@ import { MessageBubble, TypingIndicator } from "@/components/chat/message-bubble
 import { ChatInput } from "@/components/chat/chat-input";
 import { PlanProposalCard } from "@/components/chat/plan-proposal-card";
 import { BlockProposalCard } from "@/components/chat/block-proposal-card";
+import { CheckInCard } from "@/components/chat/checkin-card";
+import { PhysiqueReviewModal } from "@/components/chat/physique-review-modal";
 import { Icon } from "@/components/app/icon";
 import { convertDBToUIMessage } from "@/lib/chat/conversation";
 
@@ -83,6 +85,35 @@ function extractBlockProposal(parts: unknown[]): unknown | null {
   return null;
 }
 
+function extractCheckinPrompt(parts: unknown[]): unknown | null {
+  for (const part of parts) {
+    const p = part as Record<string, unknown>;
+
+    if (p.type === "tool-result" && p.toolName === "prompt_checkin" && p.result) {
+      return p.result;
+    }
+
+    if (p.type === "tool-invocation") {
+      const inv = p.toolInvocation as Record<string, unknown> | undefined;
+      if (inv?.toolName === "prompt_checkin") {
+        if (inv.state === "result" && inv.result) return inv.result;
+        if (inv.output) return inv.output;
+      }
+    }
+
+    if (p.type === "tool-prompt_checkin") {
+      if (p.state === "output-available" && p.output) return p.output;
+      if (p.state === "result" && p.result) return p.result;
+    }
+
+    if ((p as Record<string, unknown>).toolName === "prompt_checkin") {
+      if (p.output) return p.output;
+      if (p.result) return p.result;
+    }
+  }
+  return null;
+}
+
 function extractToolNames(parts: unknown[]): string[] {
   const names: string[] = [];
   for (const part of parts) {
@@ -115,6 +146,7 @@ function extractText(parts: unknown[]): string {
 export default function CoachPage() {
   const [input, setInput] = useState("");
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { messages, sendMessage, status, setMessages } = useChat({ transport });
@@ -236,6 +268,7 @@ export default function CoachPage() {
               const toolNames = extractToolNames(parts);
               const planData = m.role === "assistant" ? extractPlanProposal(parts) : null;
               const blockData = m.role === "assistant" ? extractBlockProposal(parts) : null;
+              const checkinData = m.role === "assistant" ? extractCheckinPrompt(parts) : null;
 
               return (
                 <div key={m.id} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -262,6 +295,14 @@ export default function CoachPage() {
                       </div>
                     </div>
                   )}
+                  {checkinData && (checkinData as Record<string, unknown>).type === "checkin_prompt" && (
+                    <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <div style={{ width: 32, flexShrink: 0 }} />
+                      <div style={{ maxWidth: 560, width: "100%" }}>
+                        <CheckInCard data={checkinData as Parameters<typeof CheckInCard>[0]["data"]} />
+                      </div>
+                    </div>
+                  )}
                   {!textContent && !planData && toolNames.length > 0 && (
                     <MessageBubble role="assistant" content="" tools={toolNames} />
                   )}
@@ -278,7 +319,12 @@ export default function CoachPage() {
         onChange={(e) => setInput(e.target.value)}
         onSubmit={handleSubmit}
         isLoading={isLoading}
+        onReviewCheckins={() => setShowReviewModal(true)}
       />
+
+      {showReviewModal && (
+        <PhysiqueReviewModal onClose={() => setShowReviewModal(false)} />
+      )}
     </div>
   );
 }
