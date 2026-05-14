@@ -209,29 +209,24 @@ export default function CoachPage() {
   const showEmptyState = messages.length === 0;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", maxWidth: 780, margin: "0 auto" }}>
-      {/* Header bar — visible when there are messages */}
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", maxWidth: 780, margin: "0 auto", position: "relative" }}>
+      {/* Clear chat — positioned outside the chat column */}
       {!showEmptyState && (
-        <div
+        <button
+          type="button"
+          onClick={handleClearChat}
           style={{
-            display: "flex", alignItems: "center", justifyContent: "flex-end",
-            padding: "10px 20px 0",
+            position: "absolute", top: 12, right: -80,
+            display: "flex", alignItems: "center", gap: 5,
+            padding: "5px 10px", borderRadius: 8,
+            border: "none", background: "rgba(0,0,0,0.04)",
+            fontSize: 12, color: "#9ca3af", cursor: "pointer",
+            zIndex: 10,
           }}
         >
-          <button
-            type="button"
-            onClick={handleClearChat}
-            style={{
-              display: "flex", alignItems: "center", gap: 5,
-              padding: "5px 10px", borderRadius: 8,
-              border: "none", background: "rgba(0,0,0,0.04)",
-              fontSize: 12, color: "#9ca3af", cursor: "pointer",
-            }}
-          >
-            <Icon name="trash" size={13} />
-            Clear chat
-          </button>
-        </div>
+          <Icon name="trash" size={13} />
+          Clear
+        </button>
       )}
 
       <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "24px 20px" }}>
