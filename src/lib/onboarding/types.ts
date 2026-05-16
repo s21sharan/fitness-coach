@@ -378,12 +378,12 @@ export interface ExtractedChatTags {
 // Plan preview output (multi-week + AM/PM)
 // ------------------------------------------------------------
 
+import type { SessionContract } from "@/lib/training/schemas";
+
 export interface PlanPreviewDay {
   day_label: string;               // "Mon", "Tue", ...
-  am_session: string | null;
-  am_rationale: string | null;
-  pm_session: string | null;
-  pm_rationale: string | null;
+  am_session: SessionContract | null;
+  pm_session: SessionContract | null;
   is_rest: boolean;                // overrides — pure rest day
   notes: string | null;            // free-form day note
 }
@@ -689,8 +689,6 @@ export const DIET_STYLES: { value: DietStyle; label: string; description: string
 ];
 
 export const AVAILABILITY_RULE_OPTIONS: { value: AvailabilityRuleKey; label: string }[] = [
-  { value: "long_run_weekend", label: "Long run on weekends" },
-  { value: "long_ride_weekend", label: "Long ride on weekends" },
   { value: "avoid_hard_run_before_leg_day", label: "No hard run the day before leg day" },
   { value: "avoid_heavy_lower_before_threshold", label: "No heavy legs before key run workouts" },
   { value: "keep_one_rest_day", label: "Keep one full rest day" },
@@ -706,22 +704,31 @@ export const AVAILABILITY_RULE_OPTIONS: { value: AvailabilityRuleKey; label: str
   { value: "no_running_two_days_in_row", label: "No back-to-back running days" },
 ];
 
-// Block presets — AM, PM, all-day. all_day is the implicit "whole weekend day"
-// flag captured by a single window that spans the entire day.
+// Block presets — AM, PM, and a single longer "Long session" window. All three
+// are available on any day; `all_day` represents one combined long workout block.
 export const AVAILABILITY_BLOCKS: { id: AvailabilityBlock; label: string; start: string; end: string }[] = [
   { id: "am", label: "AM", start: "06:00", end: "12:00" },
   { id: "pm", label: "PM", start: "16:00", end: "22:00" },
-  { id: "all_day", label: "All day", start: "08:00", end: "20:00" },
+  { id: "all_day", label: "Long session", start: "08:00", end: "20:00" },
 ];
 
-// Hour presets for a block, mapped to `max_duration_min`
+// Hour presets for an AM or PM block, mapped to `max_duration_min`.
 export const HOUR_PRESETS = [
   { label: "30 min", minutes: 30 },
   { label: "1 hr", minutes: 60 },
   { label: "1.5 hr", minutes: 90 },
   { label: "2 hr", minutes: 120 },
-  { label: "3+ hr", minutes: 180 },
+  { label: "3 hr", minutes: 180 },
+] as const;
+
+// Duration presets for a "Long session" block — skews longer than HOUR_PRESETS.
+export const LONG_SESSION_PRESETS = [
+  { label: "1.5 hr", minutes: 90 },
+  { label: "2 hr", minutes: 120 },
+  { label: "3 hr", minutes: 180 },
+  { label: "4 hr", minutes: 240 },
   { label: "Half-day", minutes: 360 },
+  { label: "Full-day", minutes: 480 },
 ] as const;
 
 // General body-area buckets surfaced by the injury screen.

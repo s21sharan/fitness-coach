@@ -162,7 +162,8 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
 
   const today = new Date();
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  lines.push(`Today: ${today.toISOString().slice(0, 10)} (${dayNames[today.getDay()]})`);
+  const todayYmd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  lines.push(`Today: ${todayYmd} (${dayNames[today.getDay()]})`);
   if (todaySession) lines.push(`Today's session: ${todaySession}`);
 
   if (recovery) {
@@ -193,11 +194,22 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   lines.push("- Be concise — use bullet points, not paragraphs");
   lines.push("- You can use tools to look up data you don't have in this context");
   lines.push("- When modifying the plan, explain what you're changing and why");
-  lines.push("- When the user wants to restructure their current block, use regenerate_plan.");
-  lines.push("- When the user wants to change their entire training split or restructure their plan, use the regenerate_plan tool. This generates a new 2-week plan and adds it to their calendar.");
-  lines.push("- After regenerating a plan, present the new weekly layout clearly with day-by-day breakdown so the user can review it.");
-  lines.push("- For small changes (swapping one day, adding a rest day), use update_planned_workout instead.");
-  lines.push("- When the user's block is ending or they want to move to the next phase, use propose_next_block.");
+  lines.push("");
+  lines.push("Calendar tools:");
+  lines.push("- create_planned_workout: add a single new session on or after today. Use for one-off adds like \"schedule an easy Z2 run for Friday\" or \"add a heavy lower-body lift Wednesday\". Requires a structured contract.");
+  lines.push("- update_planned_workout: modify an existing scheduled session (swap its contract, rename it, mark it moved/rest).");
+  lines.push("- regenerate_plan: full multi-week rewrite, scoped to the current block. Use when the user asks to restructure their split or change the whole plan.");
+  lines.push("- propose_next_block: when the current block is ending (or the user wants to advance to the next phase), propose the next block.");
+  lines.push("- After regenerating or proposing a block, present the layout clearly so the user can review before accepting.");
+  lines.push("");
+  lines.push(`Date rule (STRICT): never schedule, modify, or move a workout on a date before today (${todayYmd}). Past sessions are immutable history. If asked to change a past session, explain the rule and offer to schedule the equivalent on ${todayYmd} or later.`);
+  lines.push("");
+  lines.push("Contract emission rules (when calling create_planned_workout or update_planned_workout with `contract`):");
+  lines.push("- Set version=1, source=\"coach\", and the correct sport.");
+  lines.push("- Cardio (run/bike/swim): include at least one `work` step with duration_sec or distance_m, plus target_hr_zone or pace_sec_per_km when known. Add warmup/cooldown when appropriate.");
+  lines.push("- Strength: when the user gives specifics, emit one `work` step per exercise with exercise_name, sets, reps (and weight_kg/rpe if known). When the user is vague, a single `work` step with a `label` and `duration_sec` is fine.");
+  lines.push("- Use the `slot` field (\"am\" | \"pm\" | \"full\") so the calendar can render correctly.");
+  lines.push("- Granularity is flexible — match the user's level of detail. Don't fabricate specifics they didn't request.");
   lines.push("- You have access to exercise science research papers via the search_research tool");
   lines.push("- When making training, nutrition, or recovery recommendations, search for supporting evidence");
   lines.push("- Present your recommendation first, then add a Sources: section at the end with 1-3 citations");

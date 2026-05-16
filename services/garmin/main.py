@@ -1,9 +1,24 @@
+import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from garmin_client import create_client, fetch_data, fetch_activities, GarminMFARequired
+from garmin_client import create_client, fetch_data, fetch_activities, GarminMFARequired, _token_dir_for
 from garminconnect import GarminConnectAuthenticationError, GarminConnectTooManyRequestsError
 
 app = FastAPI(title="Hybro Garmin Service")
+
+
+def _classify_login_error(err: Exception) -> tuple[int, str]:
+    """Map a login failure into (http_status, error_code).
+
+    `all_strategies_exhausted` lands here when every SSO entry point either
+    returned 429 or got challenged — that's typically a sticky IP block, not
+    a transient hiccup, so it gets its own code so the UI can tell the user
+    to seed tokens from another network.
+    """
+    msg = str(err).lower()
+    if "all login strategies" in msg or "all login strategies exhausted" in msg:
+        return 429, "ip_blocked"
+    return 500, str(err) or "unknown"
 
 
 class AuthRequest(BaseModel):
@@ -34,6 +49,26 @@ def fetch_garmin_data(email: str, password: str, since: str, mfa_code: str | Non
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/auth/status")
+def auth_status(email: str):
+    """Report whether cached OAuth tokens exist for this email.
+
+    Useful for debugging IP-block situations: if tokens are present we should
+    never hit Garmin SSO at all, so a sync failing with `ip_blocked` despite
+    `has_tokens: true` means token persistence itself is broken.
+    """
+    token_dir = _token_dir_for(email)
+    token_file = os.path.join(token_dir, "garmin_tokens.json")
+    has_tokens = os.path.exists(token_file)
+    return {
+        "email": email,
+        "token_dir": token_dir,
+        "token_file": token_file,
+        "has_tokens": has_tokens,
+        "size_bytes": os.path.getsize(token_file) if has_tokens else 0,
+    }
 
 
 @app.post("/auth/validate")
@@ -116,7 +151,8 @@ def sync(req: SyncRequest):
     except GarminConnectTooManyRequestsError:
         raise HTTPException(status_code=429, detail={"error": "rate_limited"})
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"error": str(e)})
+        status, code = _classify_login_error(e)
+        raise HTTPException(status_code=status, detail={"error": code})
 
 
 @app.post("/sync-activities")
@@ -132,4 +168,5 @@ def sync_activities(req: SyncRequest):
     except GarminConnectTooManyRequestsError:
         raise HTTPException(status_code=429, detail={"error": "rate_limited"})
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"error": str(e)})
+        status, code = _classify_login_error(e)
+        raise HTTPException(status_code=status, detail={"error": code})

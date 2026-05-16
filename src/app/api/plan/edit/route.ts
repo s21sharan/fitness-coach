@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { assertDateNotPast } from "@/lib/training/date-guards";
 
 type EditAction =
   | { action: "create"; date: string; session_type: string; ai_notes?: string; targets?: Record<string, unknown> }
@@ -26,6 +27,43 @@ export async function POST(req: Request) {
     .single();
 
   if (!plan) return NextResponse.json({ error: "No active plan" }, { status: 404 });
+
+  // Pre-flight: reject the whole batch if any edit targets a past date.
+  const rejected: Array<{ index: number; reason: string }> = [];
+  for (let i = 0; i < edits.length; i++) {
+    const edit = edits[i];
+    if (edit.action === "create") {
+      const guard = assertDateNotPast(edit.date);
+      if (!guard.ok) rejected.push({ index: i, reason: guard.error });
+    } else if (edit.action === "update") {
+      const { data: row } = await supabase
+        .from("planned_workouts")
+        .select("date")
+        .eq("id", edit.workout_id)
+        .eq("plan_id", plan.id)
+        .maybeSingle();
+      if (!row) {
+        rejected.push({ index: i, reason: `Workout ${edit.workout_id} not found.` });
+      } else {
+        const guard = assertDateNotPast(row.date as string);
+        if (!guard.ok) rejected.push({ index: i, reason: guard.error });
+      }
+    } else if (edit.action === "delete") {
+      const { data: row } = await supabase
+        .from("planned_workouts")
+        .select("date")
+        .eq("id", edit.workout_id)
+        .eq("plan_id", plan.id)
+        .maybeSingle();
+      if (row) {
+        const guard = assertDateNotPast(row.date as string);
+        if (!guard.ok) rejected.push({ index: i, reason: guard.error });
+      }
+    }
+  }
+  if (rejected.length > 0) {
+    return NextResponse.json({ error: "Past dates are read-only.", rejected }, { status: 400 });
+  }
 
   const results = [];
 

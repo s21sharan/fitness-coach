@@ -1,5 +1,33 @@
 import { describe, it, expect } from "vitest";
-import { computeComplianceStats, formatComplianceForPrompt, type ComplianceInput } from "@/lib/training/compliance";
+import { computeComplianceStats, formatComplianceForPrompt, isCardioPlanned, type ComplianceInput } from "@/lib/training/compliance";
+import type { PlannedWorkoutTargets } from "@/lib/training/workout-contract";
+
+describe("isCardioPlanned", () => {
+  it("returns true when targets.contract.sport is run/bike/swim", () => {
+    const targets: PlannedWorkoutTargets = {
+      contract: { version: 1, sport: "run", name: "Run", source: "coach", steps: [{ type: "work", duration_sec: 60 }] },
+    };
+    expect(isCardioPlanned({ session_type: "anything", targets })).toBe(true);
+    targets.contract!.sport = "bike";
+    expect(isCardioPlanned({ session_type: "x", targets })).toBe(true);
+    targets.contract!.sport = "swim";
+    expect(isCardioPlanned({ session_type: "x", targets })).toBe(true);
+  });
+
+  it("returns false when targets.contract.sport is strength (ignores session_type)", () => {
+    const targets: PlannedWorkoutTargets = {
+      contract: { version: 1, sport: "strength", name: "Lower", source: "coach", steps: [{ type: "work", duration_sec: 60 }] },
+    };
+    expect(isCardioPlanned({ session_type: "Easy Run", targets })).toBe(false);
+  });
+
+  it("falls back to regex on session_type when no contract", () => {
+    expect(isCardioPlanned({ session_type: "Easy Run (Zone 2)", targets: null })).toBe(true);
+    expect(isCardioPlanned({ session_type: "Long Ride", targets: null })).toBe(true);
+    expect(isCardioPlanned({ session_type: "Push", targets: null })).toBe(false);
+    expect(isCardioPlanned({ session_type: "Lower Body" })).toBe(false);
+  });
+});
 
 describe("computeComplianceStats", () => {
   it("returns perfect compliance when all sessions completed", () => {

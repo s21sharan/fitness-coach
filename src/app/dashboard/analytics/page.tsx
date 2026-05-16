@@ -11,11 +11,16 @@ import { Vo2Chart } from "@/components/charts/vo2-chart";
 import { ChartModal } from "@/components/charts/chart-modal";
 import { ChartCard } from "@/components/charts/chart-card";
 import { ConnectionBar } from "@/components/app/connection-bar";
+import { RacePredictorChart } from "@/components/charts/race-predictor-card";
+import { E1rmTrajectoryChart } from "@/components/charts/e1rm-trajectory-chart";
+import { FitnessForecastChart } from "@/components/charts/fitness-forecast-chart";
 import { chartColors } from "@/components/charts/chart-theme";
 import { useDashboardData } from "@/lib/hooks/use-dashboard-data";
 import { computeFitnessCurve, computeLoadByType, computeVo2Trend } from "@/lib/training/calendar-data";
+import { computeE1rmTrajectory, forecastFitness, predictRaceTimes } from "@/lib/training/predictions";
+import { getUnitPreferences } from "@/lib/units";
 
-type ModalKey = "fitness" | "hrv" | "sleep" | "rhr" | "hrzones" | "load" | "vo2" | null;
+type ModalKey = "fitness" | "hrv" | "sleep" | "rhr" | "hrzones" | "load" | "vo2" | "race" | "e1rm" | "forecast" | null;
 
 export default function AnalyticsPage() {
   const { data, loading, syncing, fixingDates, triggerSync, triggerFixDates } = useDashboardData();
@@ -30,6 +35,14 @@ export default function AnalyticsPage() {
   }, [data]);
   const loadByType = useMemo(() => data ? computeLoadByType(data, 12) : [], [data]);
   const vo2Trend = useMemo(() => data ? computeVo2Trend(data) : [], [data]);
+  const racePredictions = useMemo(() => data ? predictRaceTimes(data.cardio) : [], [data]);
+  const e1rmSeries = useMemo(() => data ? computeE1rmTrajectory(data.workouts, 28) : [], [data]);
+  const fitnessForecast = useMemo(() => forecastFitness(fitnessCurve, 14), [fitnessCurve]);
+  const weightUnit = useMemo(() => getUnitPreferences().weight, []);
+  const hasGarmin = useMemo(
+    () => !!data && data.integrations.some((i) => i.provider === "garmin"),
+    [data],
+  );
 
   const fetchInsight = useCallback(async (section: string) => {
     if (insights[section]) return;
@@ -105,9 +118,37 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Row 2 — Heart rate + VO2 */}
+      {/* Row — Predictions */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14, marginBottom: 14 }}>
+        <ChartCard
+          title="Race-time Predictions"
+          description="From your recent runs, using the Riegel formula."
+          onClick={() => setModal("race")}
+          accent={chartColors.byType.run}
+        >
+          <RacePredictorChart predictions={racePredictions} compact />
+        </ChartCard>
+        <ChartCard
+          title="Lift Trajectory"
+          description="Estimated 1RM trend and a 4-week projection for your main lifts."
+          onClick={() => setModal("e1rm")}
+          accent={chartColors.byType.lift}
+        >
+          <E1rmTrajectoryChart series={e1rmSeries} weightUnit={weightUnit} compact />
+        </ChartCard>
+        <ChartCard
+          title="Fitness Forecast"
+          description="Where fitness, fatigue, and form go if you hold current training load."
+          onClick={() => setModal("forecast")}
+          accent={chartColors.fitness}
+        >
+          <FitnessForecastChart forecast={fitnessForecast} compact />
+        </ChartCard>
+      </div>
+
+      {/* Row — Heart rate (HR Zones always; VO2 Max only with Garmin) */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14, marginBottom: 14 }}>
-        <div style={{ gridColumn: "span 2" }}>
+        <div style={{ gridColumn: hasGarmin ? "span 2" : "span 4" }}>
           <ChartCard
             title="Heart Rate Zones"
             description="Where your heart rate spent its time. Switch sport to compare."
@@ -117,30 +158,53 @@ export default function AnalyticsPage() {
             <HrZoneTabs cardio={data.cardio} boundaries={data.hrZones?.boundaries ?? null} compact />
           </ChartCard>
         </div>
-        <div style={{ gridColumn: "span 2" }}>
-          <ChartCard
-            title="VO2 Max"
-            description="Aerobic capacity estimate from Garmin run and bike activities."
-            onClick={() => setModal("vo2")}
-            accent={chartColors.vo2}
-          >
-            <Vo2Chart data={vo2Trend} compact />
-          </ChartCard>
-        </div>
+        {hasGarmin && (
+          <div style={{ gridColumn: "span 2" }}>
+            <ChartCard
+              title="VO2 Max"
+              description="Aerobic capacity estimate from Garmin run and bike activities."
+              onClick={() => setModal("vo2")}
+              accent={chartColors.vo2}
+            >
+              <Vo2Chart data={vo2Trend} compact />
+            </ChartCard>
+          </div>
+        )}
       </div>
 
-      {/* Row 3 — Recovery */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14, marginBottom: 14 }}>
-        <ChartCard title="HRV" description="Higher is better. A drop can mean fatigue or illness." onClick={() => setModal("hrv")} accent={chartColors.hrv}>
-          <RecoveryTrendChart data={recoveryData} dataKey="hrv" color={chartColors.hrv} label="HRV" unit="" compact />
-        </ChartCard>
-        <ChartCard title="Sleep" description="Hours per night. 7–9 is the sweet spot." onClick={() => setModal("sleep")} accent={chartColors.sleep}>
-          <RecoveryTrendChart data={recoveryData} dataKey="sleep_hours" color={chartColors.sleep} label="Sleep" unit="h" compact />
-        </ChartCard>
-        <ChartCard title="Resting HR" description="Lower trends usually mean better aerobic fitness." onClick={() => setModal("rhr")} accent={chartColors.rhr}>
-          <RecoveryTrendChart data={recoveryData} dataKey="resting_hr" color={chartColors.rhr} label="RHR" unit=" bpm" compact />
-        </ChartCard>
-      </div>
+      {/* Row — Recovery (Garmin-only; entire row hidden when no health source) */}
+      {hasGarmin && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14, marginBottom: 14 }}>
+          <ChartCard title="HRV" description="Higher is better. A drop can mean fatigue or illness." onClick={() => setModal("hrv")} accent={chartColors.hrv}>
+            <RecoveryTrendChart data={recoveryData} dataKey="hrv" color={chartColors.hrv} label="HRV" unit="" compact />
+          </ChartCard>
+          <ChartCard title="Sleep" description="Hours per night. 7–9 is the sweet spot." onClick={() => setModal("sleep")} accent={chartColors.sleep}>
+            <RecoveryTrendChart data={recoveryData} dataKey="sleep_hours" color={chartColors.sleep} label="Sleep" unit="h" compact />
+          </ChartCard>
+          <ChartCard title="Resting HR" description="Lower trends usually mean better aerobic fitness." onClick={() => setModal("rhr")} accent={chartColors.rhr}>
+            <RecoveryTrendChart data={recoveryData} dataKey="resting_hr" color={chartColors.rhr} label="RHR" unit=" bpm" compact />
+          </ChartCard>
+        </div>
+      )}
+
+      {!hasGarmin && (
+        <div
+          style={{
+            background: "#f9fafb",
+            border: "1px dashed #d1d5db",
+            borderRadius: 12,
+            padding: "16px 18px",
+            fontSize: 12,
+            color: chartColors.textMuted,
+            marginBottom: 14,
+            lineHeight: 1.55,
+          }}
+        >
+          <b style={{ color: chartColors.textPrimary }}>Health metrics hidden.</b> Recovery data (HRV, sleep,
+          resting HR, VO2 max) needs a wearable connected. Garmin is available as a beta integration in{" "}
+          <a href="/dashboard/settings" style={{ color: chartColors.fitness, fontWeight: 700 }}>Settings → Integrations</a>.
+        </div>
+      )}
 
       <ChartModal open={modal === "fitness"} onClose={() => setModal(null)} title="Fitness Trend" insight={insightFor("fitness")} insightLoading={isLoadingInsight("fitness")}>
         <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
@@ -204,6 +268,27 @@ export default function AnalyticsPage() {
           Resting heart rate trends downward as cardiovascular fitness improves. A sudden spike (5+ bpm above baseline) can mean illness, stress, dehydration, or overtraining. Watch the 7-day average rather than single readings.
         </p>
         <RecoveryTrendChart data={recoveryData} dataKey="resting_hr" color={chartColors.rhr} label="Resting HR" unit=" bpm" />
+      </ChartModal>
+
+      <ChartModal open={modal === "race"} onClose={() => setModal(null)} title="Race-time Predictions">
+        <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
+          Predictions use the <b>Riegel formula</b> (T₂ = T₁ × (D₂ / D₁)^1.06) applied to your fastest recent run within a reasonable distance of each target. They assume even pacing and similar conditions — actual race times depend heavily on terrain, weather, and taper. For best accuracy, base predictions on efforts within 0.5x–2x of the target distance.
+        </p>
+        <RacePredictorChart predictions={racePredictions} />
+      </ChartModal>
+
+      <ChartModal open={modal === "e1rm"} onClose={() => setModal(null)} title="Lift Trajectory">
+        <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
+          Each solid line is the highest <b>estimated 1RM</b> (e1RM) you hit on a given session for that lift, using the Epley formula (weight × (1 + reps/30)). The dashed line is a linear projection from the last 12 sessions. Projections are rough — they assume continued trend, no plateau, no injury. Use them to compare progress between lifts, not as a target for the next month.
+        </p>
+        <E1rmTrajectoryChart series={e1rmSeries} weightUnit={weightUnit} />
+      </ChartModal>
+
+      <ChartModal open={modal === "forecast"} onClose={() => setModal(null)} title="Fitness Forecast">
+        <p style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, margin: "0 0 16px" }}>
+          This projects your <b>Fitness (CTL)</b>, <b>Fatigue (ATL)</b>, and <b>Form (TSB)</b> 14 days forward, assuming you continue your last 14 days of average daily load. If you plan to taper or push harder, your actual numbers will diverge. Use the predicted peak Form to time race week — many athletes target TSB around +5 to +25.
+        </p>
+        <FitnessForecastChart forecast={fitnessForecast} />
       </ChartModal>
     </div>
   );

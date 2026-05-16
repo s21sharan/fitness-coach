@@ -12,6 +12,7 @@ interface IntegrationCardProps {
   onDisconnect: () => void;
   onSync?: () => void;
   comingSoon?: boolean;
+  betaBadge?: boolean;
 }
 
 function formatTimeAgo(dateStr: string): string {
@@ -35,6 +36,7 @@ export function IntegrationCard({
   onDisconnect,
   onSync,
   comingSoon,
+  betaBadge,
 }: IntegrationCardProps) {
   return (
     <div className="card" style={{ padding: 18, display: "flex", flexDirection: "row", alignItems: "center", gap: 16, opacity: comingSoon ? 0.5 : 1 }}>
@@ -45,6 +47,22 @@ export function IntegrationCard({
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>{name}</span>
+          {betaBadge && (
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 800,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                background: "var(--lemon-soft, #fef3c7)",
+                color: "var(--lemon-deep, #92400e)",
+                borderRadius: 999,
+                padding: "2px 8px",
+              }}
+            >
+              Beta
+            </span>
+          )}
           {connected && !comingSoon && (
             <span
               style={{

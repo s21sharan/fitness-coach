@@ -3,6 +3,7 @@ export { getCardioTool } from "./get-cardio";
 export { getRecoveryTool } from "./get-recovery";
 export { getTrainingPlanTool } from "./get-training-plan";
 export { updatePlannedWorkoutTool } from "./update-planned-workout";
+export { createPlannedWorkoutTool } from "./create-planned-workout";
 export { regeneratePlanTool } from "./regenerate-plan";
 export { getSearchResearchTool } from "./search-research";
 export { proposeNextBlockTool } from "./propose-next-block";

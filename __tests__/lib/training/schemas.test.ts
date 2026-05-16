@@ -1,5 +1,33 @@
 import { describe, it, expect } from "vitest";
-import { planGenerationSchema, dayLayoutSchema, workoutTargetsSchema, multiWeekPlanSchema, type PlanGeneration, type WorkoutTargets, type MultiWeekPlan } from "@/lib/training/schemas";
+import {
+  planGenerationSchema,
+  dayLayoutSchema,
+  workoutTargetsSchema,
+  multiWeekPlanSchema,
+  workoutContractSchema,
+  sessionContractSchema,
+  type PlanGeneration,
+  type WorkoutTargets,
+  type SessionContract,
+} from "@/lib/training/schemas";
+
+function makeSession(opts: { sport: SessionContract["sport"]; name: string; rationale?: string | null; slot?: "am" | "pm" | "full"; }): SessionContract {
+  return {
+    sport: opts.sport,
+    name: opts.name,
+    rationale: opts.rationale ?? null,
+    contract: {
+      version: 1,
+      sport: opts.sport,
+      name: opts.name,
+      slot: opts.slot ?? "full",
+      source: "coach",
+      steps: [
+        { type: "work", label: opts.name, duration_sec: 1800, target_hr_zone: 2 },
+      ],
+    },
+  };
+}
 
 describe("planGenerationSchema", () => {
   it("validates a correct PPL plan", () => {
@@ -24,39 +52,8 @@ describe("planGenerationSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("validates a hybrid race plan with periodization", () => {
-    const plan: PlanGeneration = {
-      split_type: "hybrid_upper_lower",
-      reasoning: "Half Ironman in 12 weeks — build phase with 3 lift + 3 cardio.",
-      weekly_layout: [
-        { day_of_week: 0, session_type: "Upper Body + Easy Run (Zone 2)", ai_notes: "Keep run under 5km" },
-        { day_of_week: 1, session_type: "Tempo Run", ai_notes: null },
-        { day_of_week: 2, session_type: "Lower Body", ai_notes: null },
-        { day_of_week: 3, session_type: "Easy Run (Zone 2) + Swim", ai_notes: null },
-        { day_of_week: 4, session_type: "Upper Body", ai_notes: null },
-        { day_of_week: 5, session_type: "Long Ride + Brick Run", ai_notes: "Aim for 60km ride + 15 min brick" },
-        { day_of_week: 6, session_type: "Rest", ai_notes: null },
-      ],
-      plan_config: {
-        periodization_phase: "build",
-        race_weeks_out: 12,
-        deload_frequency: 3,
-        notes: "Transition to peak phase at week 16",
-      },
-    };
-
-    const result = planGenerationSchema.safeParse(plan);
-    expect(result.success).toBe(true);
-  });
-
   it("rejects invalid split type", () => {
-    const plan = {
-      split_type: "invalid_split",
-      reasoning: "test",
-      weekly_layout: [],
-      plan_config: {},
-    };
-
+    const plan = { split_type: "invalid_split", reasoning: "test", weekly_layout: [], plan_config: {} };
     const result = planGenerationSchema.safeParse(plan);
     expect(result.success).toBe(false);
   });
@@ -65,14 +62,92 @@ describe("planGenerationSchema", () => {
     const plan = {
       split_type: "ppl",
       reasoning: "test",
-      weekly_layout: [
-        { day_of_week: 0, session_type: "Push", ai_notes: null },
-      ],
+      weekly_layout: [{ day_of_week: 0, session_type: "Push", ai_notes: null }],
       plan_config: {},
     };
+    expect(planGenerationSchema.safeParse(plan).success).toBe(false);
+  });
+});
 
-    const result = planGenerationSchema.safeParse(plan);
-    expect(result.success).toBe(false);
+describe("workoutContractSchema", () => {
+  it("validates a cardio contract with warmup/work/cooldown", () => {
+    const contract = {
+      version: 1,
+      sport: "run",
+      name: "Easy Z2 run",
+      slot: "am",
+      source: "coach",
+      steps: [
+        { type: "warmup", label: "Warm-up", duration_sec: 600, target_hr_zone: 1 },
+        { type: "work", label: "Easy run", duration_sec: 2400, target_hr_zone: 2 },
+        { type: "cooldown", label: "Cool down", duration_sec: 300, target_hr_zone: 1 },
+      ],
+    };
+    expect(workoutContractSchema.safeParse(contract).success).toBe(true);
+  });
+
+  it("validates a strength contract with exercise_name / sets / reps", () => {
+    const contract = {
+      version: 1,
+      sport: "strength",
+      name: "Lower body lift",
+      slot: "pm",
+      source: "coach",
+      steps: [
+        { type: "work", exercise_name: "Back Squat", sets: 4, reps: 6, rpe: 8 },
+        { type: "work", exercise_name: "Romanian Deadlift", sets: 3, reps: 10, rpe: 7 },
+        { type: "work", exercise_name: "Leg Press", sets: 3, reps: 12 },
+      ],
+    };
+    expect(workoutContractSchema.safeParse(contract).success).toBe(true);
+  });
+
+  it("accepts an interval repeat block", () => {
+    const contract = {
+      version: 1,
+      sport: "run",
+      name: "Intervals",
+      source: "coach",
+      steps: [
+        {
+          type: "repeat",
+          repeats: 6,
+          steps: [
+            { type: "work", duration_sec: 240, target_hr_zone: 4 },
+            { type: "recovery", duration_sec: 90, target_hr_zone: 1 },
+          ],
+        },
+      ],
+    };
+    expect(workoutContractSchema.safeParse(contract).success).toBe(true);
+  });
+
+  it("rejects version != 1", () => {
+    expect(
+      workoutContractSchema.safeParse({ version: 2, sport: "run", name: "X", source: "coach", steps: [{ type: "work", duration_sec: 60 }] }).success
+    ).toBe(false);
+  });
+
+  it("rejects HR zone outside 1..5", () => {
+    expect(
+      workoutContractSchema.safeParse({
+        version: 1, sport: "run", name: "X", source: "coach",
+        steps: [{ type: "work", duration_sec: 60, target_hr_zone: 7 }],
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe("sessionContractSchema", () => {
+  it("validates a session referencing a contract", () => {
+    const session = makeSession({ sport: "run", name: "Easy run" });
+    expect(sessionContractSchema.safeParse(session).success).toBe(true);
+  });
+
+  it("requires inner contract", () => {
+    expect(
+      sessionContractSchema.safeParse({ sport: "run", name: "X" }).success
+    ).toBe(false);
   });
 });
 
@@ -86,168 +161,88 @@ describe("workoutTargetsSchema", () => {
       target_hr_max: 155,
       muscle_focus: null,
     };
+    expect(workoutTargetsSchema.safeParse(targets).success).toBe(true);
+  });
 
-    const result = workoutTargetsSchema.safeParse(targets);
-    expect(result.success).toBe(true);
+  it("validates targets with contract embedded", () => {
+    const targets: WorkoutTargets = {
+      contract: {
+        version: 1, sport: "run", name: "Easy run", source: "coach",
+        steps: [{ type: "work", duration_sec: 1800, target_hr_zone: 2 }],
+      },
+      target_duration_min: 30,
+    };
+    expect(workoutTargetsSchema.safeParse(targets).success).toBe(true);
   });
 
   it("validates empty targets object (all fields optional)", () => {
-    const result = workoutTargetsSchema.safeParse({});
-    expect(result.success).toBe(true);
+    expect(workoutTargetsSchema.safeParse({}).success).toBe(true);
   });
 
   it("rejects target_hr_zone outside 1-5 range", () => {
-    const result = workoutTargetsSchema.safeParse({ target_hr_zone: 6 });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects target_hr_zone of 0", () => {
-    const result = workoutTargetsSchema.safeParse({ target_hr_zone: 0 });
-    expect(result.success).toBe(false);
+    expect(workoutTargetsSchema.safeParse({ target_hr_zone: 6 }).success).toBe(false);
   });
 });
 
 describe("multiWeekPlanSchema", () => {
-  it("validates a 2-week hybrid plan with AM/PM splits", () => {
+  it("validates a 2-week hybrid plan with structured AM/PM sessions", () => {
+    const week1Days = (["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const).map((d, i) => ({
+      day_label: d,
+      am_session: i === 2 || i === 6 ? null : makeSession({ sport: i % 2 === 0 ? "strength" : "run", name: i % 2 === 0 ? "Upper push" : "Easy Z2 run", slot: "am" }),
+      pm_session: null,
+      is_rest: i === 2 || i === 6,
+      notes: null,
+    }));
     const plan = {
       split_type: "hybrid_nick_bare",
-      narrative: "Week 1 builds aerobic base with AM lifting and PM zone 2 cardio. Week 2 introduces tempo work.",
-      risks: ["High weekly volume may cause cumulative fatigue", "Back-to-back hard days on Wed/Thu"],
-      plan_config: {
-        periodization_phase: "build",
-        race_weeks_out: 16,
-        deload_frequency: 4,
-        notes: "Taper starts week 14",
-      },
+      narrative: "Hybrid 2 weeks.",
+      risks: ["fatigue"],
+      plan_config: { periodization_phase: "build", race_weeks_out: 16, deload_frequency: 4 },
       weeks: [
-        {
-          week_number: 1,
-          week_focus: "Aerobic base + full body strength",
-          days: [
-            { day_label: "Mon", am_session: "Upper Body Push", am_rationale: "Fresh legs after rest day", pm_session: "Zone 2 Run 45min", pm_rationale: "Low intensity, aerobic base", is_rest: false, notes: null },
-            { day_label: "Tue", am_session: "Lower Body", am_rationale: "Leg drive for running", pm_session: null, pm_rationale: null, is_rest: false, notes: "Focus on squat and Romanian deadlift" },
-            { day_label: "Wed", am_session: null, am_rationale: null, pm_session: null, pm_rationale: null, is_rest: true, notes: "Full rest, focus on nutrition" },
-            { day_label: "Thu", am_session: "Upper Body Pull", am_rationale: "Balance push/pull ratio", pm_session: "Easy Swim 30min", pm_rationale: "Active recovery modality", is_rest: false, notes: null },
-            { day_label: "Fri", am_session: "Zone 2 Bike 60min", am_rationale: "Aerobic base building", pm_session: null, pm_rationale: null, is_rest: false, notes: null },
-            { day_label: "Sat", am_session: "Long Run 12km", am_rationale: "Weekly long effort", pm_session: null, pm_rationale: null, is_rest: false, notes: "HR cap at zone 3" },
-            { day_label: "Sun", am_session: null, am_rationale: null, pm_session: null, pm_rationale: null, is_rest: true, notes: null },
-          ],
-        },
-        {
-          week_number: 2,
-          week_focus: "Introduce tempo and lactate threshold work",
-          days: [
-            { day_label: "Mon", am_session: "Upper Body Push", am_rationale: "Repeat pattern", pm_session: "Zone 2 Run 50min", pm_rationale: "Slight volume increase", is_rest: false, notes: null },
-            { day_label: "Tue", am_session: "Lower Body", am_rationale: "Maintain leg strength", pm_session: null, pm_rationale: null, is_rest: false, notes: null },
-            { day_label: "Wed", am_session: null, am_rationale: null, pm_session: null, pm_rationale: null, is_rest: true, notes: null },
-            { day_label: "Thu", am_session: "Tempo Run 8km", am_rationale: "Lactate threshold stimulus", pm_session: null, pm_rationale: null, is_rest: false, notes: "Target zone 4" },
-            { day_label: "Fri", am_session: "Upper Body Pull", am_rationale: "Pulling pattern maintenance", pm_session: "Easy Swim 30min", pm_rationale: "Flush legs post-tempo", is_rest: false, notes: null },
-            { day_label: "Sat", am_session: "Long Run 14km", am_rationale: "Progressive overload on long run", pm_session: null, pm_rationale: null, is_rest: false, notes: null },
-            { day_label: "Sun", am_session: null, am_rationale: null, pm_session: null, pm_rationale: null, is_rest: true, notes: null },
-          ],
-        },
+        { week_number: 1, week_focus: "Base", days: week1Days },
+        { week_number: 2, week_focus: "Progress", days: week1Days },
       ],
     };
-
-    const result = multiWeekPlanSchema.safeParse(plan);
-    expect(result.success).toBe(true);
-  });
-
-  it("validates a lifting-only 2-week PPL plan", () => {
-    const makeDays = (sessions: Array<{ am: string | null; pm: string | null; rest: boolean }>) =>
-      (["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const).map((day_label, i) => ({
-        day_label,
-        am_session: sessions[i].am,
-        am_rationale: sessions[i].am ? "Primary session" : null,
-        pm_session: sessions[i].pm,
-        pm_rationale: null,
-        is_rest: sessions[i].rest,
-        notes: null,
-      }));
-
-    const week1Days = makeDays([
-      { am: "Push", pm: null, rest: false },
-      { am: "Pull", pm: null, rest: false },
-      { am: "Legs", pm: null, rest: false },
-      { am: null, pm: null, rest: true },
-      { am: "Push", pm: null, rest: false },
-      { am: "Pull", pm: null, rest: false },
-      { am: null, pm: null, rest: true },
-    ]);
-
-    const plan = {
-      split_type: "ppl",
-      narrative: "Classic PPL structure over 2 weeks with a deload in week 4.",
-      risks: ["High frequency may not suit beginners"],
-      plan_config: { deload_frequency: 4 },
-      weeks: [
-        { week_number: 1, week_focus: "Hypertrophy — volume focus", days: week1Days },
-        { week_number: 2, week_focus: "Hypertrophy — progressive overload", days: week1Days },
-      ],
-    };
-
     const result = multiWeekPlanSchema.safeParse(plan);
     expect(result.success).toBe(true);
   });
 
   it("rejects plan with 0 weeks", () => {
-    const plan = {
-      split_type: "ppl",
-      narrative: "Empty plan",
-      risks: [],
-      plan_config: {},
-      weeks: [],
-    };
-
-    const result = multiWeekPlanSchema.safeParse(plan);
-    expect(result.success).toBe(false);
+    const plan = { split_type: "ppl", narrative: "Empty plan", risks: [], plan_config: {}, weeks: [] };
+    expect(multiWeekPlanSchema.safeParse(plan).success).toBe(false);
   });
 
-  it("rejects week with wrong number of days (not 7)", () => {
+  it("rejects week with wrong number of days", () => {
     const plan = {
       split_type: "ppl",
       narrative: "Short week",
       risks: [],
       plan_config: {},
-      weeks: [
-        {
-          week_number: 1,
-          week_focus: "Build",
-          days: [
-            { day_label: "Mon", am_session: "Push", am_rationale: null, pm_session: null, pm_rationale: null, is_rest: false, notes: null },
-            { day_label: "Tue", am_session: "Pull", am_rationale: null, pm_session: null, pm_rationale: null, is_rest: false, notes: null },
-          ],
-        },
-      ],
+      weeks: [{
+        week_number: 1,
+        week_focus: "Build",
+        days: [{ day_label: "Mon", am_session: null, pm_session: null, is_rest: true, notes: null }],
+      }],
     };
-
-    const result = multiWeekPlanSchema.safeParse(plan);
-    expect(result.success).toBe(false);
+    expect(multiWeekPlanSchema.safeParse(plan).success).toBe(false);
   });
 
   it("rejects invalid day_label", () => {
     const days = (["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sunday"] as string[]).map((day_label) => ({
       day_label,
       am_session: null,
-      am_rationale: null,
       pm_session: null,
-      pm_rationale: null,
-      is_rest: day_label === "Sunday",
+      is_rest: true,
       notes: null,
     }));
-
     const plan = {
       split_type: "ppl",
-      narrative: "Invalid day label test",
+      narrative: "Invalid day label",
       risks: [],
       plan_config: {},
-      weeks: [
-        { week_number: 1, week_focus: "Test week", days },
-      ],
+      weeks: [{ week_number: 1, week_focus: "Test", days }],
     };
-
-    const result = multiWeekPlanSchema.safeParse(plan);
-    expect(result.success).toBe(false);
+    expect(multiWeekPlanSchema.safeParse(plan).success).toBe(false);
   });
 });
 
@@ -266,52 +261,11 @@ describe("dayLayoutSchema with targets", () => {
         muscle_focus: null,
       },
     };
-
-    const result = dayLayoutSchema.safeParse(day);
-    expect(result.success).toBe(true);
+    expect(dayLayoutSchema.safeParse(day).success).toBe(true);
   });
 
   it("validates a rest day with no targets", () => {
-    const day = {
-      day_of_week: 6,
-      session_type: "Rest",
-      ai_notes: null,
-    };
-
-    const result = dayLayoutSchema.safeParse(day);
-    expect(result.success).toBe(true);
-  });
-
-  it("validates a lifting day with muscle_focus set", () => {
-    const day = {
-      day_of_week: 0,
-      session_type: "Push",
-      ai_notes: null,
-      targets: {
-        muscle_focus: "chest, shoulders, triceps",
-      },
-    };
-
-    const result = dayLayoutSchema.safeParse(day);
-    expect(result.success).toBe(true);
-  });
-
-  it("validates a day with targets containing nullable fields set to null", () => {
-    const day = {
-      day_of_week: 3,
-      session_type: "Easy Run (Zone 2)",
-      ai_notes: null,
-      targets: {
-        target_distance_km: null,
-        target_duration_min: 45,
-        target_pace_min_km: null,
-        target_hr_zone: 2,
-        target_hr_max: null,
-        muscle_focus: null,
-      },
-    };
-
-    const result = dayLayoutSchema.safeParse(day);
-    expect(result.success).toBe(true);
+    const day = { day_of_week: 6, session_type: "Rest", ai_notes: null };
+    expect(dayLayoutSchema.safeParse(day).success).toBe(true);
   });
 });

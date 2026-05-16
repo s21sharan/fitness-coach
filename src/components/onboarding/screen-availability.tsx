@@ -20,7 +20,7 @@ interface ScreenAvailabilityProps {
 
 export const SCREEN_AVAILABILITY_TITLE = "When can you train?";
 export const SCREEN_AVAILABILITY_SUBTITLE =
-  "Click time windows for each day. Then pick the scheduling rules that matter to you.";
+  "For each day, pick AM, PM, both, or one Long session. Then add any scheduling rules that matter.";
 
 export function ScreenAvailability({ profile, onUpdate }: ScreenAvailabilityProps) {
   const toggleRule = (key: AvailabilityRuleKey) => {
