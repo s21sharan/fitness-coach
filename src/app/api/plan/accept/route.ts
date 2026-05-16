@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { generatePlannedWorkouts, expandBlocksToWorkouts } from "@/lib/training/generate-plan";
 import type { WeekBlock } from "@/lib/training/schemas";
+import { todayYmdLocal } from "@/lib/training/date-guards";
 
 export async function POST(request: NextRequest) {
   const { userId } = await auth();
@@ -64,6 +65,10 @@ export async function POST(request: NextRequest) {
     workouts = generatePlannedWorkouts(newPlan.id, weekly_layout, nextMonday, 2);
     weeksGenerated = 2;
   }
+
+  // Defense in depth: drop any computed past-date rows (shouldn't happen since we anchor on next Monday).
+  const today = todayYmdLocal();
+  workouts = workouts.filter((w) => (w.date as string) >= today);
 
   const { error: workoutsError } = await supabase
     .from("planned_workouts")

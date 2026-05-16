@@ -10,6 +10,7 @@ import type {
   AvailabilityWindow,
 } from "@/lib/onboarding/types";
 import { computeAllScores } from "@/lib/onboarding/scoring";
+import { sessionContractSchema, type SessionContract } from "@/lib/training/schemas";
 
 const PreviewRequestSchema = z.object({
   profile: z.unknown(),
@@ -20,10 +21,8 @@ const PreviewRequestSchema = z.object({
 
 const PlanDaySchema = z.object({
   day_label: z.string(),
-  am_session: z.string().nullable(),
-  am_rationale: z.string().nullable(),
-  pm_session: z.string().nullable(),
-  pm_rationale: z.string().nullable(),
+  am_session: sessionContractSchema.nullable(),
+  pm_session: sessionContractSchema.nullable(),
   is_rest: z.boolean(),
   notes: z.string().nullable(),
 });
@@ -48,16 +47,46 @@ You output:
 3. N weeks (where N is requested), each with:
    - week_number (1..N)
    - week_focus (1-2 sentence rationale for the week)
-   - 7 days (Mon..Sun) each with AM and PM session strings (may be null).
+   - 7 days (Mon..Sun), each with am_session and pm_session structured objects (may be null).
 
 Rules:
 - Honor the athlete's availability_windows: only schedule sessions where the day/block is enabled. session_count=2 on a block means two sessions in that block; place both.
 - Place long sessions (long run / long ride) on days flagged with "all-day" availability or as availability_rules indicate (weekends).
 - Place key cardio sessions away from heavy lower-body lifting when leg_interference suggests it.
-- If a day has no availability, set is_rest=true and leave sessions null.
-- am_session / pm_session must be short, specific strings: "Threshold run 5x1km @ 6:30/mi" or "Lower body lift". Not generic.
-- am_rationale / pm_rationale: one short line explaining why that session, that day.
-- Use empty string rather than null for unused fields if your client requires it, otherwise null.
+- If a day has no availability, set is_rest=true and leave both sessions null.
+
+## Structured Session Format
+am_session and pm_session are STRUCTURED OBJECTS (not strings):
+{
+  "sport": "run" | "bike" | "swim" | "strength",
+  "name": short display label (≤60 chars), e.g. "Easy Z2 run",
+  "rationale": one sentence explaining why this session is placed here and now,
+  "contract": {
+    "version": 1,
+    "sport": same as outer,
+    "name": same short label,
+    "slot": "am" | "pm" | "full",
+    "source": "onboarding_preview",
+    "steps": [ ...ContractStep[] ]
+  }
+}
+
+ContractStep fields:
+- type: "warmup" | "work" | "recovery" | "cooldown" | "rest" | "repeat"
+- label: short text
+- duration_sec: integer seconds (use this for time-based steps)
+- distance_m: meters (for runs / bikes / swims)
+- target_hr_zone: 1..5
+- pace_sec_per_km: running pace target in seconds per km
+- ftp_percent: 30..150 for cycling power
+- exercise_name / sets / reps / weight_kg / rpe: for strength steps
+- repeats + steps (nested): for interval blocks
+
+Emission rules:
+- ALWAYS set version=1, source="onboarding_preview", correct sport.
+- Cardio: include at least one work step with duration_sec or distance_m + target_hr_zone or pace_sec_per_km when known.
+- Strength: when split is specific (e.g. "Upper body — push/pull"), emit a single work step with a label and duration_sec is fine. Detailed per-exercise breakdowns are optional.
+- Granularity matches the athlete's level of detail.
 
 If the user provides feedback in the prompt, fully incorporate it. Move sessions, swap days, drop volume — whatever they ask for.`;
 
@@ -205,6 +234,37 @@ function weekFocus(i: number, total: number): string {
   return "Progress slightly while protecting recovery.";
 }
 
+function makeSession(opts: {
+  sport: "run" | "bike" | "swim" | "strength";
+  name: string;
+  rationale: string;
+  slot: "am" | "pm" | "full";
+  durationSec: number;
+  hrZone?: 1 | 2 | 3 | 4 | 5;
+}): SessionContract {
+  const { sport, name, rationale, slot, durationSec, hrZone } = opts;
+  return {
+    sport,
+    name,
+    rationale,
+    contract: {
+      version: 1,
+      sport,
+      name,
+      slot,
+      source: "onboarding_preview",
+      steps: [
+        {
+          type: "work",
+          label: name,
+          duration_sec: durationSec,
+          target_hr_zone: hrZone,
+        },
+      ],
+    },
+  };
+}
+
 function heuristicWeekDays(profile: AthleteContextProfile): PlanPreviewDay[] {
   const lifting = profile.sports.lift.is_planned;
   const running = profile.sports.run.is_planned;
@@ -220,48 +280,44 @@ function heuristicWeekDays(profile: AthleteContextProfile): PlanPreviewDay[] {
     const longRideWeekend = isWeekend && cycling;
     const longRunWeekend = isWeekend && running;
 
-    let am_session: string | null = null;
-    let am_rationale: string | null = null;
-    let pm_session: string | null = null;
-    let pm_rationale: string | null = null;
+    let am_session: SessionContract | null = null;
+    let pm_session: SessionContract | null = null;
     let isRest = false;
 
     if (allDay) {
       if (longRunWeekend) {
-        pm_session = "Long run";
-        pm_rationale = "Weekly aerobic anchor; use weekend availability";
+        pm_session = makeSession({ sport: "run", name: "Long run", rationale: "Weekly aerobic anchor; use weekend availability", slot: "full", durationSec: 5400, hrZone: 2 });
       } else if (longRideWeekend) {
-        pm_session = "Long ride";
-        pm_rationale = "Weekly aerobic anchor; use weekend availability";
+        pm_session = makeSession({ sport: "bike", name: "Long ride", rationale: "Weekly aerobic anchor; use weekend availability", slot: "full", durationSec: 7200, hrZone: 2 });
       } else if (running) {
-        pm_session = "Easy run + accessory work";
-        pm_rationale = "Build aerobic base";
+        pm_session = makeSession({ sport: "run", name: "Easy run + accessory work", rationale: "Build aerobic base", slot: "full", durationSec: 3600, hrZone: 2 });
       }
     } else if (windows.length === 0) {
       isRest = true;
     } else {
       if (am) {
         if (i === 0 && running) {
-          am_session = "Threshold run";
-          am_rationale = "Quality run early in the week with fresh legs";
+          am_session = makeSession({ sport: "run", name: "Threshold run", rationale: "Quality run early in the week with fresh legs", slot: "am", durationSec: 2700, hrZone: 4 });
         } else if (i === 3 && swimming) {
-          am_session = "Swim technique";
-          am_rationale = "Low-impact CNS reset";
+          am_session = makeSession({ sport: "swim", name: "Swim technique", rationale: "Low-impact CNS reset", slot: "am", durationSec: 2400, hrZone: 2 });
         } else if (running && i % 2 === 0) {
-          am_session = "Easy run";
-          am_rationale = "Aerobic accumulation";
+          am_session = makeSession({ sport: "run", name: "Easy run", rationale: "Aerobic accumulation", slot: "am", durationSec: 2400, hrZone: 2 });
         } else if (cycling) {
-          am_session = "Easy bike (Zone 2)";
-          am_rationale = "Aerobic accumulation";
+          am_session = makeSession({ sport: "bike", name: "Easy bike (Zone 2)", rationale: "Aerobic accumulation", slot: "am", durationSec: 3600, hrZone: 2 });
         }
       }
       if (pm) {
         if (lifting && (i === 2 || i === 4)) {
-          pm_session = i === 2 ? "Lower body lift" : "Upper body lift";
-          pm_rationale = i === 2 ? "Strength with recovery before weekend" : "Push/pull strength";
+          pm_session = makeSession({
+            sport: "strength",
+            name: i === 2 ? "Lower body lift" : "Upper body lift",
+            rationale: i === 2 ? "Strength with recovery before weekend" : "Push/pull strength",
+            slot: "pm",
+            durationSec: 3600,
+            hrZone: 3,
+          });
         } else if (running && i === 5) {
-          pm_session = "Easy run";
-          pm_rationale = "Set up Sunday long";
+          pm_session = makeSession({ sport: "run", name: "Easy run", rationale: "Set up Sunday long", slot: "pm", durationSec: 2400, hrZone: 2 });
         }
       }
     }
@@ -273,9 +329,7 @@ function heuristicWeekDays(profile: AthleteContextProfile): PlanPreviewDay[] {
     return {
       day_label: day,
       am_session,
-      am_rationale,
       pm_session,
-      pm_rationale,
       is_rest: isRest,
       notes: null,
     };

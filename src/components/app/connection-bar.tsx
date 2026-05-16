@@ -14,13 +14,23 @@ interface ConnectionBarProps {
   onFixDates: () => void;
 }
 
-const PROVIDERS = [
+// Garmin is a beta-only integration: hidden in the dashboard chip list unless
+// the user has explicitly connected it from Settings.
+const ALWAYS_VISIBLE_PROVIDERS = [
   { key: "hevy", label: "Hevy", color: "#0F1B22" },
   { key: "strava", label: "Strava", color: "#FC4C02" },
+];
+
+const BETA_PROVIDERS = [
   { key: "garmin", label: "Garmin", color: "#0091D5" },
 ];
 
 export function ConnectionBar({ integrations, syncing, onSync, fixingDates, onFixDates }: ConnectionBarProps) {
+  const visibleProviders = [
+    ...ALWAYS_VISIBLE_PROVIDERS,
+    ...BETA_PROVIDERS.filter((p) => integrations.some((i) => i.provider === p.key)),
+  ];
+
   return (
     <div style={{
       display: "flex", gap: 14, padding: "10px 14px", marginBottom: 14,
@@ -28,7 +38,7 @@ export function ConnectionBar({ integrations, syncing, onSync, fixingDates, onFi
       background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12,
       boxShadow: "0 1px 2px rgba(15, 27, 34, 0.03)",
     }}>
-      {PROVIDERS.map((p) => {
+      {visibleProviders.map((p) => {
         const int = integrations.find((i) => i.provider === p.key);
         const connected = !!int;
         const isSyncing = syncing === p.key;

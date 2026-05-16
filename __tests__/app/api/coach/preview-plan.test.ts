@@ -30,12 +30,23 @@ describe("POST /api/coach/preview-plan", () => {
   });
 
   it("returns LLM-generated preview", async () => {
+    const sample = (name: string) => ({
+      sport: "run" as const,
+      name,
+      rationale: "test",
+      contract: {
+        version: 1 as const,
+        sport: "run" as const,
+        name,
+        slot: "am" as const,
+        source: "onboarding_preview" as const,
+        steps: [{ type: "work" as const, label: name, duration_sec: 1800, target_hr_zone: 2 }],
+      },
+    });
     const validDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => ({
       day_label: d,
-      am_session: d === "Sun" ? null : "Easy run",
-      am_rationale: d === "Sun" ? null : "test",
+      am_session: d === "Sun" ? null : sample("Easy run"),
       pm_session: null,
-      pm_rationale: null,
       is_rest: d === "Sun",
       notes: null,
     }));

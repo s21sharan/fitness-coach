@@ -4,9 +4,11 @@ import { useEffect, useState, useCallback } from "react";
 import { IntegrationCard } from "@/components/settings/integration-card";
 import { CredentialsModal } from "@/components/settings/credentials-modal";
 import { ApiKeyModal } from "@/components/settings/api-key-modal";
+import { BetaAcknowledgeModal } from "@/components/settings/beta-acknowledge-modal";
 import { Topbar } from "@/components/topbar";
 import { Icon } from "@/components/app/icon";
 import { getUnitPreferences, saveUnitPreferences, type DistanceUnit, type WeightUnit, type UnitPreferences } from "@/lib/units";
+import { isBetaAcknowledged, setBetaAcknowledged } from "@/lib/beta-features";
 
 interface IntegrationStatus {
   provider: string;
@@ -18,6 +20,9 @@ interface IntegrationStatus {
 const INTEGRATIONS = [
   { provider: "hevy", name: "Hevy", category: "Workouts", type: "api-key" },
   { provider: "strava", name: "Strava", category: "Cardio", type: "oauth" },
+] as const;
+
+const BETA_INTEGRATIONS = [
   { provider: "garmin", name: "Garmin", category: "Recovery & HR", type: "credentials" },
 ] as const;
 
@@ -45,6 +50,7 @@ const NAV_ITEMS = [
 export default function SettingsPage() {
   const [statuses, setStatuses] = useState<IntegrationStatus[]>([]);
   const [modal, setModal] = useState<{ provider: string; type: string } | null>(null);
+  const [betaPending, setBetaPending] = useState<{ provider: string; type: string } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeNav, setActiveNav] = useState("integrations");
   const [unitPrefs, setUnitPrefs] = useState<UnitPreferences>({ distance: "mi", weight: "lbs" });
@@ -71,12 +77,21 @@ export default function SettingsPage() {
     }
   }, [fetchStatuses]);
 
-  const handleConnect = (provider: string, type: string) => {
+  const openConnect = (provider: string, type: string) => {
     if (type === "oauth") {
       window.location.href = `/api/integrations/${provider}/authorize`;
     } else {
       setModal({ provider, type });
     }
+  };
+
+  const handleConnect = (provider: string, type: string) => {
+    const isBeta = BETA_INTEGRATIONS.some((i) => i.provider === provider);
+    if (isBeta && provider === "garmin" && !isBetaAcknowledged("garmin")) {
+      setBetaPending({ provider, type });
+      return;
+    }
+    openConnect(provider, type);
   };
 
   const handleDisconnect = async (provider: string) => {
@@ -271,6 +286,31 @@ export default function SettingsPage() {
                   })}
                 </div>
 
+                {/* Beta */}
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Beta
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {BETA_INTEGRATIONS.map((integration) => {
+                      const status = statuses.find((s) => s.provider === integration.provider);
+                      return (
+                        <IntegrationCard
+                          key={integration.provider}
+                          provider={integration.provider}
+                          name={integration.name}
+                          category={integration.category}
+                          connected={status?.connected ?? false}
+                          lastSyncedAt={status?.lastSyncedAt ?? null}
+                          onConnect={() => handleConnect(integration.provider, integration.type)}
+                          onDisconnect={() => handleDisconnect(integration.provider)}
+                          betaBadge
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {/* Coming soon */}
                 <div style={{ marginTop: 8 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>
@@ -435,7 +475,11 @@ export default function SettingsPage() {
       {modal?.type === "credentials" && (
         <CredentialsModal
           provider={modal.provider}
-          title={INTEGRATIONS.find((i) => i.provider === modal.provider)?.name ?? ""}
+          title={
+            INTEGRATIONS.find((i) => i.provider === modal.provider)?.name ??
+            BETA_INTEGRATIONS.find((i) => i.provider === modal.provider)?.name ??
+            ""
+          }
           open={true}
           onClose={() => setModal(null)}
           onSubmit={(email, password) => handleCredentialsSubmit(modal.provider, email, password)}
@@ -452,6 +496,18 @@ export default function SettingsPage() {
           onSubmit={(apiKey) => handleApiKeySubmit(modal.provider, apiKey)}
         />
       )}
+
+      <BetaAcknowledgeModal
+        open={betaPending !== null}
+        onClose={() => setBetaPending(null)}
+        onAcknowledge={() => {
+          if (!betaPending) return;
+          setBetaAcknowledged("garmin");
+          const target = betaPending;
+          setBetaPending(null);
+          openConnect(target.provider, target.type);
+        }}
+      />
     </>
   );
 }

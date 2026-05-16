@@ -13,11 +13,8 @@ import {
   snapYmdToWeekMonday,
   weekAnchorMondayYmdFromLocalDate,
 } from "@/lib/dates/local-calendar";
-import {
-  buildWorkoutContractFromSessionText,
-  inferWorkoutSport,
-  type PlannedWorkoutTargets,
-} from "@/lib/training/workout-contract";
+import { combineSessionContracts } from "@/lib/training/generate-plan";
+import type { PlannedWorkoutTargets } from "@/lib/training/workout-contract";
 
 type SplitType = Database["public"]["Tables"]["training_plans"]["Insert"]["split_type"];
 
@@ -38,82 +35,23 @@ function splitTypeForProfile(profile: AthleteContextProfile): SplitType {
   return "ppl";
 }
 
-/** Accepts current `plan_preview` or legacy drafts with `first_week` only. */
+/** Accepts current `plan_preview` (structured contracts). Legacy text-only drafts return null. */
 export function normalizePlanPreviewWeeks(preview: PlanPreviewWeek | null | undefined): PlanPreviewWeekBlock[] | null {
   if (!preview || typeof preview !== "object") return null;
-  const p = preview as Record<string, unknown>;
+  const p = preview as unknown as Record<string, unknown>;
   if (Array.isArray(p.weeks) && (p.weeks as PlanPreviewWeekBlock[]).length > 0) {
     return p.weeks as PlanPreviewWeekBlock[];
-  }
-  const fw = p.first_week as Array<{ day_label: string; session: string; rationale: string }> | undefined;
-  if (Array.isArray(fw) && fw.length === 7) {
-    const days: PlanPreviewDay[] = fw.map((row) => ({
-      day_label: row.day_label,
-      am_session: row.session && !/^rest$/i.test(row.session) ? row.session : null,
-      am_rationale: row.rationale ?? null,
-      pm_session: null,
-      pm_rationale: null,
-      is_rest: /^rest$/i.test(row.session || ""),
-      notes: null,
-    }));
-    return [{ week_number: 1, week_focus: String(p.narrative ?? "Week 1"), days }];
   }
   return null;
 }
 
 export function combineDaySessions(day: PlanPreviewDay): { session_type: string; ai_notes: string | null; targets: PlannedWorkoutTargets | null } {
-  if (day.is_rest) {
-    return { session_type: "Rest", ai_notes: day.notes, targets: null };
-  }
-  const parts: string[] = [];
-  const notes: string[] = [];
-  if (day.am_session?.trim()) {
-    parts.push(`AM: ${day.am_session.trim()}`);
-    if (day.am_rationale?.trim()) notes.push(`AM — ${day.am_rationale.trim()}`);
-  }
-  if (day.pm_session?.trim()) {
-    parts.push(`PM: ${day.pm_session.trim()}`);
-    if (day.pm_rationale?.trim()) notes.push(`PM — ${day.pm_rationale.trim()}`);
-  }
-  const session_type = parts.length > 0 ? parts.join(" · ") : "Rest";
-  const ai_notes = notes.length > 0 ? notes.join("\n") : day.notes;
-
-  const amT = day.am_session?.trim()
-    ? buildWorkoutContractFromSessionText(day.am_session, { slot: "am", source: "onboarding_preview" })
-    : null;
-  const pmT = day.pm_session?.trim()
-    ? buildWorkoutContractFromSessionText(day.pm_session, { slot: "pm", source: "onboarding_preview" })
-    : null;
-
-  let targets: PlannedWorkoutTargets | null = null;
-  if (amT?.contract && pmT?.contract) {
-    targets = {
-      contract: {
-        version: 1,
-        sport: inferWorkoutSport(session_type),
-        name: session_type.length > 80 ? `${session_type.slice(0, 77)}…` : session_type,
-        source: "onboarding_preview",
-        steps: [
-          ...amT.contract.steps.map((s) => ({
-            ...s,
-            label: s.label ? `AM — ${s.label}` : "AM — work",
-          })),
-          ...pmT.contract.steps.map((s) => ({
-            ...s,
-            label: s.label ? `PM — ${s.label}` : "PM — work",
-          })),
-        ],
-      },
-      target_duration_min:
-        (amT.target_duration_min ?? 0) + (pmT.target_duration_min ?? 0) > 0
-          ? (amT.target_duration_min ?? 0) + (pmT.target_duration_min ?? 0)
-          : null,
-      target_hr_zone: amT.target_hr_zone ?? pmT.target_hr_zone,
-    };
-  } else if (amT) targets = amT;
-  else if (pmT) targets = pmT;
-
-  return { session_type, ai_notes: ai_notes || null, targets };
+  return combineSessionContracts({
+    am: day.am_session,
+    pm: day.pm_session,
+    is_rest: day.is_rest,
+    notes: day.notes,
+  });
 }
 
 /**

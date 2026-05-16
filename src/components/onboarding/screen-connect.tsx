@@ -25,7 +25,6 @@ const LIVE_INTEGRATIONS = [
   { provider: "macrofactor", name: "MacroFactor", category: "Nutrition & macros", type: "credentials" as const },
   { provider: "hevy", name: "Hevy", category: "Strength workouts", type: "api-key" as const },
   { provider: "strava", name: "Strava", category: "Running / cycling / swim", type: "oauth" as const },
-  { provider: "garmin", name: "Garmin", category: "Recovery & sleep", type: "credentials" as const },
 ] as const;
 
 const PLACEHOLDER_INTEGRATIONS = [

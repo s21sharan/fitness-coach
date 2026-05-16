@@ -9,7 +9,6 @@ describe("buildSystemPrompt", () => {
       plan: { split_type: "ppl", plan_config: null },
       todaySession: "Push",
       recovery: { hrv: 52, sleep_hours: 7.8, resting_hr: 58, body_battery: 75 },
-      todayNutrition: { calories: 1800, protein: 142 },
       weekStats: { sessionsCompleted: 3, sessionsPlanned: 6 },
     });
     expect(prompt).toContain("28");
@@ -27,7 +26,6 @@ describe("buildSystemPrompt", () => {
       plan: { split_type: "hybrid_upper_lower", plan_config: { periodization_phase: "build", race_weeks_out: 20 } },
       todaySession: "Upper Body + Easy Run (Zone 2)",
       recovery: null,
-      todayNutrition: null,
       weekStats: { sessionsCompleted: 4, sessionsPlanned: 6 },
     });
     expect(prompt).toContain("Half Ironman");
@@ -44,7 +42,6 @@ describe("buildSystemPrompt", () => {
       plan: null,
       todaySession: null,
       recovery: null,
-      todayNutrition: null,
       weekStats: null,
     });
     expect(prompt).toContain("Coach");
@@ -59,59 +56,52 @@ describe("buildSystemPrompt", () => {
       plan: null,
       todaySession: null,
       recovery: null,
-      todayNutrition: null,
       weekStats: null,
     });
     expect(prompt).toContain("Training Decision Framework");
     expect(prompt).toContain("Recovery gating");
     expect(prompt).toContain("HRV");
-    expect(prompt).toContain("Progressive overload");
-    expect(prompt).toContain("Load management");
   });
 
-  it("includes hybrid athlete priorities in reasoning framework", () => {
-    const prompt = buildSystemPrompt({
-      profile: { age: 30, height: 175, weight: 170, sex: "male", training_experience: "advanced" },
-      goals: { body_goal: "gain_muscle", emphasis: "endurance", days_per_week: 6, training_for_race: true, race_type: "half_ironman", race_date: "2026-09-15", goal_time: null },
-      plan: { split_type: "hybrid_nick_bare", plan_config: null },
-      todaySession: null,
-      recovery: null,
-      todayNutrition: null,
-      weekStats: null,
-    });
-    expect(prompt).toContain("Hybrid athlete priorities");
-    expect(prompt).toContain("emphasis");
-  });
-
-  it("includes tool usage strategy with proactive fetch guidance", () => {
-    const prompt = buildSystemPrompt({
-      profile: { age: 25, height: 170, weight: 150, sex: "female", training_experience: "beginner" },
-      goals: { body_goal: "lose_weight", emphasis: null, days_per_week: 4, training_for_race: false, race_type: null, race_date: null, goal_time: null },
-      plan: null,
-      todaySession: null,
-      recovery: null,
-      todayNutrition: null,
-      weekStats: null,
-    });
-    expect(prompt).toContain("When to use tools");
-    expect(prompt).toContain("get_workouts");
-    expect(prompt).toContain("get_recovery");
-    expect(prompt).toContain("get_nutrition");
-    expect(prompt).toContain("Do NOT fetch");
-  });
-
-  it("includes nutrition coherence in reasoning framework", () => {
+  it("includes calendar tool guidance for create / update / regenerate", () => {
     const prompt = buildSystemPrompt({
       profile: { age: 28, height: 180, weight: 185, sex: "male", training_experience: "intermediate" },
-      goals: { body_goal: "lose_weight", emphasis: null, days_per_week: 5, training_for_race: false, race_type: null, race_date: null, goal_time: null },
+      goals: { body_goal: "gain_muscle", emphasis: null, days_per_week: 5, training_for_race: false, race_type: null, race_date: null, goal_time: null },
       plan: null,
       todaySession: null,
       recovery: null,
-      todayNutrition: null,
       weekStats: null,
     });
-    expect(prompt).toContain("Nutrition coherence");
-    expect(prompt).toContain("protein");
-    expect(prompt).toContain("caloric deficit");
+    expect(prompt).toContain("create_planned_workout");
+    expect(prompt).toContain("update_planned_workout");
+    expect(prompt).toContain("regenerate_plan");
+  });
+
+  it("includes the strict date rule referencing today's date", () => {
+    const prompt = buildSystemPrompt({
+      profile: { age: 28, height: 180, weight: 185, sex: "male", training_experience: "intermediate" },
+      goals: { body_goal: "gain_muscle", emphasis: null, days_per_week: 5, training_for_race: false, race_type: null, race_date: null, goal_time: null },
+      plan: null,
+      todaySession: null,
+      recovery: null,
+      weekStats: null,
+    });
+    expect(prompt).toContain("Date rule");
+    expect(prompt).toContain("STRICT");
+    expect(prompt).toContain("Past sessions are immutable");
+  });
+
+  it("includes contract emission rules so the coach knows how to produce structured sessions", () => {
+    const prompt = buildSystemPrompt({
+      profile: { age: 28, height: 180, weight: 185, sex: "male", training_experience: "intermediate" },
+      goals: { body_goal: "gain_muscle", emphasis: null, days_per_week: 5, training_for_race: false, race_type: null, race_date: null, goal_time: null },
+      plan: null,
+      todaySession: null,
+      recovery: null,
+      weekStats: null,
+    });
+    expect(prompt).toContain("Contract emission rules");
+    expect(prompt).toContain("version=1");
+    expect(prompt).toContain("exercise_name");
   });
 });

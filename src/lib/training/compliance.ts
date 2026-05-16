@@ -1,7 +1,22 @@
+import type { PlannedWorkoutTargets } from "@/lib/training/workout-contract";
+
 export interface ComplianceInput {
   planned: Array<{ date: string; session_type: string; is_cardio: boolean }>;
   actualLifting: Array<{ date: string; name: string }>;
   actualCardio: Array<{ date: string; type: string; distance: number }>;
+}
+
+/**
+ * Decide if a planned row represents cardio. Reads `targets.contract.sport` when
+ * present; falls back to a regex on session_type for legacy rows without a contract.
+ */
+export function isCardioPlanned(p: {
+  session_type: string;
+  targets?: PlannedWorkoutTargets | null;
+}): boolean {
+  const sport = p.targets?.contract?.sport;
+  if (sport) return sport === "run" || sport === "bike" || sport === "swim";
+  return /run|ride|bike|swim|cardio|zone\s*2/i.test(p.session_type);
 }
 
 export interface ComplianceStats {

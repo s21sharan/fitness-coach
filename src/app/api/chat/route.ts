@@ -14,6 +14,7 @@ import {
   getRecoveryTool,
   getTrainingPlanTool,
   updatePlannedWorkoutTool,
+  createPlannedWorkoutTool,
   regeneratePlanTool,
   getSearchResearchTool,
 } from "@/lib/chat/tools";
@@ -208,6 +209,7 @@ export async function POST(request: Request) {
       get_recovery: getRecoveryTool(userId),
       get_training_plan: getTrainingPlanTool(userId),
       update_planned_workout: updatePlannedWorkoutTool(userId),
+      create_planned_workout: createPlannedWorkoutTool(userId),
       regenerate_plan: regeneratePlanTool(userId),
       search_research: getSearchResearchTool(),
     },

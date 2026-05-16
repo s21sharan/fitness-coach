@@ -334,10 +334,10 @@ function DayCell({ day }: { day: PlanPreviewDay }) {
       ) : (
         <>
           {day.am_session && (
-            <SessionBlock label="AM" session={day.am_session} rationale={day.am_rationale} accent="mint-soft" />
+            <SessionBlock label="AM" session={day.am_session.name} rationale={day.am_session.rationale ?? null} accent="mint-soft" />
           )}
           {day.pm_session && (
-            <SessionBlock label="PM" session={day.pm_session} rationale={day.pm_rationale} accent="coral-soft" />
+            <SessionBlock label="PM" session={day.pm_session.name} rationale={day.pm_session.rationale ?? null} accent="coral-soft" />
           )}
           {!day.am_session && !day.pm_session && (
             <p style={{ margin: "auto 0", fontSize: 11, color: "var(--muted)", textAlign: "center" }}>
@@ -394,9 +394,7 @@ function blankDay(label: string): PlanPreviewDay {
   return {
     day_label: label,
     am_session: null,
-    am_rationale: null,
     pm_session: null,
-    pm_rationale: null,
     is_rest: true,
     notes: null,
   };

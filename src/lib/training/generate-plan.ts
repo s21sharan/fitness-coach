@@ -2,10 +2,9 @@ import { generateObject } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@/lib/supabase/server";
-import { planGenerationSchema, type PlanGeneration, type DayLayout, type MultiWeekPlan, type WeekBlock, multiWeekPlanSchema } from "./schemas";
+import { planGenerationSchema, type PlanGeneration, type DayLayout, type MultiWeekPlan, type SessionContract, type WeekBlock, multiWeekPlanSchema } from "./schemas";
 import { PLAN_SYSTEM_PROMPT, buildUserPrompt, type RecentActivity, MULTI_WEEK_SYSTEM_PROMPT, buildMultiWeekUserPrompt, type MultiWeekPromptContext } from "./prompts";
-import { combineDaySessions } from "./seed-plan-from-onboarding";
-import type { PlanPreviewDay } from "@/lib/onboarding/types";
+import { estimateDurationMin, type WorkoutContractV1, type ContractStep, type PlannedWorkoutTargets } from "./workout-contract";
 
 interface GeneratePlanInput {
   userId: string;
@@ -200,6 +199,67 @@ const DAY_LABEL_TO_INDEX: Record<string, number> = {
   Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6,
 };
 
+/**
+ * Merge AM and PM session contracts into a single `planned_workouts` row payload.
+ * - session_type: "AM: <am.name> · PM: <pm.name>" when both, otherwise the single name.
+ * - targets.contract: when both slots exist, steps are prefixed and concatenated.
+ * Returns null targets for rest days.
+ */
+export function combineSessionContracts(opts: {
+  am?: SessionContract | null;
+  pm?: SessionContract | null;
+  is_rest?: boolean;
+  notes?: string | null;
+}): { session_type: string; ai_notes: string | null; targets: PlannedWorkoutTargets | null } {
+  const { am, pm, is_rest, notes } = opts;
+  if (is_rest || (!am && !pm)) {
+    return { session_type: "Rest", ai_notes: notes ?? null, targets: null };
+  }
+
+  const parts: string[] = [];
+  const rationales: string[] = [];
+  if (am) {
+    parts.push(`AM: ${am.name}`);
+    if (am.rationale) rationales.push(`AM — ${am.rationale}`);
+  }
+  if (pm) {
+    parts.push(`PM: ${pm.name}`);
+    if (pm.rationale) rationales.push(`PM — ${pm.rationale}`);
+  }
+  const session_type = parts.length > 1 ? parts.join(" · ") : (am?.name ?? pm?.name ?? "Rest");
+  const ai_notes = rationales.length > 0 ? rationales.join("\n") : notes ?? null;
+
+  let contract: WorkoutContractV1 | null = null;
+  if (am && pm) {
+    const prefixSteps = (steps: ContractStep[], prefix: string): ContractStep[] =>
+      steps.map((s) => ({ ...s, label: s.label ? `${prefix} ${s.label}` : `${prefix} work` }));
+    contract = {
+      version: 1,
+      sport: am.contract.sport, // primary sport — am leads
+      name: session_type.length > 80 ? `${session_type.slice(0, 77)}…` : session_type,
+      slot: "full",
+      source: am.contract.source,
+      steps: [
+        ...prefixSteps(am.contract.steps as ContractStep[], "AM —"),
+        ...prefixSteps(pm.contract.steps as ContractStep[], "PM —"),
+      ],
+    };
+  } else if (am) {
+    contract = { ...(am.contract as unknown as WorkoutContractV1), slot: am.contract.slot ?? "am" };
+  } else if (pm) {
+    contract = { ...(pm.contract as unknown as WorkoutContractV1), slot: pm.contract.slot ?? "pm" };
+  }
+
+  const targets: PlannedWorkoutTargets | null = contract
+    ? {
+        contract,
+        target_duration_min: estimateDurationMin(contract.steps),
+      }
+    : null;
+
+  return { session_type, ai_notes, targets };
+}
+
 export function expandBlocksToWorkouts(
   planId: string,
   blocks: WeekBlock[],
@@ -233,16 +293,12 @@ export function expandBlocksToWorkouts(
       date.setDate(date.getDate() + weekOffset * 7 + dayIdx);
       const dateStr = date.toISOString().slice(0, 10);
 
-      const previewDay: PlanPreviewDay = {
-        day_label: day.day_label,
-        am_session: day.am_session,
-        am_rationale: day.am_rationale,
-        pm_session: day.pm_session,
-        pm_rationale: day.pm_rationale,
+      const { session_type, ai_notes, targets } = combineSessionContracts({
+        am: day.am_session,
+        pm: day.pm_session,
         is_rest: day.is_rest,
         notes: day.notes,
-      };
-      const { session_type, ai_notes, targets } = combineDaySessions(previewDay);
+      });
 
       workouts.push({
         plan_id: planId,

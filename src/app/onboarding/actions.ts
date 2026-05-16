@@ -5,8 +5,23 @@ import { createServerClient } from "@/lib/supabase/server";
 import { aggregateAthleteLoad } from "@/lib/training-load/aggregate";
 import { computeAllScores } from "@/lib/onboarding/scoring";
 import type {
+  Aggressiveness,
   AthleteContextProfile,
+  AthleteIdentity,
+  BodyGoalDetailed,
+  ChatInsertionPoint,
+  DietStyle,
+  Experience,
+  ExplanationLevel,
+  ExtractedChatTags,
+  GoalKey,
+  MissedWorkoutBehavior,
+  PlanFlexibility,
+  PrimaryGoal,
+  ProteinTier,
+  Sex,
   SportEntry,
+  SportId,
   StepId,
 } from "@/lib/onboarding/types";
 import { getDefaultAthleteProfile, proteinGramsFromTier } from "@/lib/onboarding/types";
@@ -107,6 +122,243 @@ export async function saveOnboardingDraft(
   }
 
   return { success: true };
+}
+
+// ============================================================
+// Reconstruct profile from committed athlete_* tables
+//
+// Drafts are deleted on commit (see end of commitOnboardingData),
+// so re-entering onboarding from settings has nothing to hydrate
+// from. This rebuilds an AthleteContextProfile by reading every
+// table the commit step wrote to.
+// ============================================================
+
+export async function loadCommittedProfile(): Promise<DraftResult> {
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: "Not authenticated", profile: null, step: null };
+
+  const supabase = createServerClient();
+
+  const [
+    profileRow,
+    goalsRow,
+    sportsRows,
+    eventsRows,
+    availWindowsRows,
+    availRulesRows,
+    recoveryRow,
+    injuriesRows,
+    equipmentRows,
+    bodyNutritionRow,
+    preferencesRow,
+    coachRow,
+    chatNotesRows,
+  ] = await Promise.all([
+    supabase.from("user_profiles").select("*").eq("user_id", userId).maybeSingle(),
+    supabase.from("user_goals").select("*").eq("user_id", userId).maybeSingle(),
+    supabase.from("athlete_sports").select("*").eq("user_id", userId),
+    supabase.from("athlete_events").select("*").eq("user_id", userId),
+    supabase.from("athlete_availability_windows").select("*").eq("user_id", userId),
+    supabase.from("athlete_availability_rules").select("*").eq("user_id", userId),
+    supabase.from("athlete_recovery").select("*").eq("user_id", userId).maybeSingle(),
+    supabase.from("athlete_injuries").select("*").eq("user_id", userId),
+    supabase.from("athlete_equipment").select("*").eq("user_id", userId),
+    supabase.from("athlete_body_nutrition").select("*").eq("user_id", userId).maybeSingle(),
+    supabase.from("athlete_preferences").select("*").eq("user_id", userId).maybeSingle(),
+    supabase.from("athlete_coach_settings").select("*").eq("user_id", userId).maybeSingle(),
+    supabase.from("athlete_chat_notes").select("*").eq("user_id", userId),
+  ]);
+
+  const hasCommittedData =
+    !!profileRow.data ||
+    !!goalsRow.data ||
+    (sportsRows.data?.length ?? 0) > 0 ||
+    !!bodyNutritionRow.data ||
+    !!recoveryRow.data;
+
+  if (!hasCommittedData) {
+    return { success: true, profile: null, step: null };
+  }
+
+  const defaults = getDefaultAthleteProfile();
+  const profile = defaults; // start from defaults so any missing tables fall through cleanly
+
+  // 1. basic + identity
+  if (profileRow.data) {
+    profile.basic = {
+      height_cm: profileRow.data.height ?? null,
+      weight_lbs: profileRow.data.weight ?? null,
+      age: profileRow.data.age ?? null,
+      sex: (profileRow.data.sex as Sex | null) ?? null,
+      training_experience: (profileRow.data.training_experience as Experience | null) ?? null,
+    };
+    profile.athlete_identity = (profileRow.data.athlete_identity as AthleteIdentity | null) ?? null;
+  }
+
+  // 2. goals — only the fields the UI re-uses (legacy body_goal lives in athlete_body_nutrition)
+  if (goalsRow.data) {
+    profile.goal_keys = (goalsRow.data.secondary_goals as GoalKey[] | null) ?? [];
+    profile.goal_rank = (goalsRow.data.goal_rank as GoalKey[] | null) ?? [];
+    profile.primary_optimization = (goalsRow.data.primary_goal as PrimaryGoal | null) ?? null;
+    profile.aggressiveness = (goalsRow.data.aggressiveness as Aggressiveness | null) ?? null;
+  }
+
+  // 3. sports — fill defaults, overwrite from committed rows
+  for (const row of sportsRows.data ?? []) {
+    const sport = row.sport as SportId;
+    profile.sports[sport] = {
+      sport,
+      enabled: row.enabled,
+      is_planned: row.is_planned,
+      priority: row.priority,
+      is_primary: row.is_primary,
+      is_limiter: row.is_limiter,
+      current_volume: (row.current_volume as SportEntry["current_volume"]) ?? null,
+      target_peak: (row.target_peak as SportEntry["target_peak"]) ?? null,
+      sport_specific: (row.sport_specific as SportEntry["sport_specific"]) ?? null,
+    };
+  }
+
+  // 4. events
+  profile.events = (eventsRows.data ?? []).map((e) => ({
+    id: e.id,
+    name: e.name,
+    sport_type: e.sport_type,
+    distance: e.distance,
+    event_date: e.event_date,
+    priority: e.priority,
+    goal_type: e.goal_type,
+    goal_time: e.goal_time,
+    course_notes: e.course_notes,
+    travel: e.travel,
+  }));
+  profile.no_event = profile.events.length === 0 && !!goalsRow.data && !goalsRow.data.training_for_race;
+
+  // 5. availability windows + rules (normalize Postgres TIME "HH:MM:SS" → "HH:MM")
+  profile.availability_windows = (availWindowsRows.data ?? []).map((w) => ({
+    id: w.id,
+    day_of_week: w.day_of_week,
+    start_time: normalizeTime(w.start_time),
+    end_time: normalizeTime(w.end_time),
+    max_duration_min: w.max_duration_min,
+    session_count: w.session_count ?? 1,
+    locations: w.locations ?? [],
+  }));
+  profile.availability_rules = (availRulesRows.data ?? []).map((r) => ({
+    id: r.id,
+    rule_key: r.rule_key,
+    params: r.params,
+  }));
+
+  // 6. recovery
+  if (recoveryRow.data) {
+    profile.recovery = {
+      avg_sleep_hours: recoveryRow.data.avg_sleep_hours ?? null,
+      sleep_consistency: (recoveryRow.data.sleep_consistency as
+        | "very_consistent"
+        | "mostly_consistent"
+        | "variable"
+        | "poor"
+        | null) ?? null,
+      work_stress: (recoveryRow.data.work_stress as "low" | "moderate" | "high" | "very_high" | null) ?? null,
+      physical_job: recoveryRow.data.physical_job ?? false,
+      has_readiness_data: recoveryRow.data.has_readiness_data ?? false,
+      sore_frequency: (recoveryRow.data.sore_frequency as "rarely" | "sometimes" | "often" | "always" | null) ?? null,
+      recovery_confidence: (recoveryRow.data.recovery_confidence as
+        | "always_cooked"
+        | "slightly_under"
+        | "usually_ok"
+        | "fresh"
+        | "under_training"
+        | null) ?? null,
+    };
+  }
+
+  // 7. injuries
+  profile.injuries = (injuriesRows.data ?? []).map((i) => ({
+    id: i.id,
+    area: i.area,
+    description: i.description ?? null,
+    current_pain_level: i.current_pain_level ?? 0,
+    history: i.history ?? false,
+    triggers: i.triggers ?? [],
+    affecting_training: i.affecting_training ?? false,
+  }));
+
+  // 8. equipment
+  profile.equipment = (equipmentRows.data ?? []).map((e) => ({
+    id: e.id,
+    sport: e.sport as SportId,
+    item: e.item,
+    available: e.available ?? false,
+    notes: e.notes ?? undefined,
+  }));
+
+  // 9. body & nutrition
+  if (bodyNutritionRow.data) {
+    profile.body_nutrition = {
+      body_goal: (bodyNutritionRow.data.body_goal as BodyGoalDetailed | null) ?? null,
+      goal_weight_lbs: bodyNutritionRow.data.goal_weight_lbs ?? null,
+      target_rate_lbs_per_week: bodyNutritionRow.data.target_rate_lbs_per_week ?? null,
+      diet_style: (bodyNutritionRow.data.diet_style as DietStyle | string | null) ?? null,
+      protein_tier: (bodyNutritionRow.data.protein_tier as ProteinTier | null) ?? null,
+      protein_target_g: bodyNutritionRow.data.protein_target_g ?? null,
+      fuel_workouts_when_cutting: (bodyNutritionRow.data.fuel_workouts_when_cutting as
+        | "yes"
+        | "sometimes"
+        | "avoid_around_workouts"
+        | "not_sure"
+        | null) ?? null,
+      tracking_app: (bodyNutritionRow.data.tracking_app as
+        | "macrofactor"
+        | "myfitnesspal"
+        | "cronometer"
+        | "none"
+        | "other"
+        | null) ?? null,
+      notes: bodyNutritionRow.data.notes ?? "",
+    };
+  }
+
+  // 10. preferences
+  if (preferencesRow.data) {
+    profile.preferences = {
+      motivation_drivers: preferencesRow.data.motivation_drivers ?? [],
+      common_derailers: preferencesRow.data.common_derailers ?? [],
+      enjoyed_workouts: preferencesRow.data.enjoyed_workouts ?? [],
+      dislikes: preferencesRow.data.dislikes ?? [],
+      sacrifice_priority: preferencesRow.data.sacrifice_priority ?? [],
+      protect_priority: preferencesRow.data.protect_priority ?? [],
+    };
+  }
+
+  // 11. coach
+  if (coachRow.data) {
+    profile.coach = {
+      aggressiveness: (coachRow.data.aggressiveness as Aggressiveness | null) ?? null,
+      explanation_level: (coachRow.data.explanation_level as ExplanationLevel | null) ?? null,
+      missed_workout_behavior: (coachRow.data.missed_workout_behavior as MissedWorkoutBehavior | null) ?? null,
+      plan_flexibility: (coachRow.data.plan_flexibility as PlanFlexibility | null) ?? null,
+      tone_notes: coachRow.data.tone_notes ?? "",
+    };
+  }
+
+  // 12. chat notes
+  profile.chat_notes = (chatNotesRows.data ?? []).map((n) => ({
+    insertion_point: n.insertion_point as ChatInsertionPoint,
+    raw_text: n.raw_text,
+    extracted: (n.extracted as ExtractedChatTags | null) ?? null,
+  }));
+
+  // Give every reconstructed entity a stable client id where the schema didn't provide one
+  // (events/injuries/equipment use DB ids above; chat_notes don't need ids).
+
+  return { success: true, profile, step: null };
+}
+
+function normalizeTime(t: string | null | undefined): string {
+  if (!t) return "";
+  return t.length >= 5 ? t.slice(0, 5) : t;
 }
 
 // ============================================================

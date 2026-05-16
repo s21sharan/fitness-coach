@@ -11,6 +11,7 @@ export type ContractStepType =
   | "work"
   | "recovery"
   | "cooldown"
+  | "rest"
   | "repeat";
 
 export interface ContractStep {
@@ -25,6 +26,12 @@ export interface ContractStep {
   pace_sec_per_km?: number;
   /** Optional % FTP for bike structured workouts */
   ftp_percent?: number;
+  /** Strength specifics — all optional. Coach may emit any subset. */
+  exercise_name?: string;
+  sets?: number;
+  reps?: number;
+  weight_kg?: number;
+  rpe?: number;
   /** Nested steps when type === "repeat" */
   repeats?: number;
   steps?: ContractStep[];
@@ -36,7 +43,7 @@ export interface WorkoutContractV1 {
   /** Short title for device / calendar */
   name: string;
   slot?: "am" | "pm" | "full";
-  source: "onboarding_preview" | "coach" | "heuristic";
+  source: "onboarding_preview" | "coach" | "heuristic" | "model";
   steps: ContractStep[];
 }
 
@@ -68,7 +75,7 @@ function looksLikeLongEndurance(text: string, sport: WorkoutContractSport): bool
   return /\blong\b|easy\s+run|zone\s*2|z2|aerobic|base\b/i.test(text);
 }
 
-function estimateDurationMin(steps: ContractStep[]): number {
+export function estimateDurationMin(steps: ContractStep[]): number {
   function walk(list: ContractStep[]): number {
     let sec = 0;
     for (const st of list) {

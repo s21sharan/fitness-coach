@@ -2,8 +2,9 @@ import { z } from "zod";
 import { tool } from "ai";
 import { createServerClient } from "@/lib/supabase/server";
 import { generateMultiWeekPlan } from "@/lib/training/generate-plan";
-import { computeComplianceStats, formatComplianceForPrompt, type ComplianceInput } from "@/lib/training/compliance";
+import { computeComplianceStats, formatComplianceForPrompt, isCardioPlanned, type ComplianceInput } from "@/lib/training/compliance";
 import { SPLIT_TYPES } from "@/lib/training/schemas";
+import type { PlannedWorkoutTargets } from "@/lib/training/workout-contract";
 
 export function regeneratePlanTool(userId: string) {
   return tool({
@@ -53,7 +54,7 @@ export function regeneratePlanTool(userId: string) {
 
         const [plannedRes, liftRes, cardioRes] = await Promise.all([
           supabase.from("planned_workouts")
-            .select("date, session_type")
+            .select("date, session_type, targets")
             .eq("plan_id", activePlan.id)
             .gte("date", sinceStr)
             .lte("date", new Date().toISOString().slice(0, 10)),
@@ -72,14 +73,14 @@ export function regeneratePlanTool(userId: string) {
         ]);
 
         if (plannedRes.data && plannedRes.data.length > 0) {
-          const isCardioSession = (s: string) =>
-            /run|ride|bike|swim|cardio|zone\s*2/i.test(s);
-
           const compInput: ComplianceInput = {
             planned: plannedRes.data.map((p) => ({
               date: p.date,
               session_type: p.session_type,
-              is_cardio: isCardioSession(p.session_type),
+              is_cardio: isCardioPlanned({
+                session_type: p.session_type,
+                targets: (p as { targets?: PlannedWorkoutTargets | null }).targets ?? null,
+              }),
             })),
             actualLifting: (liftRes.data || []).map((l) => ({ date: l.date, name: l.name })),
             actualCardio: (cardioRes.data || []).map((c) => ({ date: c.date, type: c.type, distance: c.distance })),
@@ -124,10 +125,10 @@ export function regeneratePlanTool(userId: string) {
         week_focus: week.week_focus,
         days: week.days.map((d) => {
           const parts: string[] = [];
-          if (d.am_session) parts.push(d.am_session);
-          if (d.pm_session) parts.push(d.pm_session);
+          if (d.am_session) parts.push(d.am_session.name);
+          if (d.pm_session) parts.push(d.pm_session.name);
           const session = d.is_rest ? "Rest" : parts.join(" + ") || "Rest";
-          const notes = [d.am_rationale, d.pm_rationale].filter(Boolean).join("; ");
+          const notes = [d.am_session?.rationale, d.pm_session?.rationale].filter(Boolean).join("; ");
           return { day: d.day_label, session, notes: notes || null };
         }),
       }));

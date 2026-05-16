@@ -11,6 +11,7 @@ import {
 import {
   commitOnboardingData,
   getOnboardingDraft,
+  loadCommittedProfile,
   saveOnboardingDraft,
 } from "./actions";
 import { weekAnchorMondayYmdFromLocalDate } from "@/lib/dates/local-calendar";
@@ -73,21 +74,33 @@ function OnboardingFlow() {
   const lastSavedRef = useRef<string>("");
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Hydrate draft on mount
+  // Hydrate draft on mount; fall back to committed athlete_* tables so
+  // re-onboarding from settings preserves the user's existing selections.
   useEffect(() => {
     let cancelled = false;
-    getOnboardingDraft()
-      .then((res) => {
+    (async () => {
+      try {
+        const draft = await getOnboardingDraft();
         if (cancelled) return;
-        if (res.success && res.profile) {
-          setProfile(mergeWithDefaults(res.profile));
-          if (res.step && !searchParams.get("step")) {
-            router.replace(`/onboarding?step=${res.step}`);
+        if (draft.success && draft.profile) {
+          setProfile(mergeWithDefaults(draft.profile));
+          if (draft.step && !searchParams.get("step")) {
+            router.replace(`/onboarding?step=${draft.step}`);
           }
+          setHydrated(true);
+          return;
         }
-        setHydrated(true);
-      })
-      .catch(() => setHydrated(true));
+        const committed = await loadCommittedProfile();
+        if (cancelled) return;
+        if (committed.success && committed.profile) {
+          setProfile(mergeWithDefaults(committed.profile));
+        }
+      } catch {
+        // swallow — leaves defaults in place
+      } finally {
+        if (!cancelled) setHydrated(true);
+      }
+    })();
     return () => {
       cancelled = true;
     };

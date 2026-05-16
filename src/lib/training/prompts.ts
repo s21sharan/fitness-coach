@@ -146,13 +146,38 @@ Each day has am_session and pm_session slots (both can be null). Use them to:
 
 Set is_rest=true and leave both sessions null for full rest days.
 
-## Session Format Rules
-- am_session / pm_session: specific short strings. Include the key parameters.
-  Running: "Easy Run — 45min Zone 2" or "Intervals — 8x400m @ 5K pace, 200m jog"
-  Lifting: "Upper Body — push/pull compounds, 3x8-10 RPE 7" or "Lower Body — squat/hinge, 4x6 RPE 8"
-  Swimming: "Swim Technique — 2000m, 4x100 @ CSS, drills"
-  Cycling: "Zone 2 Ride — 90min easy" or "Bike Intervals — 5x4min @ FTP, 3min spin"
-- am_rationale / pm_rationale: one sentence explaining why this session is placed here and now
+## Session Format — Structured Contracts
+Each am_session / pm_session is a structured object (NOT a string):
+{
+  "sport": "run" | "bike" | "swim" | "strength",
+  "name": short display label (≤60 chars), e.g. "Easy Z2 run" or "Lower body lift",
+  "rationale": one sentence explaining why this session is placed here and now,
+  "contract": {
+    "version": 1,
+    "sport": same as outer sport,
+    "name": same short display label,
+    "slot": "am" | "pm" | "full",
+    "source": "coach",
+    "steps": [ ...ordered ContractStep[] ]
+  }
+}
+
+Each ContractStep has:
+- type: "warmup" | "work" | "recovery" | "cooldown" | "rest" | "repeat"
+- label: optional short description ("Tempo block", "Bench press")
+- duration_sec: integer seconds
+- distance_m: meters (alternative to duration for running/cycling)
+- target_hr_zone: 1..5
+- pace_sec_per_km: seconds per km for running
+- ftp_percent: 30..150 for cycling
+- exercise_name / sets / reps / weight_kg / rpe: for strength steps
+- repeats + steps: for interval blocks ("type": "repeat" with nested steps)
+
+Emission rules:
+- ALWAYS set version=1, source="coach", and the correct sport on the contract.
+- Cardio (run / bike / swim): include at least one "work" step with duration_sec or distance_m, plus target_hr_zone or pace_sec_per_km when known. Add warmup/cooldown when appropriate.
+- Strength: when the athlete has specifics, emit one "work" step per exercise with exercise_name, sets, reps (and weight_kg/rpe if known). When vague, a single "work" step with a "label" and "duration_sec" is acceptable.
+- Match the athlete's level of detail — don't fabricate specifics they didn't request.
 - day_label: exactly "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"
 
 ## Week Block Format
