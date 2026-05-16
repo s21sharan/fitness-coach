@@ -98,18 +98,26 @@ function makePlanResult() {
         days: [
           {
             day_label: "Monday",
-            am_session: "Push",
+            am_session: {
+              sport: "strength" as const,
+              name: "Push",
+              rationale: "Heavy chest",
+              contract: {
+                version: 1 as const,
+                sport: "strength" as const,
+                name: "Push",
+                slot: "am" as const,
+                source: "coach" as const,
+                steps: [{ type: "work" as const, label: "Bench" }],
+              },
+            },
             pm_session: null,
-            am_rationale: "Heavy chest",
-            pm_rationale: null,
             is_rest: false,
           },
           {
             day_label: "Sunday",
             am_session: null,
             pm_session: null,
-            am_rationale: null,
-            pm_rationale: null,
             is_rest: true,
           },
         ],
