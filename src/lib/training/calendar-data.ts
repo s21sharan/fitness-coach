@@ -21,7 +21,8 @@ export interface ZoneBoundary {
 }
 
 export interface UserHrZones {
-  source: "garmin" | "legacy";
+  source: "custom" | "garmin" | "legacy";
+  mode?: import("./zones").HrZoneMode;
   boundaries: ZoneBoundary[];
   syncedAt: string | null;
 }
