@@ -32,6 +32,7 @@ interface SystemPromptInput {
   } | null;
   hrZones?: Array<{ zone: number; low: number; high: number }> | null;
   block?: {
+    block_id: string;
     block_type: string;
     block_label: string;
     block_number: number;
@@ -40,6 +41,16 @@ interface SystemPromptInput {
     end_date: string;
     days_until_end: number;
     compliance_pct: number | null;
+  } | null;
+  availability?: {
+    windows: Array<{
+      day_of_week: number;
+      start_time: string;
+      end_time: string;
+      max_duration_min: number | null;
+      session_count: number;
+    }>;
+    rules: Array<{ rule_key: string; params: Record<string, unknown> }>;
   } | null;
 }
 
@@ -110,7 +121,7 @@ const SPLIT_LABELS: Record<string, string> = {
 };
 
 export function buildSystemPrompt(input: SystemPromptInput): string {
-  const { profile, goals, plan, todaySession, recovery, weekStats, hrZones, block } = input;
+  const { profile, goals, plan, todaySession, recovery, weekStats, hrZones, block, availability } = input;
   const lines: string[] = [];
 
   lines.push("You are Coach, a fitness coach. You are direct, specific, encouraging but honest, opinionated, and concise.");
@@ -147,6 +158,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   if (block) {
     lines.push("");
     lines.push(`Current block: ${block.block_label} (Block ${block.block_number}) — Week ${block.current_week} of ${block.week_count}`);
+    lines.push(`Block id: ${block.block_id}  (loose metadata — use it for phase context, NOT as a handle to operate on sessions; range tools use start_date/end_date instead)`);
     lines.push(`Block ends: ${block.end_date}${block.days_until_end <= 3 ? ` (${block.days_until_end} days)` : ""}`);
     if (block.compliance_pct !== null) {
       lines.push(`Block compliance: ${block.compliance_pct}%`);
@@ -162,9 +174,36 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
 
   const today = new Date();
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const todayYmd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const shortNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const ymd = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const todayYmd = ymd(today);
   lines.push(`Today: ${todayYmd} (${dayNames[today.getDay()]})`);
   if (todaySession) lines.push(`Today's session: ${todaySession}`);
+
+  // Explicit weekday-date table for the next 14 days. The coach reliably
+  // hallucinates day-of-week mappings without this anchor — e.g. claiming
+  // "Mon May 19" when in fact May 19 is a Tuesday. Read these dates verbatim
+  // rather than computing them.
+  lines.push("");
+  lines.push("Upcoming dates (USE THESE — do not compute weekdays yourself):");
+  const addDays = (base: Date, n: number): Date => {
+    const d = new Date(base);
+    d.setDate(d.getDate() + n);
+    return d;
+  };
+  // The "Monday of this week" — i.e. the most recent Mon on or before today.
+  const todayDow = today.getDay(); // Sun=0..Sat=6
+  const daysBackToMonday = todayDow === 0 ? 6 : todayDow - 1;
+  const thisMonday = addDays(today, -daysBackToMonday);
+  const nextMonday = addDays(thisMonday, 7);
+  lines.push(`  This week's Monday: ${ymd(thisMonday)}`);
+  lines.push(`  Next Monday: ${ymd(nextMonday)}  ← use this as the start when the user says "next week" or "starting Monday".`);
+  for (let i = 0; i < 14; i++) {
+    const d = addDays(today, i);
+    const tag = i === 0 ? " (today)" : "";
+    lines.push(`  ${shortNames[d.getDay()]} ${ymd(d)}${tag}`);
+  }
 
   if (recovery) {
     const parts: string[] = [];
@@ -182,6 +221,37 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   }
 
   if (weekStats) lines.push(`This week: ${weekStats.sessionsCompleted}/${weekStats.sessionsPlanned} sessions completed`);
+
+  // Availability windows: format per-day with up to two slots (am/pm) plus rules.
+  if (availability && availability.windows.length > 0) {
+    lines.push("");
+    lines.push("Training availability:");
+    const dayShort = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const byDay: Record<number, typeof availability.windows> = {};
+    for (const w of availability.windows) {
+      if (!byDay[w.day_of_week]) byDay[w.day_of_week] = [];
+      byDay[w.day_of_week]!.push(w);
+    }
+    for (let d = 0; d <= 6; d++) {
+      const slots = byDay[d];
+      if (!slots || slots.length === 0) {
+        lines.push(`  ${dayShort[d]}: rest`);
+        continue;
+      }
+      const fmtSlot = (w: typeof slots[number]) => {
+        const start = w.start_time.slice(0, 5);
+        const end = w.end_time.slice(0, 5);
+        const dur = w.max_duration_min != null ? `, ${w.max_duration_min}min cap` : "";
+        const count = w.session_count > 1 ? `, up to ${w.session_count} sessions` : "";
+        return `${start}–${end}${dur}${count}`;
+      };
+      lines.push(`  ${dayShort[d]}: ${slots.map(fmtSlot).join(" | ")}`);
+    }
+    if (availability.rules.length > 0) {
+      lines.push(`Schedule rules: ${availability.rules.map((r) => r.rule_key).join(", ")}`);
+    }
+  }
+
   lines.push("");
 
   lines.push("Guidelines:");
@@ -195,12 +265,35 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   lines.push("- You can use tools to look up data you don't have in this context");
   lines.push("- When modifying the plan, explain what you're changing and why");
   lines.push("");
-  lines.push("Calendar tools:");
-  lines.push("- create_planned_workout: add a single new session on or after today. Use for one-off adds like \"schedule an easy Z2 run for Friday\" or \"add a heavy lower-body lift Wednesday\". Requires a structured contract.");
+  lines.push("Calendar tools (single-session, direct save):");
+  lines.push("- create_planned_workout: add a single new session on or after today. Use for one-off adds like \"schedule an easy Z2 run for Friday\". Requires a structured contract.");
   lines.push("- update_planned_workout: modify an existing scheduled session (swap its contract, rename it, mark it moved/rest).");
-  lines.push("- regenerate_plan: full multi-week rewrite, scoped to the current block. Use when the user asks to restructure their split or change the whole plan.");
-  lines.push("- propose_next_block: when the current block is ending (or the user wants to advance to the next phase), propose the next block.");
-  lines.push("- After regenerating or proposing a block, present the layout clearly so the user can review before accepting.");
+  lines.push("- delete_planned_workout: remove a single planned session entirely. Use when the user wants it gone — not just moved or marked rest.");
+  lines.push("");
+  lines.push("Calendar tools (batch / range — operate on planned_workouts, NEVER on training_blocks rows):");
+  lines.push("- create_planned_workouts_batch: propose a batch of new sessions (e.g. 4 weeks of base running). Returns a proposal card; user accepts to commit. On accept, all sessions are inserted AND a training_blocks row is created as LOOSE PHASE METADATA (powers the calendar banner; never authoritative over the actual sessions).");
+  lines.push("- modify_planned_workouts_range: bulk-edit a date range with optional sport/session-type filters. Two-call flow: first call WITHOUT confirmed:true to get a preview payload — summarize it for the user in chat — then call AGAIN with confirmed:true and the same args to commit.");
+  lines.push("- delete_planned_workouts_range: bulk-delete a date range with optional sport/session-type filters. ALWAYS prefer this over a loop of delete_planned_workout when the user wants multiple sessions gone (e.g. 'scrap the last 2 weeks', 'delete all my runs through Friday'). Direct save; only future-dated rows are affected.");
+  lines.push("- regenerate_plan: full multi-week rewrite of the active plan. Use when the user asks to restructure their split or change the whole plan.");
+  lines.push("- propose_next_block: AI-driven next-phase suggestion. Creates a training_blocks row tagged with the new phase and proposes the layout — the user accepts to insert planned_workouts.");
+  lines.push("- After regenerating, proposing, or batching, present the layout clearly so the user can review before accepting.");
+  lines.push("");
+  lines.push("Training blocks are LOOSE METADATA: they exist purely to give you and the user phase context (e.g. \"you're in week 2 of a Build block\"). They are NOT containers — deleting or modifying a sub-range of sessions inside a block does not invalidate it. Never assume a 1:1 relationship between a block row and the sessions on the calendar.");
+  lines.push("");
+  lines.push("Date emission rules (CRITICAL — date hallucination is the #1 failure mode):");
+  lines.push("- Before passing ANY date to a tool, FIND the exact YYYY-MM-DD in the \"Upcoming dates\" table near the top of this prompt. Copy it verbatim.");
+  lines.push("- DO NOT compute weekdays from the date. If the user says \"Thursday\" or \"this Saturday\", scan the Upcoming dates table for that weekday and copy the matching YYYY-MM-DD. Never guess.");
+  lines.push("- If the user says \"next week\", \"start Monday\", \"week of the 18th\" → use the Next Monday line as the start. Never confuse \"this Monday\" with \"next Monday\".");
+  lines.push("");
+  lines.push("Proposal brevity (tool-call response style):");
+  lines.push("- When you're about to call create_planned_workouts_batch, propose_next_block, or regenerate_plan, your chat reply MUST be one short sentence (≤ 15 words) — e.g. \"Here's a 4-week base block — review and accept.\" The proposal card carries the full layout; do NOT pre-summarize sessions, days, or weekly structure in text. Repeating the card content as a wall of text clutters the chat.");
+  lines.push("- For all other tool calls (get_*, single-session edits, deletes), keep your reply tight: state what you did or what you found in 1-3 short sentences.");
+  lines.push("");
+  lines.push("Schedule-respect rules:");
+  lines.push("- When scheduling sessions without explicit user-supplied times, fit them into the user's Training availability windows above.");
+  lines.push("- Multiple sessions per day are allowed only when that day has `session_count >= 2` or two separate windows (AM + PM).");
+  lines.push("- If the user explicitly says they're free outside their normal window (e.g. \"I can do a PM today\"), treat it as a one-off override — schedule it and mention in chat that it's outside their normal schedule.");
+  lines.push("- Never silently violate the user's availability when not asked to. Confirm in chat first.");
   lines.push("");
   lines.push(`Date rule (STRICT): never schedule, modify, or move a workout on a date before today (${todayYmd}). Past sessions are immutable history. If asked to change a past session, explain the rule and offer to schedule the equivalent on ${todayYmd} or later.`);
   lines.push("");
@@ -208,6 +301,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   lines.push("- Set version=1, source=\"coach\", and the correct sport.");
   lines.push("- Cardio (run/bike/swim): include at least one `work` step with duration_sec or distance_m, plus target_hr_zone or pace_sec_per_km when known. Add warmup/cooldown when appropriate.");
   lines.push("- Strength: when the user gives specifics, emit one `work` step per exercise with exercise_name, sets, reps (and weight_kg/rpe if known). When the user is vague, a single `work` step with a `label` and `duration_sec` is fine.");
+  lines.push("- Other (mobility, yoga, stretching, anything not in the four primary sports): use sport=\"other\" and emit a single `work` step with a `label` and `duration_sec`. No pace/zone required.");
   lines.push("- Use the `slot` field (\"am\" | \"pm\" | \"full\") so the calendar can render correctly.");
   lines.push("- Granularity is flexible — match the user's level of detail. Don't fabricate specifics they didn't request.");
   lines.push("- You have access to exercise science research papers via the search_research tool");

@@ -12,6 +12,14 @@ import { fmtDist as fmtDistUnit, fmtPace as fmtPaceUnit, distanceLabel, type Uni
 
 export type DayCellVariant = "compact" | "tall";
 
+export interface PlannedClickPayload {
+  date: string;
+  sessionType: string;
+  aiNotes: string | null;
+  slot: "am" | "pm" | null;
+  targets: ReturnType<typeof splitAmPmSessions>[number]["targets"];
+}
+
 interface DayCellProps {
   day: DayData;
   variant?: DayCellVariant;
@@ -19,6 +27,7 @@ interface DayCellProps {
   hrZoneBoundaries?: ZoneBoundary[] | null;
   onWorkoutClick?: (w: WorkoutLog) => void;
   onCardioClick?: (c: CardioLog) => void;
+  onPlannedClick?: (p: PlannedClickPayload) => void;
 }
 
 function fmtDist(km: number, units: UnitPreferences) { return fmtDistUnit(km, units.distance); }
@@ -207,12 +216,15 @@ function ActivityChip({
   );
 }
 
-function PlannedPill({ label, isToday, isFuture }: { label: string; isToday: boolean; isFuture: boolean }) {
+function PlannedPill({ label, isToday, isFuture, onClick }: { label: string; isToday: boolean; isFuture: boolean; onClick?: () => void }) {
   const type = inferTypeFromSession(label);
   const c = TYPE_COLORS[type];
   const dimmed = !isToday && !isFuture;
   return (
     <div
+      onClick={onClick}
+      onMouseEnter={(e) => onClick && (e.currentTarget.style.filter = "brightness(0.97)")}
+      onMouseLeave={(e) => onClick && (e.currentTarget.style.filter = "brightness(1)")}
       style={{
         display: "flex", alignItems: "flex-start", gap: 5,
         background: dimmed ? "#f9fafb" : "#fff",
@@ -222,6 +234,8 @@ function PlannedPill({ label, isToday, isFuture }: { label: string; isToday: boo
         color: dimmed ? "#9ca3af" : c.text,
         lineHeight: 1.3,
         opacity: dimmed ? 0.7 : 1,
+        cursor: onClick ? "pointer" : "default",
+        transition: "filter .12s ease",
       }}
       title="Planned"
     >
@@ -242,7 +256,7 @@ function inferTypeFromSession(session: string): string {
 
 /* ─── DayCell ─── */
 
-export function DayCell({ day, variant = "compact", units, hrZoneBoundaries, onWorkoutClick, onCardioClick }: DayCellProps) {
+export function DayCell({ day, variant = "compact", units, hrZoneBoundaries, onWorkoutClick, onCardioClick, onPlannedClick }: DayCellProps) {
   const today = toDS(new Date());
   const isToday = day.date === today;
   const isFuture = day.date > today;
@@ -297,6 +311,13 @@ export function DayCell({ day, variant = "compact", units, hrZoneBoundaries, onW
             aiNotes={session.aiNotes}
             slot={session.slot}
             targets={session.targets}
+            onClick={onPlannedClick ? () => onPlannedClick({
+              date: day.date,
+              sessionType: session.label,
+              aiNotes: session.aiNotes,
+              slot: session.slot,
+              targets: session.targets,
+            }) : undefined}
           />
         ))}
       </div>
@@ -356,7 +377,19 @@ export function DayCell({ day, variant = "compact", units, hrZoneBoundaries, onW
         day.planned.ai_notes,
         day.planned.targets,
       ).map((session, i) => (
-        <PlannedPill key={`pill-${i}`} label={session.label} isToday={isToday} isFuture={isFuture} />
+        <PlannedPill
+          key={`pill-${i}`}
+          label={session.label}
+          isToday={isToday}
+          isFuture={isFuture}
+          onClick={onPlannedClick ? () => onPlannedClick({
+            date: day.date,
+            sessionType: session.label,
+            aiNotes: session.aiNotes,
+            slot: session.slot,
+            targets: session.targets,
+          }) : undefined}
+        />
       ))}
     </div>
   );

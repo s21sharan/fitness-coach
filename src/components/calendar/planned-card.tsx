@@ -18,6 +18,7 @@ interface PlannedCardProps {
     target_hr_max?: number | null;
     muscle_focus?: string | null;
   } | null;
+  onClick?: () => void;
 }
 
 const VARIANT_STYLES: Record<
@@ -148,7 +149,7 @@ export function splitAmPmSessions(
   ];
 }
 
-export function PlannedCard({ variant = "future", sessionType, aiNotes, slot, targets }: PlannedCardProps) {
+export function PlannedCard({ variant = "future", sessionType, aiNotes, slot, targets, onClick }: PlannedCardProps) {
   const icon = getSessionIcon(sessionType);
   const v = VARIANT_STYLES[variant];
   const contract = targets?.contract && isContractV1(targets.contract) ? targets.contract : null;
@@ -156,12 +157,17 @@ export function PlannedCard({ variant = "future", sessionType, aiNotes, slot, ta
 
   return (
     <div
+      onClick={onClick}
+      onMouseEnter={(e) => onClick && (e.currentTarget.style.filter = "brightness(0.97)")}
+      onMouseLeave={(e) => onClick && (e.currentTarget.style.filter = "brightness(1)")}
       style={{
         borderLeft: `3px dashed ${v.border}`,
         borderRadius: 5,
         padding: "6px 8px",
         background: v.bg,
         fontSize: 10,
+        cursor: onClick ? "pointer" : "default",
+        transition: "filter .12s ease",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>

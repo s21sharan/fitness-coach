@@ -56,28 +56,39 @@ function extractPlanProposal(parts: unknown[]): unknown | null {
   return null;
 }
 
+// Both propose_next_block (AI phase progression) and create_planned_workouts_batch
+// (user-driven batch) return BlockProposalCard-compatible payloads, so render
+// either one through the same card.
+const BLOCK_PROPOSAL_TOOLS = ["propose_next_block", "create_planned_workouts_batch"] as const;
+
 function extractBlockProposal(parts: unknown[]): unknown | null {
   for (const part of parts) {
     const p = part as Record<string, unknown>;
+    const isMatch = (name: unknown) =>
+      typeof name === "string" && (BLOCK_PROPOSAL_TOOLS as readonly string[]).includes(name);
 
-    if (p.type === "tool-result" && p.toolName === "propose_next_block" && p.result) {
+    if (p.type === "tool-result" && isMatch(p.toolName) && p.result) {
       return p.result;
     }
 
     if (p.type === "tool-invocation") {
       const inv = p.toolInvocation as Record<string, unknown> | undefined;
-      if (inv?.toolName === "propose_next_block") {
-        if (inv.state === "result" && inv.result) return inv.result;
-        if (inv.output) return inv.output;
+      if (isMatch(inv?.toolName)) {
+        if (inv?.state === "result" && inv.result) return inv.result;
+        if (inv?.output) return inv.output;
       }
     }
 
-    if (p.type === "tool-propose_next_block") {
-      if (p.state === "output-available" && p.output) return p.output;
-      if (p.state === "result" && p.result) return p.result;
+    // Typed tool-part variant (e.g. "tool-propose_next_block", "tool-create_planned_workouts_batch")
+    if (typeof p.type === "string" && p.type.startsWith("tool-")) {
+      const namePart = p.type.slice("tool-".length);
+      if ((BLOCK_PROPOSAL_TOOLS as readonly string[]).includes(namePart)) {
+        if (p.state === "output-available" && p.output) return p.output;
+        if (p.state === "result" && p.result) return p.result;
+      }
     }
 
-    if ((p as Record<string, unknown>).toolName === "propose_next_block") {
+    if (isMatch((p as Record<string, unknown>).toolName)) {
       if (p.output) return p.output;
       if (p.result) return p.result;
     }
@@ -275,7 +286,6 @@ export default function CoachPage() {
                     <MessageBubble
                       role={m.role as "user" | "assistant"}
                       content={textContent}
-                      tools={toolNames.length > 0 && !planData ? toolNames : undefined}
                     />
                   )}
                   {planData && (planData as Record<string, unknown>).success && (
@@ -302,9 +312,8 @@ export default function CoachPage() {
                       </div>
                     </div>
                   )}
-                  {!textContent && !planData && toolNames.length > 0 && (
-                    <MessageBubble role="assistant" content="" tools={toolNames} />
-                  )}
+                  {/* Intentionally render nothing when the only output is tool calls — pills are too noisy and the proposal/checkin cards carry the real result. */}
+                  {!textContent && !planData && !blockData && !checkinData && toolNames.length > 0 && null}
                 </div>
               );
             })}

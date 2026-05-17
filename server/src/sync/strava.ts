@@ -6,17 +6,30 @@ import { getActiveIntegrations, logSync, updateSyncTimestamp, markIntegrationErr
 import { reconcileUserActivities } from "./reconcile.js";
 import type { ActivityCategory } from "./providers.js";
 
-const RUN_TYPES = new Set(["Run", "TrailRun", "VirtualRun"]);
+const RUN_TYPES = new Set([
+  "Run", "TrailRun", "VirtualRun",
+  // Treadmill / track / indoor interval runs sometimes come back with these
+  // sport_types and were being miscategorized as "other".
+  "TreadmillRun", "TrackRun",
+]);
 const BIKE_TYPES = new Set(["Ride", "GravelRide", "VirtualRide", "EBikeRide", "EMountainBikeRide", "MountainBikeRide"]);
 const SWIM_TYPES = new Set(["Swim"]);
 // Strava's strength-coded sport_types. "Workout" is generic but lifters
 // commonly use it for gym sessions; we still map it to strength so the
-// reconciler can compare against Hevy. If the user's gym session was
-// actually some other indoor session, the reconciler simply won't find
-// a Hevy match and the row stays as-is.
+// reconciler can compare against Hevy. Note: some users also tag interval
+// runs as "Workout" — for those, the coarse `type` field is still "Run"
+// and the override below picks that up correctly.
 const STRENGTH_TYPES = new Set(["WeightTraining", "Crossfit", "Workout"]);
 
-export function mapSportType(sportType: string): ActivityCategory {
+export function mapSportType(sportType: string, coarseType?: string): ActivityCategory {
+  // Coarse-type override first: if Strava's deprecated `type` field still says
+  // "Run" / "Ride" / "Swim", trust it over a misleading sport_type. This is
+  // how interval/HIIT runs tagged as "Workout" or new sport_types we don't
+  // recognize still land in the right bucket.
+  if (coarseType === "Run") return "run";
+  if (coarseType === "Ride") return "bike";
+  if (coarseType === "Swim") return "swim";
+
   if (RUN_TYPES.has(sportType)) return "run";
   if (BIKE_TYPES.has(sportType)) return "bike";
   if (SWIM_TYPES.has(sportType)) return "swim";
@@ -25,7 +38,7 @@ export function mapSportType(sportType: string): ActivityCategory {
 }
 
 export function normalizeActivity(userId: string, activity: StravaActivity) {
-  const type = mapSportType(activity.sport_type);
+  const type = mapSportType(activity.sport_type, activity.type);
   const distanceKm = activity.distance / 1000;
 
   let paceOrSpeed: number | null = null;

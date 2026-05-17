@@ -15,7 +15,7 @@ export type SplitType = (typeof SPLIT_TYPES)[number];
 
 // ─── Workout contract (FIT-inspired) ───────────────────────────────
 
-export const CONTRACT_SPORTS = ["run", "bike", "swim", "strength"] as const;
+export const CONTRACT_SPORTS = ["run", "bike", "swim", "strength", "other"] as const;
 export const CONTRACT_STEP_TYPES = ["warmup", "work", "recovery", "cooldown", "rest", "repeat"] as const;
 export const CONTRACT_SOURCES = ["onboarding_preview", "coach", "heuristic", "model"] as const;
 export const CONTRACT_SLOTS = ["am", "pm", "full"] as const;

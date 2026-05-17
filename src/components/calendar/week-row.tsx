@@ -11,6 +11,8 @@ import type { TrainingBlock } from "@/lib/training/blocks";
 import { computeBlockWeekNumber } from "@/lib/training/blocks";
 import { blockTypeLabel } from "@/lib/training/phase-rules";
 
+import type { PlannedClickPayload } from "./day-cell";
+
 interface WeekRowProps {
   days: DayData[];
   weekNum: number;
@@ -18,11 +20,12 @@ interface WeekRowProps {
   hrZoneBoundaries?: ZoneBoundary[] | null;
   onWorkoutClick?: (w: WorkoutLog) => void;
   onCardioClick?: (c: CardioLog) => void;
+  onPlannedClick?: (p: PlannedClickPayload) => void;
   onSummaryClick?: (days: DayData[], weekNum: number) => void;
   activeBlock?: TrainingBlock | null;
 }
 
-export function WeekRow({ days, weekNum, units, hrZoneBoundaries, onWorkoutClick, onCardioClick, onSummaryClick, activeBlock }: WeekRowProps) {
+export function WeekRow({ days, weekNum, units, hrZoneBoundaries, onWorkoutClick, onCardioClick, onPlannedClick, onSummaryClick, activeBlock }: WeekRowProps) {
   const todayStr = toDS(new Date());
   const isFutureWeek = days[0].date > todayStr;
   const hasData = !isFutureWeek;
@@ -94,7 +97,7 @@ export function WeekRow({ days, weekNum, units, hrZoneBoundaries, onWorkoutClick
       <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 0, minWidth: 0 }}>
         {days.map((day, i) => (
           <div key={day.date} style={{ borderRight: i < 6 ? "1px solid #f3f4f6" : "none", padding: "0 2px" }}>
-            <DayCell day={day} variant="compact" units={units} hrZoneBoundaries={hrZoneBoundaries} onWorkoutClick={onWorkoutClick} onCardioClick={onCardioClick} />
+            <DayCell day={day} variant="compact" units={units} hrZoneBoundaries={hrZoneBoundaries} onWorkoutClick={onWorkoutClick} onCardioClick={onCardioClick} onPlannedClick={onPlannedClick} />
           </div>
         ))}
       </div>

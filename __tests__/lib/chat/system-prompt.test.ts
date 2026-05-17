@@ -115,6 +115,7 @@ describe("buildSystemPrompt", () => {
       todayNutrition: null,
       weekStats: null,
       block: {
+        block_id: "block-abc",
         block_type: "build",
         block_label: "Build Block",
         block_number: 2,
@@ -130,6 +131,9 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("Week 3 of 4");
     expect(prompt).toContain("Block ends: 2026-05-25");
     expect(prompt).toContain("Block compliance: 87%");
+    // block_id is present as loose metadata (NOT a handle for tools)
+    expect(prompt).toContain("Block id: block-abc");
+    expect(prompt).toContain("loose metadata");
   });
 
   it("does not append days_until_end to Block ends line when more than 3 days remain", () => {
@@ -142,6 +146,7 @@ describe("buildSystemPrompt", () => {
       todayNutrition: null,
       weekStats: null,
       block: {
+        block_id: "block-def",
         block_type: "build",
         block_label: "Build Block",
         block_number: 1,
@@ -167,6 +172,7 @@ describe("buildSystemPrompt", () => {
       todayNutrition: null,
       weekStats: null,
       block: {
+        block_id: "block-ghi",
         block_type: "peak",
         block_label: "Peak Block",
         block_number: 3,
@@ -210,5 +216,67 @@ describe("buildSystemPrompt", () => {
     expect(prompt).not.toContain("Current block:");
     expect(prompt).not.toContain("Block ends:");
     expect(prompt).not.toContain("Block compliance:");
+  });
+
+  it("renders training availability windows and rules when provided", () => {
+    const prompt = buildSystemPrompt({
+      profile: { age: 28, height: 180, weight: 185, sex: "male", training_experience: "intermediate" },
+      goals: { body_goal: "gain_muscle", emphasis: null, days_per_week: 5, training_for_race: false, race_type: null, race_date: null, goal_time: null },
+      plan: null,
+      todaySession: null,
+      recovery: null,
+      todayNutrition: null,
+      weekStats: null,
+      availability: {
+        windows: [
+          { day_of_week: 0, start_time: "06:00", end_time: "12:00", max_duration_min: 90, session_count: 1 },
+          { day_of_week: 0, start_time: "16:00", end_time: "22:00", max_duration_min: 60, session_count: 1 },
+          { day_of_week: 1, start_time: "06:00", end_time: "10:00", max_duration_min: 60, session_count: 1 },
+        ],
+        rules: [{ rule_key: "prefer_morning", params: {} }],
+      },
+    });
+    expect(prompt).toContain("Training availability:");
+    expect(prompt).toContain("Mon: 06:00–12:00, 90min cap | 16:00–22:00, 60min cap");
+    expect(prompt).toContain("Tue: 06:00–10:00, 60min cap");
+    // Days without windows show as rest
+    expect(prompt).toContain("Wed: rest");
+    expect(prompt).toContain("Schedule rules: prefer_morning");
+    expect(prompt).toContain("Schedule-respect rules:");
+  });
+
+  it("anchors weekdays with an explicit upcoming-dates table so the coach can't hallucinate them", () => {
+    const prompt = buildSystemPrompt({
+      profile: { age: 28, height: 180, weight: 185, sex: "male", training_experience: "intermediate" },
+      goals: { body_goal: "gain_muscle", emphasis: null, days_per_week: 5, training_for_race: false, race_type: null, race_date: null, goal_time: null },
+      plan: null,
+      todaySession: null,
+      recovery: null,
+      todayNutrition: null,
+      weekStats: null,
+    });
+    expect(prompt).toContain("Upcoming dates");
+    expect(prompt).toContain("This week's Monday:");
+    expect(prompt).toContain("Next Monday:");
+    // Should list at least 14 entries with day-of-week abbreviations.
+    const dowMatches = prompt.match(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d{4}-\d{2}-\d{2}/g);
+    expect(dowMatches?.length ?? 0).toBeGreaterThanOrEqual(14);
+  });
+
+  it("registers the new calendar tools in the prompt guidance", () => {
+    const prompt = buildSystemPrompt({
+      profile: { age: 28, height: 180, weight: 185, sex: "male", training_experience: "intermediate" },
+      goals: { body_goal: "gain_muscle", emphasis: null, days_per_week: 5, training_for_race: false, race_type: null, race_date: null, goal_time: null },
+      plan: null,
+      todaySession: null,
+      recovery: null,
+      todayNutrition: null,
+      weekStats: null,
+    });
+    expect(prompt).toContain("delete_planned_workout");
+    expect(prompt).toContain("create_planned_workouts_batch");
+    expect(prompt).toContain("modify_planned_workouts_range");
+    expect(prompt).toContain("delete_planned_workouts_range");
+    expect(prompt).toContain("LOOSE METADATA");
   });
 });

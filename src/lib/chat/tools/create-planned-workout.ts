@@ -25,8 +25,8 @@ export function createPlannedWorkoutTool(userId: string) {
         .max(60)
         .describe('Short display label, e.g. "Easy Z2 run" or "Lower body lift".'),
       sport: z
-        .enum(["run", "bike", "swim", "strength"])
-        .describe("Sport for this session."),
+        .enum(["run", "bike", "swim", "strength", "other"])
+        .describe("Sport for this session. Use 'other' for mobility, yoga, stretching, or anything that doesn't fit the four primary sports."),
       contract: workoutContractSchema.describe(
         "Structured FIT-inspired contract: ordered steps (warmup/work/recovery/cooldown/rest/repeat) with durations and targets. For strength, prefer work steps with exercise_name + sets + reps when specifics are known."
       ),

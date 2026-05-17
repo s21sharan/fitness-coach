@@ -15,9 +15,13 @@ import {
   getTrainingPlanTool,
   updatePlannedWorkoutTool,
   createPlannedWorkoutTool,
+  deletePlannedWorkoutTool,
   regeneratePlanTool,
   getSearchResearchTool,
   proposeNextBlockTool,
+  createPlannedWorkoutsBatchTool,
+  modifyPlannedWorkoutsRangeTool,
+  deletePlannedWorkoutsRangeTool,
 } from "@/lib/chat/tools";
 import { getCheckinHistoryTool } from "@/lib/chat/tools/get-checkin-history";
 import { promptCheckinTool } from "@/lib/chat/tools/prompt-checkin";
@@ -58,37 +62,73 @@ export async function POST(request: Request) {
   const conversationId = await getOrCreateConversation(userId);
   await saveMessage(conversationId, "user", lastUserMessage.content);
 
-  const [profileRes, goalsRes, planRes, todayRecoveryRes, latestGarminCardioRes] =
-    await Promise.all([
-      supabase.from("user_profiles").select("*").eq("user_id", userId).single(),
-      supabase.from("user_goals").select("*").eq("user_id", userId).single(),
-      supabase
-        .from("training_plans")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("status", "active")
-        .single(),
-      supabase
-        .from("recovery_logs")
-        .select("hrv, sleep_hours, resting_hr, body_battery")
-        .eq("user_id", userId)
-        .eq("date", new Date().toISOString().slice(0, 10))
-        .single(),
-      supabase
-        .from("cardio_logs")
-        .select("hr_zones")
-        .eq("user_id", userId)
-        .eq("is_suppressed", false)
-        .not("hr_zones", "is", null)
-        .order("date", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
+  const [
+    profileRes,
+    goalsRes,
+    planRes,
+    todayRecoveryRes,
+    latestGarminCardioRes,
+    availabilityWindowsRes,
+    availabilityRulesRes,
+  ] = await Promise.all([
+    supabase.from("user_profiles").select("*").eq("user_id", userId).single(),
+    supabase.from("user_goals").select("*").eq("user_id", userId).single(),
+    supabase
+      .from("training_plans")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .single(),
+    supabase
+      .from("recovery_logs")
+      .select("hrv, sleep_hours, resting_hr, body_battery")
+      .eq("user_id", userId)
+      .eq("date", new Date().toISOString().slice(0, 10))
+      .single(),
+    supabase
+      .from("cardio_logs")
+      .select("hr_zones")
+      .eq("user_id", userId)
+      .eq("is_suppressed", false)
+      .not("hr_zones", "is", null)
+      .order("date", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("athlete_availability_windows")
+      .select("day_of_week, start_time, end_time, max_duration_min, session_count")
+      .eq("user_id", userId),
+    supabase
+      .from("athlete_availability_rules")
+      .select("rule_key, params")
+      .eq("user_id", userId),
+  ]);
 
   const profile = profileRes.data;
   const goals = goalsRes.data;
   const plan = planRes.data;
   const recovery = todayRecoveryRes.data;
+
+  // Availability context — fed to system prompt so the coach can fit sessions
+  // into the user's AM/PM windows. Tools never block on this server-side;
+  // schedule-respect is enforced by the prompt + the coach.
+  const availability =
+    (availabilityWindowsRes.data && availabilityWindowsRes.data.length > 0) ||
+    (availabilityRulesRes.data && availabilityRulesRes.data.length > 0)
+      ? {
+          windows: (availabilityWindowsRes.data ?? []).map((w) => ({
+            day_of_week: w.day_of_week as number,
+            start_time: w.start_time as string,
+            end_time: w.end_time as string,
+            max_duration_min: (w.max_duration_min as number | null) ?? null,
+            session_count: (w.session_count as number | null) ?? 1,
+          })),
+          rules: (availabilityRulesRes.data ?? []).map((r) => ({
+            rule_key: r.rule_key as string,
+            params: (r.params as Record<string, unknown> | null) ?? {},
+          })),
+        }
+      : null;
 
   // Parse Garmin zones from the latest activity that has them. Same logic as
   // /api/test-data: we trust whatever Garmin most recently bucketed.
@@ -158,6 +198,7 @@ export async function POST(request: Request) {
       const endDate = new Date(activeBlock.end_date);
       const daysUntilEnd = Math.ceil((endDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
       blockContext = {
+        block_id: activeBlock.id,
         block_type: activeBlock.block_type,
         block_label: activeBlock.block_label,
         block_number: activeBlock.block_number,
@@ -216,6 +257,7 @@ export async function POST(request: Request) {
     weekStats,
     hrZones,
     block: blockContext,
+    availability,
   });
 
   // Convert UIMessages from client using AI SDK's proper converter
@@ -237,9 +279,13 @@ export async function POST(request: Request) {
       get_training_plan: getTrainingPlanTool(userId),
       update_planned_workout: updatePlannedWorkoutTool(userId),
       create_planned_workout: createPlannedWorkoutTool(userId),
+      delete_planned_workout: deletePlannedWorkoutTool(userId),
       regenerate_plan: regeneratePlanTool(userId),
       search_research: getSearchResearchTool(),
       propose_next_block: proposeNextBlockTool(userId),
+      create_planned_workouts_batch: createPlannedWorkoutsBatchTool(userId),
+      modify_planned_workouts_range: modifyPlannedWorkoutsRangeTool(userId),
+      delete_planned_workouts_range: deletePlannedWorkoutsRangeTool(userId),
       get_checkin_history: getCheckinHistoryTool(userId),
       prompt_checkin: promptCheckinTool(),
     },

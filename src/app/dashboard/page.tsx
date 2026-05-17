@@ -7,6 +7,7 @@ import { MonthView } from "@/components/calendar/month-view";
 import { WeekView } from "@/components/calendar/week-view";
 import { WorkoutModal } from "@/components/calendar/workout-modal";
 import { CardioModal } from "@/components/calendar/cardio-modal";
+import { PlannedWorkoutModal, type PlannedWorkoutModalData } from "@/components/calendar/planned-workout-modal";
 import { useDashboardData, type CardioLog, type WorkoutLog } from "@/lib/hooks/use-dashboard-data";
 import { DailySummaryCard } from "@/components/dashboard/daily-summary-card";
 import { BlockBanner } from "@/components/calendar/block-banner";
@@ -21,6 +22,7 @@ function DashboardPageInner() {
   const { data, loading, syncing, fixingDates, units, triggerSync, triggerFixDates } = useDashboardData();
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutLog | null>(null);
   const [selectedCardio, setSelectedCardio] = useState<CardioLog | null>(null);
+  const [selectedPlanned, setSelectedPlanned] = useState<PlannedWorkoutModalData | null>(null);
 
   const setView = (next: CalendarView) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -69,9 +71,9 @@ function DashboardPageInner() {
       </div>
 
       {view === "month" ? (
-        <MonthView data={data} units={units} onWorkoutClick={setSelectedWorkout} onCardioClick={setSelectedCardio} />
+        <MonthView data={data} units={units} onWorkoutClick={setSelectedWorkout} onCardioClick={setSelectedCardio} onPlannedClick={setSelectedPlanned} />
       ) : (
-        <WeekView data={data} units={units} onWorkoutClick={setSelectedWorkout} onCardioClick={setSelectedCardio} />
+        <WeekView data={data} units={units} onWorkoutClick={setSelectedWorkout} onCardioClick={setSelectedCardio} onPlannedClick={setSelectedPlanned} />
       )}
 
       {selectedWorkout && (
@@ -86,6 +88,9 @@ function DashboardPageInner() {
           open={true}
           onClose={() => setSelectedCardio(null)}
         />
+      )}
+      {selectedPlanned && (
+        <PlannedWorkoutModal data={selectedPlanned} open={true} onClose={() => setSelectedPlanned(null)} />
       )}
     </div>
   );

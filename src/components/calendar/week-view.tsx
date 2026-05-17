@@ -12,11 +12,14 @@ import {
 import type { ApiData, CardioLog, WorkoutLog } from "@/lib/hooks/use-dashboard-data";
 import { fmtDist as fmtDistUnit, distanceLabel, type UnitPreferences } from "@/lib/units";
 
+import type { PlannedClickPayload } from "./day-cell";
+
 interface WeekViewProps {
   data: ApiData;
   units: UnitPreferences;
   onWorkoutClick?: (w: WorkoutLog) => void;
   onCardioClick?: (c: CardioLog) => void;
+  onPlannedClick?: (p: PlannedClickPayload) => void;
 }
 
 const navBtn: React.CSSProperties = {
@@ -25,7 +28,7 @@ const navBtn: React.CSSProperties = {
   display: "flex", alignItems: "center", color: "#374151",
 };
 
-export function WeekView({ data, units, onWorkoutClick, onCardioClick }: WeekViewProps) {
+export function WeekView({ data, units, onWorkoutClick, onCardioClick, onPlannedClick }: WeekViewProps) {
   const [weekOffset, setWeekOffset] = useState(0);
 
   const monday = useMemo(() => addDays(getMonday(new Date()), weekOffset * 7), [weekOffset]);
@@ -95,7 +98,7 @@ export function WeekView({ data, units, onWorkoutClick, onCardioClick }: WeekVie
               background: "#fafafa", border: "1px solid #f3f4f6", borderRadius: 10,
               minWidth: 150,
             }}>
-              <DayCell day={day} variant="tall" units={units} hrZoneBoundaries={data.hrZones?.boundaries ?? null} onWorkoutClick={onWorkoutClick} onCardioClick={onCardioClick} />
+              <DayCell day={day} variant="tall" units={units} hrZoneBoundaries={data.hrZones?.boundaries ?? null} onWorkoutClick={onWorkoutClick} onCardioClick={onCardioClick} onPlannedClick={onPlannedClick} />
             </div>
           ))}
         </div>

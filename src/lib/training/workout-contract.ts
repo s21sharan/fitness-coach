@@ -4,7 +4,7 @@
  * (durations, repeats, HR zones, pace targets) without re-parsing free text.
  */
 
-export type WorkoutContractSport = "run" | "bike" | "swim" | "strength";
+export type WorkoutContractSport = "run" | "bike" | "swim" | "strength" | "other";
 
 export type ContractStepType =
   | "warmup"

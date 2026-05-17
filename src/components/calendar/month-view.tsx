@@ -11,12 +11,14 @@ import {
 import type { ApiData, CardioLog, WorkoutLog } from "@/lib/hooks/use-dashboard-data";
 import type { UnitPreferences } from "@/lib/units";
 import type { TrainingBlock } from "@/lib/training/blocks";
+import type { PlannedClickPayload } from "./day-cell";
 
 interface MonthViewProps {
   data: ApiData;
   units: UnitPreferences;
   onWorkoutClick?: (w: WorkoutLog) => void;
   onCardioClick?: (c: CardioLog) => void;
+  onPlannedClick?: (p: PlannedClickPayload) => void;
 }
 
 const navBtn: React.CSSProperties = {
@@ -28,7 +30,7 @@ const navBtn: React.CSSProperties = {
 
 const SIDEBAR_WIDTH = 110;
 
-export function MonthView({ data, units, onWorkoutClick, onCardioClick }: MonthViewProps) {
+export function MonthView({ data, units, onWorkoutClick, onCardioClick, onPlannedClick }: MonthViewProps) {
   const [monthOffset, setMonthOffset] = useState(0);
   const [summaryWeek, setSummaryWeek] = useState<{ days: DayData[]; weekNum: number } | null>(null);
 
@@ -97,6 +99,7 @@ export function MonthView({ data, units, onWorkoutClick, onCardioClick }: MonthV
             hrZoneBoundaries={data.hrZones?.boundaries ?? null}
             onWorkoutClick={onWorkoutClick}
             onCardioClick={onCardioClick}
+            onPlannedClick={onPlannedClick}
             onSummaryClick={(days, weekNum) => setSummaryWeek({ days, weekNum })}
             activeBlock={data.activeBlock ?? null}
           />

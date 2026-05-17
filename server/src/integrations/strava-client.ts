@@ -6,6 +6,12 @@ export interface StravaActivity {
   id: number;
   name: string;
   sport_type: string;
+  /** Coarse type (Run, Ride, Swim, Workout, Hike, Walk, ...). Kept by the API
+   *  even though deprecated — useful as a fallback when sport_type is an obscure
+   *  newer value our mapping doesn't recognize. */
+  type?: string;
+  /** 0 = default, 1 = race, 2 = long run, 3 = workout (intervals). */
+  workout_type?: number;
   distance: number;
   moving_time: number;
   elapsed_time: number;
