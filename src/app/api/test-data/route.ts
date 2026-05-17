@@ -2,6 +2,9 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { addCalendarDaysYmd, formatCalendarDateLocal, isValidYmd } from "@/lib/dates/local-calendar";
+import type { HrZoneConfig, PowerZoneConfig, UserPowerZones } from "@/lib/training/zones";
+import type { ZoneBoundary } from "@/lib/training/calendar-data";
+import { getDefaultPowerZones } from "@/lib/training/zone-calculator";
 
 export async function GET(request: Request) {
   const { userId } = await auth();
@@ -22,7 +25,7 @@ export async function GET(request: Request) {
   const plannedFromStr = addCalendarDaysYmd(localToday, -365);
   const plannedToStr = addCalendarDaysYmd(localToday, 365);
 
-  const [integrationsRes, workoutsRes, cardioRes, recoveryRes, planRes] = await Promise.all([
+  const [integrationsRes, workoutsRes, cardioRes, recoveryRes, planRes, athleteSportsRes] = await Promise.all([
     supabase
       .from("integrations")
       .select("provider, status, last_synced_at, created_at")
@@ -54,6 +57,11 @@ export async function GET(request: Request) {
       .eq("status", "active")
       .order("created_at", { ascending: false })
       .limit(1),
+    supabase
+      .from("athlete_sports")
+      .select("sport, sport_specific")
+      .eq("user_id", userId)
+      .in("sport", ["global", "run", "bike"]),
   ]);
 
   const planId = planRes.data?.[0]?.id;
@@ -82,13 +90,15 @@ export async function GET(request: Request) {
     activeBlock = blockRes.data ?? null;
   }
 
-  // Derive the user's canonical HR zones from the most recent Garmin activity
-  // that carries device-supplied zone boundaries. Garmin uses one set of
-  // user-level zones (per sport optionally), and stores them per-activity in
-  // `cardio_logs.hr_zones`. The most recent one reflects the user's current
-  // settings. If no Garmin row has hr_zones, return null and the client falls
-  // back to legacy hardcoded thresholds.
-  const hrZones = deriveUserHrZones(cardioRes.data);
+  // Parse custom zones from athlete_sports
+  const customZones = parseCustomZones(athleteSportsRes.data);
+
+  // Derive the user's canonical HR zones with priority:
+  // 1. Custom zones from settings
+  // 2. Garmin zones from most recent activity
+  // 3. Legacy fallback (handled client-side)
+  const hrZones = deriveUserHrZonesWithCustom(cardioRes.data, customZones.hr);
+  const powerZones = derivePowerZones(customZones.power);
   const dedupedCardio = deduplicateCardio(cardioRes.data || []);
 
   return NextResponse.json({
@@ -98,6 +108,7 @@ export async function GET(request: Request) {
     recovery: recoveryRes.data || [],
     planned: plannedRows,
     hrZones,
+    powerZones,
     activeBlock,
   });
 }
@@ -207,19 +218,63 @@ interface CardioRowSlim {
   date?: string | null;
 }
 
-function deriveUserHrZones(
+interface AthleteSportRow {
+  sport: string;
+  sport_specific: {
+    hr_zones?: HrZoneConfig | null;
+    power_zones?: PowerZoneConfig | null;
+  } | null;
+}
+
+interface CustomZonesResult {
+  hr: { global?: HrZoneConfig | null; run?: HrZoneConfig | null; bike?: HrZoneConfig | null };
+  power: { global?: PowerZoneConfig | null; run?: PowerZoneConfig | null; bike?: PowerZoneConfig | null };
+}
+
+function parseCustomZones(rows: AthleteSportRow[] | null): CustomZonesResult {
+  const result: CustomZonesResult = { hr: {}, power: {} };
+  if (!rows) return result;
+  for (const row of rows) {
+    const sport = row.sport as "global" | "run" | "bike";
+    if (sport !== "global" && sport !== "run" && sport !== "bike") continue;
+    const specific = row.sport_specific;
+    if (specific?.hr_zones) {
+      result.hr[sport] = specific.hr_zones;
+    }
+    if (specific?.power_zones) {
+      result.power[sport] = specific.power_zones;
+    }
+  }
+  return result;
+}
+
+function deriveUserHrZonesWithCustom(
   cardio: CardioRowSlim[] | null,
-): { source: "garmin"; boundaries: Array<{ zone: number; low: number; high: number }>; syncedAt: string | null } | null {
+  customHr: { global?: HrZoneConfig | null; run?: HrZoneConfig | null; bike?: HrZoneConfig | null },
+): { source: "custom" | "garmin"; mode?: import("@/lib/training/zones").HrZoneMode; boundaries: ZoneBoundary[]; syncedAt: string | null } | null {
+  // Priority 1: Custom zones (global for now, per-sport can be passed to specific components)
+  const custom = customHr.global;
+  if (custom && custom.boundaries && custom.boundaries.length === 5) {
+    return {
+      source: "custom",
+      mode: custom.mode,
+      boundaries: custom.boundaries,
+      syncedAt: custom.updated_at ?? null,
+    };
+  }
+
+  // Priority 2: Garmin zones from cardio logs
+  return deriveUserHrZonesFromGarmin(cardio);
+}
+
+function deriveUserHrZonesFromGarmin(
+  cardio: CardioRowSlim[] | null,
+): { source: "garmin"; boundaries: ZoneBoundary[]; syncedAt: string | null } | null {
   if (!cardio || cardio.length === 0) return null;
-  // cardioRes is ordered by date desc; walk it and pick the first row with a
-  // well-formed 5-entry hr_zones payload. Garmin is the only writer of
-  // `hr_zones` — rows can have source='garmin' (Garmin-only) or 'merged'
-  // (Strava activity enriched by matching Garmin data); both carry the
-  // authoritative user zones.
   for (const row of cardio) {
     const raw = row.hr_zones;
     if (!Array.isArray(raw) || raw.length === 0) continue;
-    const parsed: Array<{ zone: number; low: number; high: number }> = [];
+    const parsed: ZoneBoundary[] = [];
     for (const z of raw as GarminZoneRow[]) {
       if (!z || typeof z !== "object") continue;
       const zone = typeof z.zone === "number" ? z.zone : null;
@@ -237,4 +292,25 @@ function deriveUserHrZones(
     };
   }
   return null;
+}
+
+function derivePowerZones(
+  customPower: { global?: PowerZoneConfig | null; run?: PowerZoneConfig | null; bike?: PowerZoneConfig | null },
+): UserPowerZones | null {
+  const custom = customPower.global ?? customPower.bike;
+  if (custom && custom.boundaries && custom.boundaries.length === 7) {
+    return {
+      source: "custom",
+      mode: custom.mode,
+      ftp: custom.ftp,
+      boundaries: custom.boundaries,
+      updatedAt: custom.updated_at ?? null,
+    };
+  }
+  // No custom power zones - return legacy fallback
+  return {
+    source: "legacy",
+    boundaries: getDefaultPowerZones(),
+    updatedAt: null,
+  };
 }

@@ -80,9 +80,18 @@ export interface ZoneBoundary {
 }
 
 export interface UserHrZones {
-  source: "garmin" | "legacy";
+  source: "custom" | "garmin" | "legacy";
+  mode?: "custom" | "percent_hrr" | "percent_max" | "percent_threshold";
   boundaries: ZoneBoundary[];
   syncedAt: string | null;
+}
+
+export interface UserPowerZones {
+  source: "custom" | "legacy";
+  mode?: "custom" | "percent_ftp";
+  ftp?: number | null;
+  boundaries: ZoneBoundary[];
+  updatedAt: string | null;
 }
 
 export interface ApiData {
@@ -93,6 +102,7 @@ export interface ApiData {
   recovery: RecoveryLog[];
   planned: PlannedWorkout[];
   hrZones: UserHrZones | null;
+  powerZones: UserPowerZones | null;
   activeBlock: TrainingBlock | null;
 }
 
@@ -128,6 +138,7 @@ export function useDashboardData(): UseDashboardData {
         ...json,
         planned: Array.isArray(json.planned) ? json.planned : [],
         hrZones: json.hrZones ?? null,
+        powerZones: json.powerZones ?? null,
         activeBlock: json.activeBlock ?? null,
       } as ApiData);
     }

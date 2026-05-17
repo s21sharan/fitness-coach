@@ -10,6 +10,7 @@ import { Icon } from "@/components/app/icon";
 import { getUnitPreferences, saveUnitPreferences, type DistanceUnit, type WeightUnit, type UnitPreferences } from "@/lib/units";
 import { getCheckinPreferences, saveCheckinPreferences, type CheckinPreferences } from "@/lib/checkin-preferences";
 import { isBetaAcknowledged, setBetaAcknowledged } from "@/lib/beta-features";
+import { TrainingZonesPanel } from "@/components/settings/training-zones-panel";
 
 interface IntegrationStatus {
   provider: string;
@@ -41,6 +42,7 @@ const COMING_SOON = [
 const NAV_ITEMS = [
   { id: "integrations", label: "Integrations" },
   { id: "preferences", label: "Preferences" },
+  { id: "zones", label: "Training Zones" },
   { id: "account", label: "Account" },
   { id: "goals", label: "Goals & body" },
   { id: "notifications", label: "Notifications" },
@@ -465,6 +467,10 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </>
+            )}
+
+            {activeNav === "zones" && (
+              <TrainingZonesPanel onToast={setToastMessage} />
             )}
 
             {activeNav === "account" && (
