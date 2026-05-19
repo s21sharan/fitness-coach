@@ -6,6 +6,8 @@ import { computeComplianceStats, formatComplianceForPrompt, isCardioPlanned, typ
 import { SPLIT_TYPES } from "@/lib/training/schemas";
 import { getActiveBlock } from "@/lib/training/blocks";
 import type { PlannedWorkoutTargets } from "@/lib/training/workout-contract";
+import { fetchActiveFacts } from "@/lib/athlete-context/facts";
+import { formatFactsForPlanPrompt } from "@/lib/athlete-context/format";
 
 export function regeneratePlanTool(userId: string) {
   return tool({
@@ -105,6 +107,9 @@ export function regeneratePlanTool(userId: string) {
         }
       }
 
+      const activeFacts = await fetchActiveFacts(userId);
+      const factsBlock = formatFactsForPlanPrompt(activeFacts);
+
       const plan = await generateMultiWeekPlan({
         userId,
         profile: {
@@ -129,6 +134,7 @@ export function regeneratePlanTool(userId: string) {
         weeks: activeBlock?.week_count ?? 2,
         compliance: complianceText,
         userRequest: user_request,
+        factsBlock,
       });
 
       // Format multi-week display for PlanProposalCard

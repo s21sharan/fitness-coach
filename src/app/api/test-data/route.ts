@@ -280,23 +280,47 @@ function parseCustomZones(rows: AthleteSportRow[] | null): CustomZonesResult {
   return result;
 }
 
+type HrZoneScopeData = { boundaries: ZoneBoundary[]; mode?: import("@/lib/training/zones").HrZoneMode; syncedAt: string | null };
+
+function toScopeData(cfg: HrZoneConfig | null | undefined): HrZoneScopeData | null {
+  if (!cfg || !Array.isArray(cfg.boundaries) || cfg.boundaries.length !== 5) return null;
+  return { boundaries: cfg.boundaries, mode: cfg.mode, syncedAt: cfg.updated_at ?? null };
+}
+
 function deriveUserHrZonesWithCustom(
   cardio: CardioRowSlim[] | null,
   customHr: { global?: HrZoneConfig | null; run?: HrZoneConfig | null; bike?: HrZoneConfig | null },
-): { source: "custom" | "garmin"; mode?: import("@/lib/training/zones").HrZoneMode; boundaries: ZoneBoundary[]; syncedAt: string | null } | null {
-  // Priority 1: Custom zones (global for now, per-sport can be passed to specific components)
-  const custom = customHr.global;
-  if (custom && custom.boundaries && custom.boundaries.length === 5) {
+): {
+  source: "custom" | "garmin";
+  mode?: import("@/lib/training/zones").HrZoneMode;
+  boundaries: ZoneBoundary[];
+  syncedAt: string | null;
+  bySport: { global?: HrZoneScopeData; run?: HrZoneScopeData; bike?: HrZoneScopeData };
+} | null {
+  const bySport: { global?: HrZoneScopeData; run?: HrZoneScopeData; bike?: HrZoneScopeData } = {};
+  const g = toScopeData(customHr.global);
+  const r = toScopeData(customHr.run);
+  const b = toScopeData(customHr.bike);
+  if (g) bySport.global = g;
+  if (r) bySport.run = r;
+  if (b) bySport.bike = b;
+
+  // Default boundaries used by aggregate views (analytics charts, etc.):
+  // prefer global, otherwise the first available custom scope, otherwise Garmin.
+  const defaultCustom = g ?? r ?? b;
+  if (defaultCustom) {
     return {
       source: "custom",
-      mode: custom.mode,
-      boundaries: custom.boundaries,
-      syncedAt: custom.updated_at ?? null,
+      mode: defaultCustom.mode,
+      boundaries: defaultCustom.boundaries,
+      syncedAt: defaultCustom.syncedAt,
+      bySport,
     };
   }
 
-  // Priority 2: Garmin zones from cardio logs
-  return deriveUserHrZonesFromGarmin(cardio);
+  const garmin = deriveUserHrZonesFromGarmin(cardio);
+  if (garmin) return { ...garmin, bySport };
+  return null;
 }
 
 function deriveUserHrZonesFromGarmin(

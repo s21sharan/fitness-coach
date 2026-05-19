@@ -22,7 +22,10 @@ export async function insertFact(userId: string, input: FactInput): Promise<Athl
   const supabase = createServerClient();
   const existing = await findActiveMatch(supabase, userId, input);
   const now = new Date();
-  const expiresAt = expiryForLifecycle(input.lifecycle, now);
+  // Caller may override expires_at (manual "custom duration" entries); otherwise
+  // derive from the lifecycle's default TTL.
+  const expiresAt =
+    input.expires_at !== undefined ? input.expires_at : expiryForLifecycle(input.lifecycle, now);
 
   if (existing) {
     if (valuesEqual(existing.value, input.value ?? null)) {

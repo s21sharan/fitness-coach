@@ -35,7 +35,8 @@ export interface AthleteFact {
 /**
  * What the extractor returns / callers pass to insertFact. Lifecycle is
  * required so the caller (or the LLM) commits to a TTL; everything else
- * carries a sensible default.
+ * carries a sensible default. `expires_at` overrides the lifecycle default
+ * TTL — use it for "custom duration" entries from the manual form.
  */
 export interface FactInput {
   category: string;
@@ -48,6 +49,7 @@ export interface FactInput {
   source: FactSource;
   source_ref_table?: string | null;
   source_ref_id?: string | null;
+  expires_at?: string | null;
 }
 
 export interface AthleteContext {

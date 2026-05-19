@@ -11,7 +11,6 @@ import { getUnitPreferences, saveUnitPreferences, type DistanceUnit, type Weight
 import { getCheckinPreferences, saveCheckinPreferences, type CheckinPreferences } from "@/lib/checkin-preferences";
 import { isBetaAcknowledged, setBetaAcknowledged } from "@/lib/beta-features";
 import { TrainingZonesPanel } from "@/components/settings/training-zones-panel";
-import { FactsPanel } from "@/components/settings/facts-panel";
 
 interface IntegrationStatus {
   provider: string;
@@ -44,7 +43,6 @@ const NAV_ITEMS = [
   { id: "integrations", label: "Integrations" },
   { id: "preferences", label: "Preferences" },
   { id: "zones", label: "Training Zones" },
-  { id: "memory", label: "Coach memory" },
   { id: "account", label: "Account" },
   { id: "goals", label: "Goals & body" },
   { id: "notifications", label: "Notifications" },
@@ -503,10 +501,6 @@ export default function SettingsPage() {
 
             {activeNav === "zones" && (
               <TrainingZonesPanel onToast={setToastMessage} />
-            )}
-
-            {activeNav === "memory" && (
-              <FactsPanel onToast={setToastMessage} />
             )}
 
             {activeNav === "account" && (

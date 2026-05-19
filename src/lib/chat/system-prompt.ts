@@ -165,6 +165,48 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     lines.push("");
   }
 
+  // ── ATHLETE KNOWLEDGE BLOCK ──
+  // Promoted to second-from-top because it's load-bearing for scheduling
+  // and plan generation. The previous placement (below week stats /
+  // availability) was getting buried under the prompt's other rules and
+  // ignored when the coach delegated to plan-generation tools.
+  if (facts && facts.length > 0) {
+    lines.push("═══ ATHLETE KNOWLEDGE (MUST RESPECT — read this before scheduling or advising) ═══");
+    lines.push("Durable facts accumulated about this athlete from past chats, completion notes, skip notes, accepted plans, and explicit user entries via the Memory page. These are NOT suggestions — they are constraints/preferences that override generic conventions.");
+    const grouped: Record<string, typeof facts> = {
+      chronic: [],
+      standing: [],
+      recent: [],
+      ephemeral: [],
+    };
+    for (const f of facts.slice(0, 30)) {
+      grouped[f.lifecycle]?.push(f);
+    }
+    const lifecycleLabel: Record<string, string> = {
+      chronic: "Permanent",
+      standing: "Long-term preferences & habits",
+      recent: "Recent state",
+      ephemeral: "Brief observations",
+    };
+    for (const tier of ["chronic", "standing", "recent", "ephemeral"]) {
+      const rows = grouped[tier];
+      if (!rows || rows.length === 0) continue;
+      lines.push(`  ${lifecycleLabel[tier]}:`);
+      for (const f of rows) {
+        const subjTag = f.subject ? `[${f.subject}] ` : "";
+        lines.push(`    - ${subjTag}${f.summary}`);
+      }
+    }
+    lines.push("");
+    lines.push("Athlete-knowledge rules (CRITICAL):");
+    lines.push("- Before placing a session on a specific day or in a specific slot, SCAN the block above for any preference, dislike, or constraint relevant to that modality (long run day, lift day, rest day, AM/PM).");
+    lines.push("- If a fact specifies a day of week, time of day, modality preference, or no-go (e.g. injury), the plan MUST honor it. Do not schedule long runs on a day the athlete dislikes for long runs. Do not load injured movement patterns. Do not assign sessions when a fact marks the slot unavailable.");
+    lines.push("- This applies to your own tool calls (create_planned_workout, create_planned_workouts_batch, swap_planned_workouts, modify_planned_workouts) AND to suggestions to regenerate_plan or propose_next_block. Pass the relevant preferences into the user_request when you call those tools so the inner planner sees them too.");
+    lines.push("- If two facts conflict (a chronic vs a recent one), the more specific or more recent fact wins, but explain the resolution in chat.");
+    lines.push("- If the user contradicts a fact in this conversation, follow the new statement — the extractor will supersede the old fact automatically.");
+    lines.push("");
+  }
+
   const profileParts: string[] = [];
   if (profile.age) profileParts.push(`${profile.age}yo`);
   if (profile.sex) profileParts.push(profile.sex);
@@ -329,41 +371,6 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     }
   }
 
-  // ── ATHLETE KNOWLEDGE (durable facts) ──
-  // Facts are extracted from past chats, completion notes, skip notes, and
-  // plan acceptances. They are the coach's persistent memory between
-  // sessions. Ordering is chronic → standing → recent → ephemeral (oldest
-  // belief that's still active comes first within each tier).
-  if (facts && facts.length > 0) {
-    lines.push("");
-    lines.push("## Athlete knowledge (durable memory — read before advising)");
-    lines.push("These are facts the coach has accumulated about this athlete over time. Trust them, but if the user contradicts one, the new statement wins and the old fact will be superseded automatically.");
-    const grouped: Record<string, typeof facts> = {
-      chronic: [],
-      standing: [],
-      recent: [],
-      ephemeral: [],
-    };
-    for (const f of facts.slice(0, 30)) {
-      grouped[f.lifecycle]?.push(f);
-    }
-    const lifecycleLabel: Record<string, string> = {
-      chronic: "Chronic (long-term)",
-      standing: "Standing (preferences & habits)",
-      recent: "Recent (last few weeks)",
-      ephemeral: "Ephemeral (just observed)",
-    };
-    for (const tier of ["chronic", "standing", "recent", "ephemeral"]) {
-      const rows = grouped[tier];
-      if (!rows || rows.length === 0) continue;
-      lines.push(`  ${lifecycleLabel[tier]}:`);
-      for (const f of rows) {
-        const subjTag = f.subject ? `[${f.subject}] ` : "";
-        lines.push(`    - ${subjTag}${f.summary}`);
-      }
-    }
-  }
-
   lines.push("");
 
   lines.push("Guidelines:");
@@ -403,6 +410,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   lines.push("- For all other tool calls (get_*, single-session edits, deletes), keep your reply tight: state what you did or what you found in 1-3 short sentences.");
   lines.push("");
   lines.push("Schedule-respect rules:");
+  lines.push("- Before picking a day or slot for any session, FIRST consult the Athlete Knowledge block at the top of this prompt for day-of-week, time-of-day, or modality preferences. Honor them unless the user explicitly overrides in this conversation.");
   lines.push("- When scheduling sessions without explicit user-supplied times, fit them into the user's Training availability windows above.");
   lines.push("- Multiple sessions per day are allowed only when that day has `session_count >= 2` or two separate windows (AM + PM).");
   lines.push("- If the user explicitly says they're free outside their normal window (e.g. \"I can do a PM today\"), treat it as a one-off override — schedule it and mention in chat that it's outside their normal schedule.");

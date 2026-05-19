@@ -372,6 +372,13 @@ export interface GenerateMultiWeekInput {
   weeks: number;
   compliance: string | null;
   userRequest?: string;
+  /**
+   * Pre-rendered durable-facts block. Pass null/undefined to skip — the
+   * planner will still receive the rest of the context. Callers should
+   * fetch via `fetchActiveFacts(userId)` and render via
+   * `formatFactsForPlanPrompt(facts)` so we don't duplicate that logic.
+   */
+  factsBlock?: string | null;
 }
 
 export async function generateMultiWeekPlan(input: GenerateMultiWeekInput): Promise<MultiWeekPlan> {
@@ -396,6 +403,7 @@ export async function generateMultiWeekPlan(input: GenerateMultiWeekInput): Prom
     recentActivity,
     compliance: input.compliance,
     weeksToGenerate: input.weeks,
+    factsBlock: input.factsBlock ?? null,
   };
 
   let prompt = buildMultiWeekUserPrompt(ctx);

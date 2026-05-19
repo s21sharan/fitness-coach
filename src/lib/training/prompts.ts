@@ -116,6 +116,12 @@ export function buildUserPrompt(ctx: UserContext): string {
 export interface MultiWeekPromptContext extends UserContext {
   compliance: string | null;
   weeksToGenerate: number;
+  /**
+   * Pre-rendered athlete facts block from formatFactsForPlanPrompt. The
+   * planner MUST respect these (day-of-week preferences, injuries,
+   * scheduling constraints) when picking the layout.
+   */
+  factsBlock?: string | null;
 }
 
 export const MULTI_WEEK_SYSTEM_PROMPT = `You are an expert hybrid-athlete coach producing a structured multi-week training block.
@@ -261,6 +267,20 @@ export function buildMultiWeekUserPrompt(ctx: MultiWeekPromptContext): string {
     lines.push("- If lifting compliance is low, consider fewer lifting days or shorter sessions");
     lines.push("- If extra sessions appear, incorporate what the athlete gravitates toward");
     lines.push("- If overall compliance is high, the plan complexity and volume are appropriate");
+  }
+
+  // Durable athlete facts (preferences, injuries, scheduling constraints).
+  // Placed near the bottom so it's the last thing the model reads before
+  // outputting, and called out explicitly so day-of-week preferences are
+  // honored when assigning sessions.
+  if (ctx.factsBlock) {
+    lines.push("");
+    lines.push("--- WHAT THE ATHLETE HAS TOLD US (MUST RESPECT) ---");
+    lines.push(ctx.factsBlock);
+    lines.push("");
+    lines.push(
+      "These facts override generic conventions. If a fact specifies a day of the week, time of day, modality preference, or no-go (e.g. injury), the plan MUST honor it. Do not place long runs / hard sessions / lifts on days the athlete dislikes for that modality. If two facts conflict, the more recent one wins.",
+    );
   }
 
   lines.push("");

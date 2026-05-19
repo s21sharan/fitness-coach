@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { AthleteFact, FactLifecycle } from "@/lib/athlete-context/types";
+import { humanize } from "@/lib/athlete-context/format";
 
 const LIFECYCLE_LABEL: Record<FactLifecycle, string> = {
-  chronic: "Long-term",
-  standing: "Preferences & habits",
+  chronic: "Permanent",
+  standing: "Long-term",
   recent: "Recent",
-  ephemeral: "Just observed",
+  ephemeral: "Brief",
 };
 
 const LIFECYCLE_BADGE: Record<FactLifecycle, { bg: string; fg: string }> = {
@@ -24,73 +25,55 @@ const STATUS_BADGE: Record<string, { bg: string; fg: string }> = {
   archived: { bg: "#fee2e2", fg: "#991b1b" },
 };
 
-interface FactsPanelProps {
-  onToast: (message: string) => void;
+const SOURCE_LABEL: Record<string, string> = {
+  chat: "from chat",
+  completion_note: "completion note",
+  skip_note: "skip note",
+  plan_acceptance: "plan acceptance",
+  onboarding_recap: "onboarding",
+  manual: "you added",
+  derived: "derived",
+};
+
+interface MemoryListProps {
+  facts: AthleteFact[];
+  loading: boolean;
+  showInactive: boolean;
+  onShowInactiveChange: (v: boolean) => void;
+  onArchive: (id: string) => Promise<void>;
+  onEdit: (id: string, summary: string) => Promise<void>;
 }
 
-export function FactsPanel({ onToast }: FactsPanelProps) {
-  const [facts, setFacts] = useState<AthleteFact[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showInactive, setShowInactive] = useState(false);
+export function MemoryList({
+  facts,
+  loading,
+  showInactive,
+  onShowInactiveChange,
+  onArchive,
+  onEdit,
+}: MemoryListProps) {
   const [editing, setEditing] = useState<{ id: string; summary: string } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/athlete-facts");
-      if (!res.ok) throw new Error(await res.text());
-      const data = (await res.json()) as { facts: AthleteFact[] };
-      setFacts(data.facts);
-    } catch (e) {
-      console.error("load facts failed", e);
-      onToast("Couldn't load coach memory.");
-    } finally {
-      setLoading(false);
-    }
-  }, [onToast]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   const handleArchive = useCallback(async (id: string) => {
     setBusyId(id);
     try {
-      const res = await fetch("/api/athlete-facts", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ factId: id, action: "archive" }),
-      });
-      if (!res.ok) throw new Error();
-      onToast("Fact archived.");
-      await load();
-    } catch {
-      onToast("Failed to archive.");
+      await onArchive(id);
     } finally {
       setBusyId(null);
     }
-  }, [load, onToast]);
+  }, [onArchive]);
 
   const handleSaveEdit = useCallback(async () => {
     if (!editing) return;
     setBusyId(editing.id);
     try {
-      const res = await fetch("/api/athlete-facts", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ factId: editing.id, action: "edit", summary: editing.summary }),
-      });
-      if (!res.ok) throw new Error();
+      await onEdit(editing.id, editing.summary);
       setEditing(null);
-      onToast("Fact updated.");
-      await load();
-    } catch {
-      onToast("Failed to update.");
     } finally {
       setBusyId(null);
     }
-  }, [editing, load, onToast]);
+  }, [editing, onEdit]);
 
   const visibleFacts = useMemo(
     () => facts.filter((f) => (showInactive ? true : f.status === "active")),
@@ -109,21 +92,20 @@ export function FactsPanel({ onToast }: FactsPanelProps) {
   }, [visibleFacts]);
 
   return (
-    <div className="card" style={{ padding: 24 }}>
+    <div style={cardStyle}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, gap: 12 }}>
         <div>
-          <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>Coach memory</div>
+          <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>Saved memories</div>
           <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.5 }}>
-            Durable facts your coach has learned about you from chats, completion notes, skip
-            reasons, and accepted plans. Archive anything you don&apos;t want carried forward —
-            the coach will stop referencing it.
+            Durable facts your coach reads on every chat turn. Archive anything you don&apos;t
+            want carried forward.
           </div>
         </div>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap" }}>
           <input
             type="checkbox"
             checked={showInactive}
-            onChange={(e) => setShowInactive(e.target.checked)}
+            onChange={(e) => onShowInactiveChange(e.target.checked)}
           />
           Show inactive
         </label>
@@ -133,25 +115,24 @@ export function FactsPanel({ onToast }: FactsPanelProps) {
         <div style={{ fontSize: 13, color: "var(--muted)" }}>Loading…</div>
       ) : visibleFacts.length === 0 ? (
         <div style={{ fontSize: 13, color: "var(--muted)", padding: "20px 0" }}>
-          No facts yet. As you chat with the coach, log completion notes, or accept plans, durable
-          facts will accumulate here.
+          No memories yet. Add one above, or just chat with your coach and facts will accumulate here.
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {(["chronic", "standing", "recent", "ephemeral"] as const).map((lc) => {
             const rows = grouped[lc];
             if (rows.length === 0) return null;
             const badge = LIFECYCLE_BADGE[lc];
             return (
               <div key={lc}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                   <span
                     style={{
                       fontSize: 10,
                       fontWeight: 700,
                       letterSpacing: "0.08em",
                       textTransform: "uppercase",
-                      padding: "2px 7px",
+                      padding: "3px 8px",
                       borderRadius: 4,
                       background: badge.bg,
                       color: badge.fg,
@@ -160,7 +141,7 @@ export function FactsPanel({ onToast }: FactsPanelProps) {
                     {LIFECYCLE_LABEL[lc]}
                   </span>
                   <span style={{ fontSize: 12, color: "var(--muted)" }}>
-                    {rows.length} fact{rows.length === 1 ? "" : "s"}
+                    {rows.length} memor{rows.length === 1 ? "y" : "ies"}
                   </span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -171,23 +152,24 @@ export function FactsPanel({ onToast }: FactsPanelProps) {
                       <div
                         key={f.id}
                         style={{
-                          padding: "10px 12px",
-                          borderRadius: 8,
+                          padding: "12px 14px",
+                          borderRadius: 10,
                           border: "1px solid #e2e8f0",
                           background: f.status === "active" ? "#fff" : "#f8fafc",
                           opacity: f.status === "active" ? 1 : 0.7,
                         }}
                       >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
                           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: "#0f172a", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                              {f.category}
+                            <span style={{ fontSize: 11, fontWeight: 700, color: "#0f172a", letterSpacing: "0.02em" }}>
+                              {humanize(f.category)}
                             </span>
                             {f.subject && (
-                              <span style={{ fontSize: 11, color: "#475569" }}>
-                                · {f.subject}
-                              </span>
+                              <span style={{ fontSize: 11, color: "#475569" }}>· {humanize(f.subject)}</span>
                             )}
+                            <span style={{ fontSize: 11, color: "#94a3b8" }}>
+                              · {humanize(f.predicate)}
+                            </span>
                             {f.status !== "active" && (
                               <span
                                 style={{
@@ -205,7 +187,7 @@ export function FactsPanel({ onToast }: FactsPanelProps) {
                               </span>
                             )}
                           </div>
-                          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                             {f.status === "active" && !isEditing && (
                               <>
                                 <button
@@ -268,12 +250,12 @@ export function FactsPanel({ onToast }: FactsPanelProps) {
                             </div>
                           </div>
                         ) : (
-                          <div style={{ fontSize: 13, color: "#0f172a", lineHeight: 1.5 }}>
+                          <div style={{ fontSize: 14, color: "#0f172a", lineHeight: 1.5 }}>
                             {f.summary}
                           </div>
                         )}
-                        <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 6 }}>
-                          {formatRelative(f.observed_at)} · source: {f.source}
+                        <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 8 }}>
+                          {SOURCE_LABEL[f.source] ?? f.source} · observed {formatRelative(f.observed_at)}
                           {f.expires_at && f.status === "active" && ` · expires ${formatRelative(f.expires_at)}`}
                         </div>
                       </div>
@@ -288,6 +270,13 @@ export function FactsPanel({ onToast }: FactsPanelProps) {
     </div>
   );
 }
+
+const cardStyle: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid var(--line, #e2e8f0)",
+  borderRadius: 14,
+  padding: 24,
+};
 
 const btnLink: React.CSSProperties = {
   background: "transparent",

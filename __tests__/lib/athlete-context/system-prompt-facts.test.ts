@@ -44,9 +44,9 @@ const baseInput = {
 } as const;
 
 describe("buildSystemPrompt — facts rendering", () => {
-  it("omits the Athlete knowledge section when no facts", () => {
+  it("omits the Athlete Knowledge section when no facts", () => {
     const prompt = buildSystemPrompt({ ...baseInput, facts: [] });
-    expect(prompt).not.toContain("Athlete knowledge");
+    expect(prompt).not.toContain("ATHLETE KNOWLEDGE");
   });
 
   it("renders facts grouped by lifecycle with summary text", () => {
@@ -58,15 +58,29 @@ describe("buildSystemPrompt — facts rendering", () => {
         fact({ id: "r1", lifecycle: "recent", category: "soreness", subject: "calves", summary: "Reported tight calves this week after speed work." }),
       ],
     });
-    expect(prompt).toContain("Athlete knowledge");
-    expect(prompt).toContain("Chronic");
-    expect(prompt).toContain("Standing");
+    expect(prompt).toContain("ATHLETE KNOWLEDGE");
+    expect(prompt).toContain("Permanent");
+    expect(prompt).toContain("Long-term");
     expect(prompt).toContain("Recent");
     expect(prompt).toContain("Patellar pain on long runs since 2024.");
     expect(prompt).toContain("Strongly prefers Sunday morning long runs.");
     expect(prompt).toContain("Reported tight calves this week after speed work.");
     // Subject tag should appear when present
     expect(prompt).toContain("[left_knee]");
+  });
+
+  it("places athlete knowledge before guidelines (so it's read first)", () => {
+    const prompt = buildSystemPrompt({
+      ...baseInput,
+      facts: [
+        fact({ id: "s1", lifecycle: "standing", summary: "Prefers Thursday long runs." }),
+      ],
+    });
+    const factsIdx = prompt.indexOf("ATHLETE KNOWLEDGE");
+    const guidelinesIdx = prompt.indexOf("Guidelines:");
+    expect(factsIdx).toBeGreaterThan(-1);
+    expect(guidelinesIdx).toBeGreaterThan(-1);
+    expect(factsIdx).toBeLessThan(guidelinesIdx);
   });
 
   it("caps the rendered set at 30 facts", () => {

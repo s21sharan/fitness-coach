@@ -2,6 +2,8 @@ import { tool } from "ai";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { generateMultiWeekPlan } from "@/lib/training/generate-plan";
+import { fetchActiveFacts } from "@/lib/athlete-context/facts";
+import { formatFactsForPlanPrompt } from "@/lib/athlete-context/format";
 import { getNextBlockType, blockTypeLabel } from "@/lib/training/phase-rules";
 import { getActiveBlock, getBlockComplianceStats, getRecoveryTrends, createBlock } from "@/lib/training/blocks";
 
@@ -67,6 +69,9 @@ export function proposeNextBlockTool(userId: string) {
       const suggestedWeeks =
         nextBlockType === "deload" ? 1 : nextBlockType === "taper" ? 2 : 4;
 
+      const activeFacts = await fetchActiveFacts(userId);
+      const factsBlock = formatFactsForPlanPrompt(activeFacts);
+
       const multiWeekPlan = await generateMultiWeekPlan({
         userId,
         profile: {
@@ -93,6 +98,7 @@ export function proposeNextBlockTool(userId: string) {
         userRequest: user_request
           ? `${user_request}. Recommended phase: ${blockTypeLabel(nextBlockType)}`
           : `Generate a ${blockTypeLabel(nextBlockType)} block.`,
+        factsBlock,
       });
 
       // Calculate dates
