@@ -211,3 +211,161 @@ describe("POST /api/events", () => {
     expect(res.status).toBe(500);
   });
 });
+
+// ─── PATCH /api/events/[id] ───────────────────────────────────────────────────
+
+// Mocks for update chain: .update().eq().eq().select().single()
+const mockUpdateSingle = vi.fn();
+const mockUpdateSelectSingle = vi.fn(() => ({ single: mockUpdateSingle }));
+const mockUpdateEqOwnership = vi.fn(() => ({ select: mockUpdateSelectSingle }));
+const mockUpdateEqId = vi.fn(() => ({ eq: mockUpdateEqOwnership }));
+const mockUpdate = vi.fn(() => ({ eq: mockUpdateEqId }));
+
+// Mocks for delete chain: .delete().eq().eq()
+const mockDeleteEqOwnership = vi.fn();
+const mockDeleteEqId = vi.fn(() => ({ eq: mockDeleteEqOwnership }));
+const mockDelete = vi.fn(() => ({ eq: mockDeleteEqId }));
+
+describe("PATCH /api/events/[id]", () => {
+  beforeEach(() => {
+    mockUpdateSingle.mockResolvedValue({ data: null, error: null });
+    mockUpdateSelectSingle.mockReturnValue({ single: mockUpdateSingle });
+    mockUpdateEqOwnership.mockReturnValue({ select: mockUpdateSelectSingle });
+    mockUpdateEqId.mockReturnValue({ eq: mockUpdateEqOwnership });
+    mockUpdate.mockReturnValue({ eq: mockUpdateEqId });
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "athlete_events") {
+        return {
+          select: mockSelectGet,
+          insert: mockInsert,
+          update: mockUpdate,
+          delete: mockDelete,
+        };
+      }
+      return {};
+    });
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const { auth } = await import("@clerk/nextjs/server");
+    (auth as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ userId: null });
+    const { PATCH } = await import("@/app/api/events/[id]/route");
+    const req = new Request("http://localhost/api/events/e1", {
+      method: "PATCH",
+      body: JSON.stringify({ name: "Updated Race" }),
+    });
+    const res = await PATCH(req, { params: Promise.resolve({ id: "e1" }) });
+    expect(res.status).toBe(401);
+  });
+
+  it("updates allowed fields and returns the updated event", async () => {
+    const updatedEvent = {
+      id: "e1",
+      user_id: "test-user-123",
+      name: "Updated Race",
+      event_date: "2026-07-01",
+      sport_type: "run",
+    };
+    mockUpdateSingle.mockResolvedValueOnce({ data: updatedEvent, error: null });
+
+    const { PATCH } = await import("@/app/api/events/[id]/route");
+    const req = new Request("http://localhost/api/events/e1", {
+      method: "PATCH",
+      body: JSON.stringify({ name: "Updated Race", sport_type: "run" }),
+    });
+    const res = await PATCH(req, { params: Promise.resolve({ id: "e1" }) });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.event).toMatchObject({ id: "e1", name: "Updated Race" });
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ name: "Updated Race" }));
+    expect(mockUpdateEqId).toHaveBeenCalledWith("id", "e1");
+    expect(mockUpdateEqOwnership).toHaveBeenCalledWith("user_id", "test-user-123");
+  });
+
+  it("strips non-whitelisted fields from the update payload", async () => {
+    const updatedEvent = { id: "e1", user_id: "test-user-123", name: "Clean Race", event_date: "2026-07-01" };
+    mockUpdateSingle.mockResolvedValueOnce({ data: updatedEvent, error: null });
+
+    const { PATCH } = await import("@/app/api/events/[id]/route");
+    const req = new Request("http://localhost/api/events/e1", {
+      method: "PATCH",
+      body: JSON.stringify({ name: "Clean Race", hacked_field: "evil", user_id: "attacker" }),
+    });
+    const res = await PATCH(req, { params: Promise.resolve({ id: "e1" }) });
+
+    expect(res.status).toBe(200);
+    const updatePayload = mockUpdate.mock.calls[0][0];
+    expect(updatePayload).not.toHaveProperty("hacked_field");
+    expect(updatePayload).not.toHaveProperty("user_id");
+    expect(updatePayload).toHaveProperty("name", "Clean Race");
+  });
+
+  it("returns 500 on database update error", async () => {
+    mockUpdateSingle.mockResolvedValueOnce({ data: null, error: { message: "Update failed" } });
+
+    const { PATCH } = await import("@/app/api/events/[id]/route");
+    const req = new Request("http://localhost/api/events/e1", {
+      method: "PATCH",
+      body: JSON.stringify({ name: "Race" }),
+    });
+    const res = await PATCH(req, { params: Promise.resolve({ id: "e1" }) });
+    expect(res.status).toBe(500);
+  });
+});
+
+// ─── DELETE /api/events/[id] ──────────────────────────────────────────────────
+
+describe("DELETE /api/events/[id]", () => {
+  beforeEach(() => {
+    mockDeleteEqOwnership.mockResolvedValue({ error: null });
+    mockDeleteEqId.mockReturnValue({ eq: mockDeleteEqOwnership });
+    mockDelete.mockReturnValue({ eq: mockDeleteEqId });
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "athlete_events") {
+        return {
+          select: mockSelectGet,
+          insert: mockInsert,
+          update: mockUpdate,
+          delete: mockDelete,
+        };
+      }
+      return {};
+    });
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const { auth } = await import("@clerk/nextjs/server");
+    (auth as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ userId: null });
+    const { DELETE } = await import("@/app/api/events/[id]/route");
+    const req = new Request("http://localhost/api/events/e1", { method: "DELETE" });
+    const res = await DELETE(req, { params: Promise.resolve({ id: "e1" }) });
+    expect(res.status).toBe(401);
+  });
+
+  it("deletes the event and returns { success: true }", async () => {
+    mockDeleteEqOwnership.mockResolvedValueOnce({ error: null });
+
+    const { DELETE } = await import("@/app/api/events/[id]/route");
+    const req = new Request("http://localhost/api/events/e1", { method: "DELETE" });
+    const res = await DELETE(req, { params: Promise.resolve({ id: "e1" }) });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(mockDelete).toHaveBeenCalled();
+    expect(mockDeleteEqId).toHaveBeenCalledWith("id", "e1");
+    expect(mockDeleteEqOwnership).toHaveBeenCalledWith("user_id", "test-user-123");
+  });
+
+  it("returns 500 on database delete error", async () => {
+    mockDeleteEqOwnership.mockResolvedValueOnce({ error: { message: "Delete failed" } });
+
+    const { DELETE } = await import("@/app/api/events/[id]/route");
+    const req = new Request("http://localhost/api/events/e1", { method: "DELETE" });
+    const res = await DELETE(req, { params: Promise.resolve({ id: "e1" }) });
+    expect(res.status).toBe(500);
+  });
+});
