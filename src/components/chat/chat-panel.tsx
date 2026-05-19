@@ -1,12 +1,9 @@
 "use client";
 
-import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { MessageBubble } from "./message-bubble";
 import Link from "next/link";
-
-const transport = new DefaultChatTransport({ api: "/api/chat" });
+import { useChatContext } from "./chat-provider";
 
 interface ChatPanelProps {
   open: boolean;
@@ -16,8 +13,7 @@ interface ChatPanelProps {
 export function ChatPanel({ open, onClose }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
-
-  const { messages, sendMessage, status } = useChat({ transport });
+  const { messages, sendMessage, status } = useChatContext();
   const isLoading = status === "streaming" || status === "submitted";
 
   useEffect(() => {
@@ -29,7 +25,7 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
-    sendMessage({ text: input });
+    sendMessage(input);
     setInput("");
   };
 
@@ -45,7 +41,7 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
           <span className="text-sm font-semibold">Coach</span>
         </div>
         <div className="flex items-center gap-3">
-          <Link href="/dashboard/chat" className="text-xs text-indigo-600 hover:underline">
+          <Link href="/dashboard/coach" className="text-xs text-indigo-600 hover:underline">
             Open full →
           </Link>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg">

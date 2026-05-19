@@ -1,3 +1,6 @@
+import { formatPaceSecPerKm, formatTimeSec, type TrainingPaces } from "@/lib/training/training-paces";
+import type { AthleteFact } from "@/lib/athlete-context/types";
+
 interface SystemPromptInput {
   profile: {
     age: number | null;
@@ -29,8 +32,10 @@ interface SystemPromptInput {
   weekStats: {
     sessionsCompleted: number;
     sessionsPlanned: number;
+    skippedThisWeek?: Array<{ date: string; sessionType: string; reason: string | null }>;
   } | null;
   hrZones?: Array<{ zone: number; low: number; high: number }> | null;
+  trainingPaces?: TrainingPaces | null;
   block?: {
     block_id: string;
     block_type: string;
@@ -52,6 +57,12 @@ interface SystemPromptInput {
     }>;
     rules: Array<{ rule_key: string; params: Record<string, unknown> }>;
   } | null;
+  // Authoritative read of the calendar (planned_workouts) for the next
+  // ~14 days. The coach must trust THIS over `plan.split_type` metadata.
+  upcomingPlannedSessions?: Array<{ date: string; session_type: string; status: string }> | null;
+  // Durable athlete knowledge — chat-extracted preferences, injuries, training
+  // responses, etc. Already ordered chronic-first by the assembler.
+  facts?: AthleteFact[] | null;
 }
 
 const REASONING_FRAMEWORK = `
@@ -121,11 +132,38 @@ const SPLIT_LABELS: Record<string, string> = {
 };
 
 export function buildSystemPrompt(input: SystemPromptInput): string {
-  const { profile, goals, plan, todaySession, recovery, weekStats, hrZones, block, availability } = input;
+  const { profile, goals, plan, todaySession, recovery, weekStats, hrZones, trainingPaces, block, availability, upcomingPlannedSessions, facts } = input;
   const lines: string[] = [];
 
   lines.push("You are Coach, a fitness coach. You are direct, specific, encouraging but honest, opinionated, and concise.");
   lines.push("");
+
+  // ── CALENDAR TRUTH BLOCK ──
+  // This is the first thing the model reads. It is the literal, current
+  // state of planned_workouts (the calendar UI's data source). The model
+  // MUST treat this as authoritative over any tool output from earlier in
+  // the conversation, any plan-metadata `split_type`, and any memory of
+  // prior chats. Every claim about "your plan is X" must be grounded here.
+  if (upcomingPlannedSessions && upcomingPlannedSessions.length > 0) {
+    lines.push("═══ SESSIONS ON YOUR CALENDAR (AUTHORITATIVE — read this first) ═══");
+    lines.push("These rows are the live contents of planned_workouts, the same data the user's calendar UI renders. Anything else (your memory, earlier tool responses in this conversation, plan metadata) is NOT authoritative.");
+    for (const s of upcomingPlannedSessions.slice(0, 21)) {
+      const tag = s.status && s.status !== "scheduled" ? ` [${s.status}]` : "";
+      lines.push(`  ${s.date}: ${s.session_type || "(empty)"}${tag}`);
+    }
+    lines.push("");
+    lines.push("Calendar truth rules (CRITICAL — read every message):");
+    lines.push("- Before describing the user's current plan / split / upcoming sessions, GROUND your answer in the block above. Do NOT cite session names or ids from earlier tool responses in this conversation — they may have been previews that never committed.");
+    lines.push("- A `regenerate_plan`, `propose_next_block`, or `create_planned_workouts_batch` response with `proposed:true` and `committed:false` did NOT change the calendar. The user must accept the proposal card in the UI.");
+    lines.push("- A `swap_planned_workouts`, `modify_planned_workouts`, or `delete_planned_workouts` response with `preview:true` and `committed:false` did NOT change the calendar. You must re-call the same tool with `confirmed:true` to commit.");
+    lines.push("- If a session name you would have introduced is NOT in the block above, the change was NOT committed. Never tell the user 'it's done' / 'your split is X' based on a tool response alone — verify the new sessions appear above.");
+    lines.push("- If the user disputes what you said the plan is, RE-READ the block above before defending your answer. The block is fresh on every message; your in-chat memory of earlier tool calls is not.");
+    lines.push("");
+  } else if (upcomingPlannedSessions) {
+    lines.push("═══ SESSIONS ON YOUR CALENDAR ═══");
+    lines.push("planned_workouts has no upcoming sessions for this user. Anything you say about 'their current plan' must acknowledge this — the calendar is empty.");
+    lines.push("");
+  }
 
   const profileParts: string[] = [];
   if (profile.age) profileParts.push(`${profile.age}yo`);
@@ -146,7 +184,12 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   }
 
   if (plan) {
-    lines.push(`Current split: ${SPLIT_LABELS[plan.split_type] || plan.split_type}`);
+    // training_plans.split_type is METADATA only — it's set at plan creation
+    // / acceptance but is NOT updated by swap/modify/delete tools. Treat the
+    // calendar (planned_workouts, surfaced below as "Sessions on your
+    // calendar") as the source of truth. Label clearly so the coach doesn't
+    // mistake this for the live state.
+    lines.push(`Plan metadata — recorded split: ${SPLIT_LABELS[plan.split_type] || plan.split_type} (this is the label at plan creation; the calendar is authoritative for what's actually scheduled).`);
     if (plan.plan_config?.periodization_phase) {
       const phase = plan.plan_config.periodization_phase as string;
       lines.push(`Phase: ${phase.charAt(0).toUpperCase() + phase.slice(1)}`);
@@ -158,7 +201,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   if (block) {
     lines.push("");
     lines.push(`Current block: ${block.block_label} (Block ${block.block_number}) — Week ${block.current_week} of ${block.week_count}`);
-    lines.push(`Block id: ${block.block_id}  (loose metadata — use it for phase context, NOT as a handle to operate on sessions; range tools use start_date/end_date instead)`);
+    lines.push(`Block id: ${block.block_id}  (loose metadata — use it for phase context, NOT as a handle to operate on sessions; bulk tools take planned_workouts.id arrays instead)`);
     lines.push(`Block ends: ${block.end_date}${block.days_until_end <= 3 ? ` (${block.days_until_end} days)` : ""}`);
     if (block.compliance_pct !== null) {
       lines.push(`Block compliance: ${block.compliance_pct}%`);
@@ -220,7 +263,41 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     lines.push(`HR zones (from Garmin, bpm): ${hrZones.map((b, i) => fmt(b, i)).join(", ")}`);
   }
 
-  if (weekStats) lines.push(`This week: ${weekStats.sessionsCompleted}/${weekStats.sessionsPlanned} sessions completed`);
+  if (trainingPaces) {
+    lines.push("");
+    lines.push("Training paces (derived from recent fitness, blended toward goal as race approaches):");
+    lines.push(`  Easy       ${formatPaceSecPerKm(trainingPaces.easy)}   (${trainingPaces.easy} sec/km)`);
+    lines.push(`  Marathon   ${formatPaceSecPerKm(trainingPaces.marathon)}   (${trainingPaces.marathon} sec/km)`);
+    lines.push(`  Threshold  ${formatPaceSecPerKm(trainingPaces.threshold)}   (${trainingPaces.threshold} sec/km)`);
+    lines.push(`  10K        ${formatPaceSecPerKm(trainingPaces.m10k)}   (${trainingPaces.m10k} sec/km)`);
+    lines.push(`  5K         ${formatPaceSecPerKm(trainingPaces.m5k)}   (${trainingPaces.m5k} sec/km)`);
+    lines.push(`  Interval   ${formatPaceSecPerKm(trainingPaces.interval)}   (${trainingPaces.interval} sec/km) — VO2max / 3-5min reps`);
+    lines.push(`  Repetition ${formatPaceSecPerKm(trainingPaces.repetition)}   (${trainingPaces.repetition} sec/km) — short fast reps (200-400m)`);
+    const basisParts: string[] = [];
+    if (trainingPaces.basis.recentRun) {
+      const r = trainingPaces.basis.recentRun;
+      basisParts.push(`best recent run ${r.date} (${r.distanceKm.toFixed(1)}km @ ${formatPaceSecPerKm(r.paceSecPerKm)})`);
+    }
+    if (trainingPaces.basis.goal) {
+      const g = trainingPaces.basis.goal;
+      basisParts.push(`${g.distanceKm.toFixed(1)}km goal in ${formatTimeSec(g.goalTimeSec)}`);
+    }
+    if (trainingPaces.basis.blendGoalWeight > 0) {
+      basisParts.push(`${Math.round(trainingPaces.basis.blendGoalWeight * 100)}% blended toward goal`);
+    }
+    if (basisParts.length > 0) lines.push(`  Basis: ${basisParts.join(" · ")}`);
+  }
+
+  if (weekStats) {
+    lines.push(`This week: ${weekStats.sessionsCompleted}/${weekStats.sessionsPlanned} sessions completed`);
+    if (weekStats.skippedThisWeek && weekStats.skippedThisWeek.length > 0) {
+      lines.push("Skipped this week (athlete-stated reasons, factor into future planning):");
+      for (const s of weekStats.skippedThisWeek.slice(0, 7)) {
+        const reason = s.reason ? s.reason.slice(0, 200) : "no reason given";
+        lines.push(`  - ${s.date} ${s.sessionType} — ${reason}`);
+      }
+    }
+  }
 
   // Availability windows: format per-day with up to two slots (am/pm) plus rules.
   if (availability && availability.windows.length > 0) {
@@ -252,6 +329,41 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     }
   }
 
+  // ── ATHLETE KNOWLEDGE (durable facts) ──
+  // Facts are extracted from past chats, completion notes, skip notes, and
+  // plan acceptances. They are the coach's persistent memory between
+  // sessions. Ordering is chronic → standing → recent → ephemeral (oldest
+  // belief that's still active comes first within each tier).
+  if (facts && facts.length > 0) {
+    lines.push("");
+    lines.push("## Athlete knowledge (durable memory — read before advising)");
+    lines.push("These are facts the coach has accumulated about this athlete over time. Trust them, but if the user contradicts one, the new statement wins and the old fact will be superseded automatically.");
+    const grouped: Record<string, typeof facts> = {
+      chronic: [],
+      standing: [],
+      recent: [],
+      ephemeral: [],
+    };
+    for (const f of facts.slice(0, 30)) {
+      grouped[f.lifecycle]?.push(f);
+    }
+    const lifecycleLabel: Record<string, string> = {
+      chronic: "Chronic (long-term)",
+      standing: "Standing (preferences & habits)",
+      recent: "Recent (last few weeks)",
+      ephemeral: "Ephemeral (just observed)",
+    };
+    for (const tier of ["chronic", "standing", "recent", "ephemeral"]) {
+      const rows = grouped[tier];
+      if (!rows || rows.length === 0) continue;
+      lines.push(`  ${lifecycleLabel[tier]}:`);
+      for (const f of rows) {
+        const subjTag = f.subject ? `[${f.subject}] ` : "";
+        lines.push(`    - ${subjTag}${f.summary}`);
+      }
+    }
+  }
+
   lines.push("");
 
   lines.push("Guidelines:");
@@ -270,11 +382,12 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   lines.push("- update_planned_workout: modify an existing scheduled session (swap its contract, rename it, mark it moved/rest).");
   lines.push("- delete_planned_workout: remove a single planned session entirely. Use when the user wants it gone — not just moved or marked rest.");
   lines.push("");
-  lines.push("Calendar tools (batch / range — operate on planned_workouts, NEVER on training_blocks rows):");
+  lines.push("Calendar tools (id-based bulk — operate on planned_workouts, NEVER on training_blocks rows):");
   lines.push("- create_planned_workouts_batch: propose a batch of new sessions (e.g. 4 weeks of base running). Returns a proposal card; user accepts to commit. On accept, all sessions are inserted AND a training_blocks row is created as LOOSE PHASE METADATA (powers the calendar banner; never authoritative over the actual sessions).");
-  lines.push("- modify_planned_workouts_range: bulk-edit a date range with optional sport/session-type filters. Two-call flow: first call WITHOUT confirmed:true to get a preview payload — summarize it for the user in chat — then call AGAIN with confirmed:true and the same args to commit.");
-  lines.push("- delete_planned_workouts_range: bulk-delete a date range with optional sport/session-type filters. ALWAYS prefer this over a loop of delete_planned_workout when the user wants multiple sessions gone (e.g. 'scrap the last 2 weeks', 'delete all my runs through Friday'). Direct save; only future-dated rows are affected.");
-  lines.push("- regenerate_plan: full multi-week rewrite of the active plan. Use when the user asks to restructure their split or change the whole plan.");
+  lines.push("- modify_planned_workouts: id-based bulk edit. Call get_training_plan first to learn the planned_workouts.id values, then pass an explicit list of ids + the changes to apply. Two-call flow: first call WITHOUT confirmed:true for a preview — summarize it for the user — then call AGAIN with confirmed:true and the same args to commit.");
+  lines.push("- delete_planned_workouts: id-based bulk delete. Pass an explicit list of planned_workouts.id values (from get_training_plan). Two-call flow: preview first, then confirmed:true. ALWAYS prefer this over a loop of delete_planned_workout when the user wants multiple sessions gone.");
+  lines.push("- swap_planned_workouts: id-based atomic swap. Pass `workout_ids_to_replace` (the existing sessions to remove) plus `new_sessions` (the replacements to insert in the same call). This is the right tool for \"change my lifting split this week\" / \"redo my Tuesday + Thursday runs as bike workouts\" — endurance sessions, recovery days, and anything NOT in workout_ids_to_replace are left completely untouched. Two-call flow: preview first, then confirmed:true. NEVER use regenerate_plan for this kind of partial change.");
+  lines.push("- regenerate_plan: full multi-week rewrite of the WHOLE active plan. Reserved for explicit requests like \"redo my plan from scratch\", \"restructure all my training\", \"I want to switch from PPL to upper/lower as my long-term split\". If the user is only asking to change ONE training type (lifts, runs, bike), or a specific window (this week, next 3 days), use swap_planned_workouts / modify_planned_workouts / delete_planned_workouts instead — those preserve everything else in the plan. Negative example: user says \"change my lifting split this week to upper/lower\" → call swap_planned_workouts, NOT regenerate_plan.");
   lines.push("- propose_next_block: AI-driven next-phase suggestion. Creates a training_blocks row tagged with the new phase and proposes the layout — the user accepts to insert planned_workouts.");
   lines.push("- After regenerating, proposing, or batching, present the layout clearly so the user can review before accepting.");
   lines.push("");
@@ -300,6 +413,20 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   lines.push("Contract emission rules (when calling create_planned_workout or update_planned_workout with `contract`):");
   lines.push("- Set version=1, source=\"coach\", and the correct sport.");
   lines.push("- Cardio (run/bike/swim): include at least one `work` step with duration_sec or distance_m, plus target_hr_zone or pace_sec_per_km when known. Add warmup/cooldown when appropriate.");
+  if (trainingPaces) {
+    lines.push("- Running pace_sec_per_km values MUST come from the Training paces table above — do not invent numbers. Mapping:");
+    lines.push("    Easy run, recovery jog, warmup, cooldown → Easy pace");
+    lines.push("    Long run → Easy (or Marathon for the final third on goal-pace long runs)");
+    lines.push("    Steady / aerobic build → Marathon pace");
+    lines.push("    Tempo, threshold, cruise intervals → Threshold pace");
+    lines.push("    Mile/cruise reps at 10K effort → 10K pace");
+    lines.push("    Race-pace 5K work → 5K pace");
+    lines.push("    VO2max intervals (3-5 min reps, 800m-1200m) → Interval pace");
+    lines.push("    Speed work (200-400m reps, strides) → Repetition pace");
+    lines.push("    Recovery between hard reps → omit pace (just set target_hr_zone: 1) so the athlete jogs easy");
+  } else {
+    lines.push("- Running pace_sec_per_km: this athlete has no recent run history, so omit pace targets and rely on target_hr_zone alone. Do not guess paces.");
+  }
   lines.push("- Strength: when the user gives specifics, emit one `work` step per exercise with exercise_name, sets, reps (and weight_kg/rpe if known). When the user is vague, a single `work` step with a `label` and `duration_sec` is fine.");
   lines.push("- Other (mobility, yoga, stretching, anything not in the four primary sports): use sport=\"other\" and emit a single `work` step with a `label` and `duration_sec`. No pace/zone required.");
   lines.push("- Use the `slot` field (\"am\" | \"pm\" | \"full\") so the calendar can render correctly.");

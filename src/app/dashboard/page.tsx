@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useCallback, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ConnectionBar } from "@/components/app/connection-bar";
 import { MonthView } from "@/components/calendar/month-view";
@@ -8,7 +8,9 @@ import { WeekView } from "@/components/calendar/week-view";
 import { WorkoutModal } from "@/components/calendar/workout-modal";
 import { CardioModal } from "@/components/calendar/cardio-modal";
 import { PlannedWorkoutModal, type PlannedWorkoutModalData } from "@/components/calendar/planned-workout-modal";
+import { ManualWorkoutModal } from "@/components/calendar/manual-workout-modal";
 import { useDashboardData, type CardioLog, type WorkoutLog } from "@/lib/hooks/use-dashboard-data";
+import type { PlannedClickPayload } from "@/components/calendar/day-cell";
 import { DailySummaryCard } from "@/components/dashboard/daily-summary-card";
 import { BlockBanner } from "@/components/calendar/block-banner";
 
@@ -19,10 +21,65 @@ function DashboardPageInner() {
   const searchParams = useSearchParams();
   const view: CalendarView = searchParams.get("view") === "week" ? "week" : "month";
 
-  const { data, loading, syncing, fixingDates, units, triggerSync, triggerFixDates } = useDashboardData();
+  const { data, loading, syncing, fixingDates, units, refetch, triggerSync, triggerFixDates } = useDashboardData();
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutLog | null>(null);
   const [selectedCardio, setSelectedCardio] = useState<CardioLog | null>(null);
   const [selectedPlanned, setSelectedPlanned] = useState<PlannedWorkoutModalData | null>(null);
+  const [showManualModal, setShowManualModal] = useState(false);
+
+  const handlePlannedClick = useCallback((p: PlannedClickPayload) => {
+    setSelectedPlanned({
+      plannedId: p.plannedId,
+      date: p.date,
+      sessionType: p.sessionType,
+      aiNotes: p.aiNotes,
+      slot: p.slot,
+      status: p.status,
+      skipReason: p.skipReason,
+      completionNote: p.completionNote,
+      linkedActual: p.linkedActual,
+      targets: p.targets,
+    });
+  }, []);
+
+  const handleSkip = useCallback(async (plannedId: string, reason: string) => {
+    const res = await fetch("/api/plan/skip", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plannedId, reason: reason || null }),
+    });
+    if (!res.ok) {
+      console.error("skip failed", await res.text().catch(() => ""));
+      return;
+    }
+    await refetch();
+  }, [refetch]);
+
+  const handleUnmatch = useCallback(async (plannedId: string) => {
+    const res = await fetch("/api/plan/unmatch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plannedId }),
+    });
+    if (!res.ok) {
+      console.error("unmatch failed", await res.text().catch(() => ""));
+      return;
+    }
+    await refetch();
+  }, [refetch]);
+
+  const handleSaveNote = useCallback(async (plannedId: string, note: string, markComplete: boolean) => {
+    const res = await fetch("/api/plan/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plannedId, note, markComplete }),
+    });
+    if (!res.ok) {
+      console.error("save note failed", await res.text().catch(() => ""));
+      return;
+    }
+    await refetch();
+  }, [refetch]);
 
   const setView = (next: CalendarView) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -66,14 +123,15 @@ function DashboardPageInner() {
         ) : null;
       })()}
 
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 10 }}>
+        <LogSessionButton onClick={() => setShowManualModal(true)} />
         <ViewToggle view={view} onChange={setView} />
       </div>
 
       {view === "month" ? (
-        <MonthView data={data} units={units} onWorkoutClick={setSelectedWorkout} onCardioClick={setSelectedCardio} onPlannedClick={setSelectedPlanned} />
+        <MonthView data={data} units={units} onWorkoutClick={setSelectedWorkout} onCardioClick={setSelectedCardio} onPlannedClick={handlePlannedClick} />
       ) : (
-        <WeekView data={data} units={units} onWorkoutClick={setSelectedWorkout} onCardioClick={setSelectedCardio} onPlannedClick={setSelectedPlanned} />
+        <WeekView data={data} units={units} onWorkoutClick={setSelectedWorkout} onCardioClick={setSelectedCardio} onPlannedClick={handlePlannedClick} />
       )}
 
       {selectedWorkout && (
@@ -90,9 +148,41 @@ function DashboardPageInner() {
         />
       )}
       {selectedPlanned && (
-        <PlannedWorkoutModal data={selectedPlanned} open={true} onClose={() => setSelectedPlanned(null)} />
+        <PlannedWorkoutModal
+          data={selectedPlanned}
+          open={true}
+          onClose={() => setSelectedPlanned(null)}
+          onSkip={handleSkip}
+          onUnmatch={handleUnmatch}
+          onSaveNote={handleSaveNote}
+        />
       )}
+      <ManualWorkoutModal
+        open={showManualModal}
+        onClose={() => setShowManualModal(false)}
+        onCreated={() => { void refetch(); }}
+      />
     </div>
+  );
+}
+
+function LogSessionButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 6,
+        background: "#0f172a", color: "#fff",
+        border: "none", borderRadius: 8,
+        padding: "7px 12px", fontSize: 12, fontWeight: 700,
+        cursor: "pointer", letterSpacing: "0.01em",
+        boxShadow: "0 1px 2px rgba(15, 27, 34, 0.08)",
+      }}
+    >
+      <span style={{ fontSize: 14, lineHeight: 1 }}>+</span>
+      <span>Plan session</span>
+    </button>
   );
 }
 

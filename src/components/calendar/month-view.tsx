@@ -100,6 +100,7 @@ export function MonthView({ data, units, onWorkoutClick, onCardioClick, onPlanne
             onWorkoutClick={onWorkoutClick}
             onCardioClick={onCardioClick}
             onPlannedClick={onPlannedClick}
+            linkedActuals={data.linkedActuals}
             onSummaryClick={(days, weekNum) => setSummaryWeek({ days, weekNum })}
             activeBlock={data.activeBlock ?? null}
           />

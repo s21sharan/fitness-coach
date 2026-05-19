@@ -1,4 +1,5 @@
 import { supabase } from "../db.js";
+import { matchPlannedToActuals } from "./match-planned.js";
 import { effectivePriority, type ActivityCategory } from "./providers.js";
 
 // One activity from either cardio_logs or workout_logs, normalised so the
@@ -293,4 +294,9 @@ export async function reconcileUserActivities(
       .eq("id", loser.id);
     if (error) throw error;
   }
+
+  // Auto-link freshly synced actuals to scheduled planned workouts. Runs
+  // after suppression so we only ever match against the un-suppressed winner
+  // of each Garmin↔Strava overlap group.
+  await matchPlannedToActuals(userId, range);
 }

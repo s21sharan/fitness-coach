@@ -10,8 +10,28 @@ let cachedKey = "";
 export function getLLMProvider(): LLMProvider {
   const anthropicKey = process.env.ANTHROPIC_API_KEY ?? "";
   const openaiKey = process.env.OPENAI_API_KEY ?? "";
+  const preferred = (process.env.LLM_PROVIDER ?? "").toLowerCase();
 
-  // Prefer Anthropic if configured
+  // Explicit selection wins. Falls through to the default precedence when
+  // the chosen provider isn't actually configured.
+  if (preferred === "openai" && openaiKey) {
+    const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+    const key = `openai::${model}::${openaiKey.slice(-6)}`;
+    if (cached && cachedKey === key) return cached;
+    cached = new OpenAIProvider({ apiKey: openaiKey, model });
+    cachedKey = key;
+    return cached;
+  }
+  if (preferred === "anthropic" && anthropicKey) {
+    const model = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";
+    const key = `anthropic::${model}::${anthropicKey.slice(-6)}`;
+    if (cached && cachedKey === key) return cached;
+    cached = new AnthropicProvider({ apiKey: anthropicKey, model });
+    cachedKey = key;
+    return cached;
+  }
+
+  // Default precedence: Anthropic, then OpenAI.
   if (anthropicKey) {
     const model = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";
     const key = `anthropic::${model}::${anthropicKey.slice(-6)}`;

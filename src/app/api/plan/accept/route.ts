@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { generatePlannedWorkouts, expandBlocksToWorkouts } from "@/lib/training/generate-plan";
 import type { WeekBlock } from "@/lib/training/schemas";
 import { todayYmdLocal } from "@/lib/training/date-guards";
+import { emitPlanAcceptanceFacts } from "@/lib/chat/extractor-job";
 
 export async function POST(request: NextRequest) {
   const { userId } = await auth();
@@ -77,6 +78,17 @@ export async function POST(request: NextRequest) {
   if (workoutsError) {
     return NextResponse.json({ error: "Failed to create workouts" }, { status: 500 });
   }
+
+  // Record durable preference facts from this acceptance so the coach learns
+  // the athlete's revealed plan-shape preferences over time. Best-effort.
+  const cfg = (plan_config as Record<string, unknown> | undefined) ?? {};
+  await emitPlanAcceptanceFacts({
+    userId,
+    planId: newPlan.id,
+    splitType: split_type,
+    daysPerWeek: typeof cfg.days_per_week === "number" ? (cfg.days_per_week as number) : null,
+    aggressiveness: typeof cfg.aggressiveness === "string" ? (cfg.aggressiveness as string) : null,
+  });
 
   return NextResponse.json({
     success: true,

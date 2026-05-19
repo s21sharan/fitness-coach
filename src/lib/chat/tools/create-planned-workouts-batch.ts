@@ -25,7 +25,7 @@ const sessionInputSchema = z.object({
 export function createPlannedWorkoutsBatchTool(userId: string) {
   return tool({
     description:
-      "Propose a batch of planned workouts to be added in one go (e.g. '4 weeks of base running'). Returns a BlockProposalCard payload that the user reviews and accepts in chat. On accept, every session is inserted into planned_workouts AND a `training_blocks` row is created as LOOSE metadata that powers the calendar's phase banner — the block row is NOT authoritative over the actual sessions. Sub-range deletes and modifies (via delete_planned_workouts_range / modify_planned_workouts_range) operate directly on planned_workouts and leave the block row intact, even if it ends up partially populated.",
+      "Propose a batch of planned workouts to be added in one go (e.g. '4 weeks of base running'). Returns a BlockProposalCard payload that the user reviews and accepts in chat. On accept, every session is inserted into planned_workouts AND a `training_blocks` row is created as LOOSE metadata that powers the calendar's phase banner — the block row is NOT authoritative over the actual sessions. Sub-range deletes and modifies (via delete_planned_workouts / modify_planned_workouts / swap_planned_workouts) operate directly on planned_workouts and leave the block row intact, even if it ends up partially populated.",
     inputSchema: z.object({
       label: z.string().min(1).max(80).describe('Human-readable label, e.g. "Base running — May". Doubles as the calendar banner text.'),
       phase: z
@@ -108,6 +108,9 @@ export function createPlannedWorkoutsBatchTool(userId: string) {
       return {
         success: true,
         proposed: true,
+        committed: false,
+        status: "PROPOSAL_ONLY_USER_MUST_ACCEPT_IN_UI",
+        hint: "This is a PROPOSAL ONLY — NO planned_workouts have been inserted yet and the calendar is unchanged. A BlockProposalCard is shown to the user in chat; they must click 'Accept' for the sessions to land on the calendar. Do NOT tell the user the sessions are scheduled. Tell them to review and accept the card.",
         block_id: newBlock.id,
         block_type: newBlock.block_type,
         block_label: newBlock.block_label,

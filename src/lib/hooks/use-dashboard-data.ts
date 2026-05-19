@@ -71,6 +71,13 @@ export interface PlannedWorkout {
   } | null;
   approved: boolean;
   status: string;
+  skip_reason: string | null;
+  completion_note: string | null;
+}
+
+export interface LinkedActual {
+  table: "workout_logs" | "cardio_logs";
+  id: string;
 }
 
 export interface ZoneBoundary {
@@ -101,6 +108,7 @@ export interface ApiData {
   cardio: CardioLog[];
   recovery: RecoveryLog[];
   planned: PlannedWorkout[];
+  linkedActuals: Record<string, LinkedActual>;
   hrZones: UserHrZones | null;
   powerZones: UserPowerZones | null;
   activeBlock: TrainingBlock | null;
@@ -122,7 +130,7 @@ export function useDashboardData(): UseDashboardData {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [fixingDates, setFixingDates] = useState(false);
-  const [units, setUnits] = useState<UnitPreferences>({ distance: "mi", weight: "lbs" });
+  const [units, setUnits] = useState<UnitPreferences>({ distance: "mi", weight: "lbs", swimDistance: "m" });
 
   useEffect(() => {
     setUnits(getUnitPreferences());
@@ -137,6 +145,10 @@ export function useDashboardData(): UseDashboardData {
       setData({
         ...json,
         planned: Array.isArray(json.planned) ? json.planned : [],
+        linkedActuals:
+          json.linkedActuals && typeof json.linkedActuals === "object"
+            ? json.linkedActuals
+            : {},
         hrZones: json.hrZones ?? null,
         powerZones: json.powerZones ?? null,
         activeBlock: json.activeBlock ?? null,

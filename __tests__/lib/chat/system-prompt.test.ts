@@ -275,8 +275,9 @@ describe("buildSystemPrompt", () => {
     });
     expect(prompt).toContain("delete_planned_workout");
     expect(prompt).toContain("create_planned_workouts_batch");
-    expect(prompt).toContain("modify_planned_workouts_range");
-    expect(prompt).toContain("delete_planned_workouts_range");
+    expect(prompt).toContain("modify_planned_workouts");
+    expect(prompt).toContain("delete_planned_workouts");
+    expect(prompt).toContain("swap_planned_workouts");
     expect(prompt).toContain("LOOSE METADATA");
   });
 });

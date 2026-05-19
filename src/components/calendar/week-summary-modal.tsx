@@ -5,7 +5,7 @@ import {
   TYPE_COLORS, weekTotals, fmtSec,
   type DayData,
 } from "@/lib/training/calendar-data";
-import { fmtDist as fmtDistUnit, distanceLabel, type UnitPreferences } from "@/lib/units";
+import { fmtDist as fmtDistUnit, distanceLabel, fmtCardioDist, cardioDistanceLabel, type UnitPreferences } from "@/lib/units";
 
 interface WeekSummaryModalProps {
   days: DayData[] | null;
@@ -152,7 +152,7 @@ export function WeekSummaryModal({ days, weekNum, units, onClose }: WeekSummaryM
                     }}>
                       <span><b style={{ color: "#0F1B22" }}>{fmtSec(stats.timeSec)}</b></span>
                       {stats.distKm > 0 && (
-                        <span><b style={{ color: "#0F1B22" }}>{fmtDist(stats.distKm)}</b> <span style={{ color: "#9ca3af" }}>{distUnit}</span></span>
+                        <span><b style={{ color: "#0F1B22" }}>{fmtCardioDist(stats.distKm, t, units)}</b> <span style={{ color: "#9ca3af" }}>{cardioDistanceLabel(t, units)}</span></span>
                       )}
                     </div>
                   </div>

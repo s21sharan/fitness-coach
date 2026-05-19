@@ -1,7 +1,15 @@
 import type { PlannedWorkoutTargets } from "@/lib/training/workout-contract";
 
 export interface ComplianceInput {
-  planned: Array<{ date: string; session_type: string; is_cardio: boolean }>;
+  planned: Array<{
+    date: string;
+    session_type: string;
+    is_cardio: boolean;
+    // Authoritative status written by the sync matcher or by the user. When
+    // present, takes precedence over date-based matching.
+    status?: string | null;
+    skip_reason?: string | null;
+  }>;
   actualLifting: Array<{ date: string; name: string }>;
   actualCardio: Array<{ date: string; type: string; distance: number }>;
 }
@@ -33,6 +41,17 @@ function isRest(sessionType: string): boolean {
   return /^rest$/i.test(sessionType.trim());
 }
 
+// Treat the row's stored status as authoritative when it's already been
+// resolved by the matcher or the user. Only legacy 'scheduled' rows (matcher
+// hasn't run on them yet, or no actual ever synced) fall through to date-
+// based fuzzy matching.
+function isCompletedAuthoritative(status: string | null | undefined): boolean {
+  return status === "completed";
+}
+function isSkippedAuthoritative(status: string | null | undefined): boolean {
+  return status === "skipped";
+}
+
 export function computeComplianceStats(input: ComplianceInput): ComplianceStats {
   const { planned, actualLifting, actualCardio } = input;
 
@@ -44,18 +63,26 @@ export function computeComplianceStats(input: ComplianceInput): ComplianceStats 
   const liftDates = new Set(actualLifting.map((a) => a.date));
   const cardioDates = new Set(actualCardio.map((a) => a.date));
 
-  const liftCompleted = liftPlanned.filter((p) => liftDates.has(p.date)).length;
-  const cardioCompleted = cardioPlanned.filter((p) => cardioDates.has(p.date)).length;
+  const wasCompleted = (p: ComplianceInput["planned"][number]): boolean => {
+    if (isCompletedAuthoritative(p.status)) return true;
+    if (isSkippedAuthoritative(p.status)) return false;
+    return p.is_cardio ? cardioDates.has(p.date) : liftDates.has(p.date);
+  };
+
+  const liftCompleted = liftPlanned.filter(wasCompleted).length;
+  const cardioCompleted = cardioPlanned.filter(wasCompleted).length;
   const totalCompleted = liftCompleted + cardioCompleted;
 
   const plannedDates = new Set(activePlanned.map((p) => p.date));
 
   const skippedSessions = activePlanned
-    .filter((p) => {
-      if (p.is_cardio) return !cardioDates.has(p.date);
-      return !liftDates.has(p.date);
-    })
-    .map((p) => `${p.date}: ${p.session_type}`);
+    .filter((p) => !wasCompleted(p))
+    .map((p) => {
+      const reason = isSkippedAuthoritative(p.status) && p.skip_reason
+        ? ` (${p.skip_reason.slice(0, 200)})`
+        : "";
+      return `${p.date}: ${p.session_type}${reason}`;
+    });
 
   const extraSessions: string[] = [];
   for (const a of actualLifting) {

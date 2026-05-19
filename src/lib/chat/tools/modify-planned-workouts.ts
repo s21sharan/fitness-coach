@@ -5,7 +5,6 @@ import { assertDateNotPast, todayYmdLocal } from "@/lib/training/date-guards";
 import { workoutContractSchema } from "@/lib/training/schemas";
 import { estimateDurationMin, type WorkoutContractV1 } from "@/lib/training/workout-contract";
 
-const SPORTS = ["run", "bike", "swim", "strength", "other"] as const;
 const STATUSES = ["scheduled", "moved", "skipped"] as const;
 
 const changesSchema = z.object({
@@ -13,18 +12,19 @@ const changesSchema = z.object({
   shift_days: z.number().int().min(-180).max(180).optional().describe("Shift matched rows forward (+) or backward (-) by this many days. Rows landing in the past after the shift are dropped from the change set."),
   set_status: z.enum(STATUSES).optional().describe("New status to apply to matched rows."),
   set_ai_notes: z.string().optional().describe("Replace ai_notes on matched rows with this string."),
-  set_contract: workoutContractSchema.optional().describe("Replace the structured contract on matched rows."),
+  set_contract: workoutContractSchema.optional().describe("Replace the structured contract on matched rows. Use sparingly across many rows — generally only when every targeted session should adopt the SAME contract."),
 });
 
-export function modifyPlannedWorkoutsRangeTool(userId: string) {
+export function modifyPlannedWorkoutsTool(userId: string) {
   return tool({
     description:
-      "Modify multiple planned workouts at once, by date range with optional filters. Two-call flow with explicit user confirmation: (1) call WITHOUT `confirmed: true` to get a preview of which rows would change and how — relay this to the user in chat; (2) call AGAIN with `confirmed: true` and the same arguments to commit. Use for bulk edits like \"rename all my Tuesday sessions\" or \"shift weeks 2-4 forward by 3 days\". For a single-row tweak prefer update_planned_workout. The training_blocks table is loose metadata and is never touched by this tool.",
+      "Modify an arbitrary set of planned workouts identified by their ids. Two-call confirmation flow: (1) call WITHOUT `confirmed: true` to get a preview of which rows would change and how — relay this to the user in chat; (2) call AGAIN with `confirmed: true` and the same arguments to commit. Use this whenever the user wants any group of sessions tweaked (\"rename all my Tuesday sessions\", \"shift the next two lifts forward 1 day\"). To get ids, call get_training_plan first — every row comes back with an `id`. For a single-row tweak prefer update_planned_workout. The training_blocks table is loose metadata and is never touched by this tool.",
     inputSchema: z.object({
-      start_date: z.string().describe("Inclusive lower bound (YYYY-MM-DD). Past dates are clamped up to today."),
-      end_date: z.string().describe("Inclusive upper bound (YYYY-MM-DD). Must be on or after start_date."),
-      sports: z.array(z.enum(SPORTS)).optional().describe("Optional sport filter on targets.contract.sport."),
-      session_type_includes: z.string().optional().describe("Optional case-insensitive substring filter on session_type."),
+      workout_ids: z
+        .array(z.string().uuid())
+        .min(1)
+        .max(60)
+        .describe("Explicit list of planned_workouts.id values to modify. Get them from get_training_plan."),
       changes: changesSchema.describe("The uniform changes to apply across all matched rows. At least one field required."),
       confirmed: z
         .boolean()
@@ -33,10 +33,7 @@ export function modifyPlannedWorkoutsRangeTool(userId: string) {
           "If true, the change is committed. If false/omitted, returns a preview-only payload (no DB write) — use this first to show the user, then re-call with confirmed=true after they agree.",
         ),
     }),
-    execute: async ({ start_date, end_date, sports, session_type_includes, changes, confirmed }) => {
-      if (end_date < start_date) {
-        return { success: false, error: `end_date (${end_date}) must be on or after start_date (${start_date}).` };
-      }
+    execute: async ({ workout_ids, changes, confirmed }) => {
       if (
         changes.rename_to === undefined &&
         changes.shift_days === undefined &&
@@ -60,27 +57,20 @@ export function modifyPlannedWorkoutsRangeTool(userId: string) {
       if (!plan) return { success: false, error: "No active training plan." };
 
       const today = todayYmdLocal();
-      const effectiveStart = start_date < today ? today : start_date;
 
       const { data: candidates, error: fetchErr } = await supabase
         .from("planned_workouts")
         .select("id, date, session_type, ai_notes, targets, status")
         .eq("plan_id", plan.id)
-        .gte("date", effectiveStart)
-        .lte("date", end_date);
+        .in("id", workout_ids);
       if (fetchErr) return { success: false, error: fetchErr.message };
 
-      const needle = session_type_includes?.toLowerCase() ?? null;
-      const sportSet = sports && sports.length > 0 ? new Set(sports) : null;
-      const matches = (candidates ?? []).filter((row) => {
-        if (needle && !String(row.session_type ?? "").toLowerCase().includes(needle)) return false;
-        if (sportSet) {
-          const targets = row.targets as { contract?: { sport?: string } } | null;
-          const sport = targets?.contract?.sport ?? null;
-          if (!sport || !sportSet.has(sport as typeof SPORTS[number])) return false;
-        }
-        return true;
-      });
+      const fetched = candidates ?? [];
+      const missing = workout_ids.filter((id) => !fetched.some((r) => String(r.id) === id));
+
+      // Filter out past-dated rows defensively — planned_workouts before today are immutable history.
+      const matches = fetched.filter((row) => String(row.date) >= today);
+      const droppedPast = fetched.length - matches.length;
 
       if (matches.length === 0) {
         return {
@@ -88,7 +78,12 @@ export function modifyPlannedWorkoutsRangeTool(userId: string) {
           preview: true,
           confirmed: false,
           match_count: 0,
-          message: "No matching planned workouts in that range. Nothing to change.",
+          missing_ids: missing,
+          dropped_past_count: droppedPast,
+          message:
+            droppedPast > 0
+              ? "All targeted workouts are in the past — past sessions are immutable history. Nothing to change."
+              : "No matching planned workouts. Nothing to change.",
         };
       }
 
@@ -149,20 +144,22 @@ export function modifyPlannedWorkoutsRangeTool(userId: string) {
           success: true,
           preview: true,
           confirmed: false,
+          committed: false,
+          status: "PREVIEW_ONLY_NOT_COMMITTED",
           match_count: matches.length,
           applicable_count: applicable.length,
           dropped_count: patches.length - applicable.length,
+          dropped_past_count: droppedPast,
+          missing_ids: missing,
           changes_preview: patches,
-          range: { start: effectiveStart, end: end_date },
-          hint: "Summarize this for the user and ask them to confirm. Then call again with the same arguments + confirmed:true to commit.",
+          hint: "THIS IS A PREVIEW — NO DATABASE WRITE HAS HAPPENED. The calendar is unchanged. Summarize for the user, get their confirmation, then call this tool AGAIN with identical arguments PLUS confirmed:true to actually commit. Do NOT tell the user the change is done until you have made the second call and received a response with confirmed:true.",
         };
       }
 
-      // Confirmed — commit. We issue one update per row because date+other changes can differ per row (shift creates row-specific new dates).
+      // Confirmed — commit. One update per row because date+other changes can differ per row (shift creates row-specific new dates).
       let updatedCount = 0;
       const failures: Array<{ id: string; error: string }> = [];
       for (const p of applicable) {
-        // assert each new date isn't past (defensive — already filtered above).
         if (p.to.date) {
           const guard = assertDateNotPast(p.to.date);
           if (!guard.ok) {
@@ -183,8 +180,9 @@ export function modifyPlannedWorkoutsRangeTool(userId: string) {
         confirmed: true,
         updated_count: updatedCount,
         dropped_count: patches.length - applicable.length,
+        dropped_past_count: droppedPast,
+        missing_ids: missing,
         failures: failures.length > 0 ? failures : undefined,
-        range: { start: effectiveStart, end: end_date },
       };
     },
   });

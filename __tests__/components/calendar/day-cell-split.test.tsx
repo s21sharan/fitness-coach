@@ -55,7 +55,7 @@ function makeDayData(overrides: Partial<DayData> = {}): DayData {
   };
 }
 
-const defaultUnits = { distance: "km" as const, weight: "kg" as const };
+const defaultUnits = { distance: "km" as const, weight: "kg" as const, swimDistance: "m" as const };
 
 describe("DayCell — AM/PM card splitting", () => {
   it("renders two separate PlannedCards in tall view for AM/PM session", () => {
@@ -70,6 +70,8 @@ describe("DayCell — AM/PM card splitting", () => {
         targets: null,
         approved: true,
         status: "pending",
+        skip_reason: null,
+        completion_note: null,
       },
     });
 
@@ -101,6 +103,8 @@ describe("DayCell — AM/PM card splitting", () => {
         targets: null,
         approved: true,
         status: "pending",
+        skip_reason: null,
+        completion_note: null,
       },
     });
 
@@ -122,6 +126,8 @@ describe("DayCell — AM/PM card splitting", () => {
         targets: null,
         approved: true,
         status: "pending",
+        skip_reason: null,
+        completion_note: null,
       },
     });
 
@@ -145,6 +151,8 @@ describe("DayCell — AM/PM card splitting", () => {
         targets: null,
         approved: true,
         status: "pending",
+        skip_reason: null,
+        completion_note: null,
       },
     });
 

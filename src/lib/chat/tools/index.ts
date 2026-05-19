@@ -9,5 +9,6 @@ export { regeneratePlanTool } from "./regenerate-plan";
 export { getSearchResearchTool } from "./search-research";
 export { proposeNextBlockTool } from "./propose-next-block";
 export { createPlannedWorkoutsBatchTool } from "./create-planned-workouts-batch";
-export { modifyPlannedWorkoutsRangeTool } from "./modify-planned-workouts-range";
-export { deletePlannedWorkoutsRangeTool } from "./delete-planned-workouts-range";
+export { modifyPlannedWorkoutsTool } from "./modify-planned-workouts";
+export { deletePlannedWorkoutsTool } from "./delete-planned-workouts";
+export { swapPlannedWorkoutsTool } from "./swap-planned-workouts";

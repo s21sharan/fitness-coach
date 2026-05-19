@@ -65,13 +65,14 @@ export async function GET(request: Request) {
   ]);
 
   const planId = planRes.data?.[0]?.id;
-  let plannedRows: unknown[] = [];
+  let plannedRows: Array<{ id: string }> = [];
   let activeBlock: unknown = null;
+  const linkedActuals: Record<string, { table: "workout_logs" | "cardio_logs"; id: string }> = {};
   if (planId) {
     const [pwRes, blockRes] = await Promise.all([
       supabase
         .from("planned_workouts")
-        .select("id, date, day_of_week, session_type, ai_notes, targets, approved, status")
+        .select("id, date, day_of_week, session_type, ai_notes, targets, approved, status, skip_reason, completion_note")
         .eq("plan_id", planId)
         .gte("date", plannedFromStr)
         .lte("date", plannedToStr)
@@ -86,8 +87,38 @@ export async function GET(request: Request) {
         .maybeSingle(),
     ]);
     if (pwRes.error) console.error("test-data planned_workouts:", pwRes.error);
-    plannedRows = pwRes.data || [];
+    plannedRows = (pwRes.data as Array<{ id: string }>) || [];
     activeBlock = blockRes.data ?? null;
+
+    // Resolve which actual log each completed planned slot is linked to.
+    // Single roundtrip per side — much cheaper than a join.
+    const plannedIds = plannedRows.map((p) => p.id);
+    if (plannedIds.length > 0) {
+      const [linkedWorkouts, linkedCardio] = await Promise.all([
+        supabase
+          .from("workout_logs")
+          .select("id, planned_workout_id")
+          .eq("user_id", userId)
+          .in("planned_workout_id", plannedIds),
+        supabase
+          .from("cardio_logs")
+          .select("id, planned_workout_id")
+          .eq("user_id", userId)
+          .in("planned_workout_id", plannedIds),
+      ]);
+      for (const row of (linkedWorkouts.data ?? []) as Array<{
+        id: string;
+        planned_workout_id: string;
+      }>) {
+        linkedActuals[row.planned_workout_id] = { table: "workout_logs", id: row.id };
+      }
+      for (const row of (linkedCardio.data ?? []) as Array<{
+        id: string;
+        planned_workout_id: string;
+      }>) {
+        linkedActuals[row.planned_workout_id] = { table: "cardio_logs", id: row.id };
+      }
+    }
   }
 
   // Parse custom zones from athlete_sports
@@ -107,6 +138,7 @@ export async function GET(request: Request) {
     cardio: dedupedCardio,
     recovery: recoveryRes.data || [],
     planned: plannedRows,
+    linkedActuals,
     hrZones,
     powerZones,
     activeBlock,

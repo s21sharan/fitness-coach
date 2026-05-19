@@ -11,6 +11,7 @@ import { getUnitPreferences, saveUnitPreferences, type DistanceUnit, type Weight
 import { getCheckinPreferences, saveCheckinPreferences, type CheckinPreferences } from "@/lib/checkin-preferences";
 import { isBetaAcknowledged, setBetaAcknowledged } from "@/lib/beta-features";
 import { TrainingZonesPanel } from "@/components/settings/training-zones-panel";
+import { FactsPanel } from "@/components/settings/facts-panel";
 
 interface IntegrationStatus {
   provider: string;
@@ -43,6 +44,7 @@ const NAV_ITEMS = [
   { id: "integrations", label: "Integrations" },
   { id: "preferences", label: "Preferences" },
   { id: "zones", label: "Training Zones" },
+  { id: "memory", label: "Coach memory" },
   { id: "account", label: "Account" },
   { id: "goals", label: "Goals & body" },
   { id: "notifications", label: "Notifications" },
@@ -56,7 +58,7 @@ export default function SettingsPage() {
   const [betaPending, setBetaPending] = useState<{ provider: string; type: string } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeNav, setActiveNav] = useState("integrations");
-  const [unitPrefs, setUnitPrefs] = useState<UnitPreferences>({ distance: "mi", weight: "lbs" });
+  const [unitPrefs, setUnitPrefs] = useState<UnitPreferences>({ distance: "mi", weight: "lbs", swimDistance: "m" });
   const [checkinPrefs, setCheckinPrefs] = useState<CheckinPreferences>({ enabled: true, frequencyWeeks: 1 });
 
   const fetchStatuses = useCallback(async () => {
@@ -351,7 +353,7 @@ export default function SettingsPage() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                     {/* Distance unit */}
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Distance</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Distance (run & bike)</div>
                       <div style={{ display: "flex", gap: 8 }}>
                         {([["mi", "Miles"], ["km", "Kilometers"]] as const).map(([value, label]) => (
                           <button
@@ -375,7 +377,37 @@ export default function SettingsPage() {
                         ))}
                       </div>
                       <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>
-                        Affects pace ({unitPrefs.distance === "mi" ? "min/mi" : "min/km"}) and distance display
+                        Affects pace ({unitPrefs.distance === "mi" ? "min/mi" : "min/km"}) and distance for runs & rides
+                      </div>
+                    </div>
+
+                    {/* Swim distance unit */}
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Swim distance</div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        {([["m", "Meters"], ["yd", "Yards"]] as const).map(([value, label]) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => handleUnitChange("swimDistance", value)}
+                            style={{
+                              padding: "10px 20px",
+                              borderRadius: 10,
+                              border: unitPrefs.swimDistance === value ? "2px solid var(--ink)" : "1px solid var(--line)",
+                              background: unitPrefs.swimDistance === value ? "var(--ink)" : "var(--surface)",
+                              color: unitPrefs.swimDistance === value ? "#fff" : "var(--ink)",
+                              fontSize: 13,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              transition: "all 0.15s",
+                            }}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6 }}>
+                        Affects swim pace ({unitPrefs.swimDistance === "yd" ? "min/100yd" : "min/100m"}) and swim distance display
                       </div>
                     </div>
 
@@ -471,6 +503,10 @@ export default function SettingsPage() {
 
             {activeNav === "zones" && (
               <TrainingZonesPanel onToast={setToastMessage} />
+            )}
+
+            {activeNav === "memory" && (
+              <FactsPanel onToast={setToastMessage} />
             )}
 
             {activeNav === "account" && (

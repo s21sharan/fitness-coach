@@ -130,6 +130,10 @@ export function proposeNextBlockTool(userId: string) {
 
       return {
         success: true,
+        proposed: true,
+        committed: false,
+        status: "PROPOSAL_ONLY_USER_MUST_ACCEPT_IN_UI",
+        hint: "This is a PROPOSAL ONLY — NO planned_workouts have been inserted yet and the calendar is unchanged. A BlockProposalCard is shown to the user in chat; they must click 'Accept' for the sessions to land on the calendar. Do NOT tell the user the next block is scheduled until you see those sessions appear in the 'Sessions on your calendar' block on a subsequent message.",
         block_id: newBlock.id,
         block_type: nextBlockType,
         block_label: newBlock.block_label,

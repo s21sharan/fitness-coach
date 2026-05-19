@@ -620,6 +620,10 @@ export type Database = {
           calendar_event_id: string | null;
           approved: boolean;
           synced_at: string | null;
+          skip_reason: string | null;
+          skipped_at: string | null;
+          completion_note: string | null;
+          completed_at: string | null;
         };
         Insert: {
           id?: string;
@@ -633,8 +637,55 @@ export type Database = {
           calendar_event_id?: string | null;
           approved?: boolean;
           synced_at?: string | null;
+          skip_reason?: string | null;
+          skipped_at?: string | null;
+          completion_note?: string | null;
+          completed_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["planned_workouts"]["Insert"]>;
+      };
+      athlete_facts: {
+        Row: {
+          id: string;
+          user_id: string;
+          category: string;
+          subject: string | null;
+          predicate: string;
+          value: Record<string, unknown> | null;
+          summary: string;
+          lifecycle: "chronic" | "standing" | "recent" | "ephemeral";
+          confidence: number;
+          status: "active" | "expired" | "superseded" | "archived";
+          observed_at: string;
+          expires_at: string | null;
+          source: "chat" | "completion_note" | "skip_note" | "plan_acceptance" | "onboarding_recap" | "manual" | "derived";
+          source_ref_table: string | null;
+          source_ref_id: string | null;
+          supersedes_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          category: string;
+          subject?: string | null;
+          predicate: string;
+          value?: Record<string, unknown> | null;
+          summary: string;
+          lifecycle: "chronic" | "standing" | "recent" | "ephemeral";
+          confidence?: number;
+          status?: "active" | "expired" | "superseded" | "archived";
+          observed_at?: string;
+          expires_at?: string | null;
+          source: "chat" | "completion_note" | "skip_note" | "plan_acceptance" | "onboarding_recap" | "manual" | "derived";
+          source_ref_table?: string | null;
+          source_ref_id?: string | null;
+          supersedes_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["athlete_facts"]["Insert"]>;
       };
       chat_conversations: {
         Row: {

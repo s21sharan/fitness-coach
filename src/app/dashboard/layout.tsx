@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/app/shell-client";
+import { ChatProvider } from "@/components/chat/chat-provider";
 
 export default async function DashboardLayout({
   children,
@@ -24,5 +25,9 @@ export default async function DashboardLayout({
     }
   }
 
-  return <AppShell>{children}</AppShell>;
+  return (
+    <ChatProvider>
+      <AppShell>{children}</AppShell>
+    </ChatProvider>
+  );
 }

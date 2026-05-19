@@ -7,16 +7,21 @@ import {
   exerciseSummary, estimateLoad, hrZone, fmtMin, fmtSec, cType, toDS,
   type DayData, type ZoneBoundary,
 } from "@/lib/training/calendar-data";
-import type { CardioLog, PlannedWorkout, RecoveryLog, WorkoutLog } from "@/lib/hooks/use-dashboard-data";
-import { fmtDist as fmtDistUnit, fmtPace as fmtPaceUnit, distanceLabel, type UnitPreferences } from "@/lib/units";
+import type { CardioLog, LinkedActual, PlannedWorkout, RecoveryLog, WorkoutLog } from "@/lib/hooks/use-dashboard-data";
+import { fmtCardioDist, fmtCardioPace, cardioDistanceLabel, type UnitPreferences } from "@/lib/units";
 
 export type DayCellVariant = "compact" | "tall";
 
 export interface PlannedClickPayload {
+  plannedId: string;
   date: string;
   sessionType: string;
   aiNotes: string | null;
   slot: "am" | "pm" | null;
+  status: "scheduled" | "completed" | "skipped" | "moved";
+  skipReason: string | null;
+  completionNote: string | null;
+  linkedActual: LinkedActual | null;
   targets: ReturnType<typeof splitAmPmSessions>[number]["targets"];
 }
 
@@ -25,14 +30,15 @@ interface DayCellProps {
   variant?: DayCellVariant;
   units: UnitPreferences;
   hrZoneBoundaries?: ZoneBoundary[] | null;
+  linkedActuals?: Record<string, LinkedActual>;
   onWorkoutClick?: (w: WorkoutLog) => void;
   onCardioClick?: (c: CardioLog) => void;
   onPlannedClick?: (p: PlannedClickPayload) => void;
 }
 
-function fmtDist(km: number, units: UnitPreferences) { return fmtDistUnit(km, units.distance); }
-function fmtPace(p: number, units: UnitPreferences) { return fmtPaceUnit(p, units.distance); }
-function distUnit(units: UnitPreferences) { return distanceLabel(units.distance); }
+function fmtDist(km: number, units: UnitPreferences, type?: string) { return fmtCardioDist(km, type, units); }
+function fmtPace(p: number, units: UnitPreferences, type?: string) { return fmtCardioPace(p, type, units); }
+function distUnit(units: UnitPreferences, type?: string) { return cardioDistanceLabel(type, units); }
 
 /* ─── Tall (week-view) primitives ─── */
 
@@ -128,13 +134,13 @@ function CardioCardTall({ c: a, units, boundaries, onClick }: { c: CardioLog; un
       </div>
       {a.distance > 0 && (
         <div style={{ fontWeight: 800, color: cl.text, fontSize: 14 }}>
-          {fmtDist(a.distance, units)} {distUnit(units)}
+          {fmtDist(a.distance, units, a.type)} {distUnit(units, a.type)}
         </div>
       )}
       <HrZoneBar avgHr={a.avg_hr} boundaries={boundaries} />
       <div style={{ color: "#6b7280", display: "flex", flexWrap: "wrap", gap: "0 7px", marginTop: 3 }}>
         {load > 0 && <span>Load <b style={{ color: cl.text }}>{load}</b></span>}
-        {a.pace_or_speed != null && a.pace_or_speed > 0 && <span>Pace {fmtPace(a.pace_or_speed, units)}</span>}
+        {a.pace_or_speed != null && a.pace_or_speed > 0 && <span>Pace {fmtPace(a.pace_or_speed, units, a.type)}</span>}
         {a.avg_hr != null && <span><span style={{ color: "#ef4444" }}>♥</span> {a.avg_hr}</span>}
       </div>
       {(a.calories != null || a.elevation != null) && (
@@ -256,7 +262,7 @@ function inferTypeFromSession(session: string): string {
 
 /* ─── DayCell ─── */
 
-export function DayCell({ day, variant = "compact", units, hrZoneBoundaries, onWorkoutClick, onCardioClick, onPlannedClick }: DayCellProps) {
+export function DayCell({ day, variant = "compact", units, hrZoneBoundaries, linkedActuals, onWorkoutClick, onCardioClick, onPlannedClick }: DayCellProps) {
   const today = toDS(new Date());
   const isToday = day.date === today;
   const isFuture = day.date > today;
@@ -267,6 +273,16 @@ export function DayCell({ day, variant = "compact", units, hrZoneBoundaries, onW
   const compliance = isPast && day.planned
     ? getComplianceStatus(day.planned.session_type, day.workouts, day.cardio)
     : null;
+
+  const plannedStatus = (day.planned?.status ?? "scheduled") as
+    | "scheduled"
+    | "completed"
+    | "skipped"
+    | "moved";
+  const plannedSkipReason = day.planned?.skip_reason ?? null;
+  const plannedCompletionNote = day.planned?.completion_note ?? null;
+  const plannedLinkedActual =
+    day.planned && linkedActuals ? linkedActuals[day.planned.id] ?? null : null;
 
   if (tall) {
     return (
@@ -311,11 +327,16 @@ export function DayCell({ day, variant = "compact", units, hrZoneBoundaries, onW
             aiNotes={session.aiNotes}
             slot={session.slot}
             targets={session.targets}
-            onClick={onPlannedClick ? () => onPlannedClick({
+            onClick={onPlannedClick && day.planned ? () => onPlannedClick({
+              plannedId: day.planned!.id,
               date: day.date,
               sessionType: session.label,
               aiNotes: session.aiNotes,
               slot: session.slot,
+              status: plannedStatus,
+              skipReason: plannedSkipReason,
+              completionNote: plannedCompletionNote,
+              linkedActual: plannedLinkedActual,
               targets: session.targets,
             }) : undefined}
           />
@@ -361,7 +382,7 @@ export function DayCell({ day, variant = "compact", units, hrZoneBoundaries, onW
       {day.cardio.map((c, i) => {
         const t = cType(c.type);
         const cl = TYPE_COLORS[t];
-        const label = c.distance > 0 ? `${fmtDist(c.distance, units)} ${distUnit(units)}` : fmtSec(c.duration);
+        const label = c.distance > 0 ? `${fmtDist(c.distance, units, c.type)} ${distUnit(units, c.type)}` : fmtSec(c.duration);
         return (
           <ActivityChip
             key={`c-${i}`}
@@ -382,11 +403,16 @@ export function DayCell({ day, variant = "compact", units, hrZoneBoundaries, onW
           label={session.label}
           isToday={isToday}
           isFuture={isFuture}
-          onClick={onPlannedClick ? () => onPlannedClick({
+          onClick={onPlannedClick && day.planned ? () => onPlannedClick({
+            plannedId: day.planned!.id,
             date: day.date,
             sessionType: session.label,
             aiNotes: session.aiNotes,
             slot: session.slot,
+            status: plannedStatus,
+            skipReason: plannedSkipReason,
+            completionNote: plannedCompletionNote,
+            linkedActual: plannedLinkedActual,
             targets: session.targets,
           }) : undefined}
         />

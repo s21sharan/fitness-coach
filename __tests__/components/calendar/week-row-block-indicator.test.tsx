@@ -22,7 +22,7 @@ function makeDays(startDate: string): DayData[] {
   return days;
 }
 
-const units = { distance: "km" as const, weight: "kg" as const };
+const units = { distance: "km" as const, weight: "kg" as const, swimDistance: "m" as const };
 
 describe("WeekRow block indicator", () => {
   it("does not render block indicator when activeBlock is not provided", () => {

@@ -1,11 +1,15 @@
-import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from "ai";
+import { generateText, streamText, convertToModelMessages, stepCountIs, type UIMessage } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
 import { buildSystemPrompt } from "@/lib/chat/system-prompt";
 import {
+  conversationBelongsTo,
+  countMessages,
+  createConversation,
   getOrCreateConversation,
   getRecentMessages,
+  renameConversation,
   saveMessage,
 } from "@/lib/chat/conversation";
 import {
@@ -20,12 +24,14 @@ import {
   getSearchResearchTool,
   proposeNextBlockTool,
   createPlannedWorkoutsBatchTool,
-  modifyPlannedWorkoutsRangeTool,
-  deletePlannedWorkoutsRangeTool,
+  modifyPlannedWorkoutsTool,
+  deletePlannedWorkoutsTool,
+  swapPlannedWorkoutsTool,
 } from "@/lib/chat/tools";
 import { getCheckinHistoryTool } from "@/lib/chat/tools/get-checkin-history";
 import { promptCheckinTool } from "@/lib/chat/tools/prompt-checkin";
-import { getActiveBlock, getBlockComplianceStats, computeBlockWeekNumber } from "@/lib/training/blocks";
+import { buildAthleteContext } from "@/lib/athlete-context/assembler";
+import { runChatExtractorJob } from "@/lib/chat/extractor-job";
 
 export const maxDuration = 30;
 
@@ -37,6 +43,8 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const messages = body.messages || [];
+  const requestedConversationId: string | undefined =
+    typeof body.conversationId === "string" ? body.conversationId : undefined;
   const lastMsg = messages[messages.length - 1];
 
   // v6 UIMessage format: { role, parts: [{ type: "text", text: "..." }] }
@@ -59,205 +67,42 @@ export async function POST(request: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
 
-  const conversationId = await getOrCreateConversation(userId);
+  let conversationId: string;
+  let isNewConversation = false;
+  if (requestedConversationId && (await conversationBelongsTo(userId, requestedConversationId))) {
+    conversationId = requestedConversationId;
+    isNewConversation = (await countMessages(conversationId)) === 0;
+  } else if (requestedConversationId) {
+    // Client supplied an id that isn't theirs / doesn't exist — silently fall back rather than 4xx.
+    conversationId = await getOrCreateConversation(userId);
+  } else {
+    const created = await createConversation(userId);
+    conversationId = created.id;
+    isNewConversation = true;
+  }
   await saveMessage(conversationId, "user", lastUserMessage.content);
+  const firstUserMessageForTitle = isNewConversation ? lastUserMessage.content : null;
 
-  const [
-    profileRes,
-    goalsRes,
-    planRes,
-    todayRecoveryRes,
-    latestGarminCardioRes,
-    availabilityWindowsRes,
-    availabilityRulesRes,
-  ] = await Promise.all([
-    supabase.from("user_profiles").select("*").eq("user_id", userId).single(),
-    supabase.from("user_goals").select("*").eq("user_id", userId).single(),
-    supabase
-      .from("training_plans")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("status", "active")
-      .single(),
-    supabase
-      .from("recovery_logs")
-      .select("hrv, sleep_hours, resting_hr, body_battery")
-      .eq("user_id", userId)
-      .eq("date", new Date().toISOString().slice(0, 10))
-      .single(),
-    supabase
-      .from("cardio_logs")
-      .select("hr_zones")
-      .eq("user_id", userId)
-      .eq("is_suppressed", false)
-      .not("hr_zones", "is", null)
-      .order("date", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("athlete_availability_windows")
-      .select("day_of_week, start_time, end_time, max_duration_min, session_count")
-      .eq("user_id", userId),
-    supabase
-      .from("athlete_availability_rules")
-      .select("rule_key, params")
-      .eq("user_id", userId),
-  ]);
-
-  const profile = profileRes.data;
-  const goals = goalsRes.data;
-  const plan = planRes.data;
-  const recovery = todayRecoveryRes.data;
-
-  // Availability context — fed to system prompt so the coach can fit sessions
-  // into the user's AM/PM windows. Tools never block on this server-side;
-  // schedule-respect is enforced by the prompt + the coach.
-  const availability =
-    (availabilityWindowsRes.data && availabilityWindowsRes.data.length > 0) ||
-    (availabilityRulesRes.data && availabilityRulesRes.data.length > 0)
-      ? {
-          windows: (availabilityWindowsRes.data ?? []).map((w) => ({
-            day_of_week: w.day_of_week as number,
-            start_time: w.start_time as string,
-            end_time: w.end_time as string,
-            max_duration_min: (w.max_duration_min as number | null) ?? null,
-            session_count: (w.session_count as number | null) ?? 1,
-          })),
-          rules: (availabilityRulesRes.data ?? []).map((r) => ({
-            rule_key: r.rule_key as string,
-            params: (r.params as Record<string, unknown> | null) ?? {},
-          })),
-        }
-      : null;
-
-  // Parse Garmin zones from the latest activity that has them. Same logic as
-  // /api/test-data: we trust whatever Garmin most recently bucketed.
-  let hrZones: Array<{ zone: number; low: number; high: number }> | null = null;
-  const rawZones = latestGarminCardioRes.data?.hr_zones;
-  if (Array.isArray(rawZones) && rawZones.length === 5) {
-    const parsed: Array<{ zone: number; low: number; high: number }> = [];
-    for (const z of rawZones as Array<{ zone?: number; low?: number; high?: number }>) {
-      if (typeof z?.zone === "number" && typeof z?.low === "number" && typeof z?.high === "number") {
-        parsed.push({ zone: z.zone, low: z.low, high: z.high });
-      }
-    }
-    if (parsed.length === 5) {
-      parsed.sort((a, b) => a.zone - b.zone);
-      hrZones = parsed;
-    }
-  }
-
-  let todaySession: string | null = null;
-  if (plan) {
-    const { data: todayWorkout } = await supabase
-      .from("planned_workouts")
-      .select("session_type")
-      .eq("plan_id", plan.id)
-      .eq("date", new Date().toISOString().slice(0, 10))
-      .single();
-    todaySession = todayWorkout?.session_type || null;
-  }
-
-  let weekStats: {
-    sessionsCompleted: number;
-    sessionsPlanned: number;
-  } | null = null;
-  if (plan) {
-    const now = new Date();
-    const day = now.getDay();
-    const mondayOffset = day === 0 ? -6 : 1 - day;
-    const monday = new Date(now);
-    monday.setDate(now.getDate() + mondayOffset);
-    const mondayStr = monday.toISOString().slice(0, 10);
-    const todayStr = now.toISOString().slice(0, 10);
-
-    const { data: weekWorkouts } = await supabase
-      .from("planned_workouts")
-      .select("session_type, status")
-      .eq("plan_id", plan.id)
-      .gte("date", mondayStr)
-      .lte("date", todayStr);
-
-    if (weekWorkouts) {
-      const nonRest = weekWorkouts.filter((w) => w.session_type !== "Rest");
-      weekStats = {
-        sessionsPlanned: nonRest.length,
-        sessionsCompleted: nonRest.filter((w) => w.status === "completed")
-          .length,
-      };
-    }
-  }
-
-  // Fetch active block if plan exists
-  let blockContext = null;
-  if (plan) {
-    const activeBlock = await getActiveBlock(plan.id);
-    if (activeBlock) {
-      const compliance = await getBlockComplianceStats(activeBlock.id);
-      const today = new Date().toISOString().slice(0, 10);
-      const endDate = new Date(activeBlock.end_date);
-      const daysUntilEnd = Math.ceil((endDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
-      blockContext = {
-        block_id: activeBlock.id,
-        block_type: activeBlock.block_type,
-        block_label: activeBlock.block_label,
-        block_number: activeBlock.block_number,
-        week_count: activeBlock.week_count,
-        current_week: computeBlockWeekNumber(activeBlock.start_date, today),
-        end_date: activeBlock.end_date,
-        days_until_end: Math.max(0, daysUntilEnd),
-        compliance_pct: compliance.pct,
-      };
-    }
-  }
+  // Central Athlete Context: single read of profile, goals, plan, recovery,
+  // HR zones, training paces, availability, week stats, active block, the
+  // upcoming-14d planned-workouts calendar AND the durable facts memory.
+  const ctx = await buildAthleteContext(userId);
 
   const systemPrompt = buildSystemPrompt({
-    profile: profile
-      ? {
-          age: profile.age,
-          height: profile.height,
-          weight: profile.weight,
-          sex: profile.sex,
-          training_experience: profile.training_experience,
-        }
-      : {
-          age: null,
-          height: null,
-          weight: null,
-          sex: null,
-          training_experience: null,
-        },
-    goals: goals
-      ? {
-          body_goal: goals.body_goal,
-          emphasis: goals.emphasis,
-          days_per_week: goals.days_per_week,
-          training_for_race: goals.training_for_race,
-          race_type: goals.race_type,
-          race_date: goals.race_date,
-          goal_time: goals.goal_time,
-        }
-      : {
-          body_goal: "general",
-          emphasis: null,
-          days_per_week: 4,
-          training_for_race: false,
-          race_type: null,
-          race_date: null,
-          goal_time: null,
-        },
-    plan: plan
-      ? {
-          split_type: plan.split_type,
-          plan_config: plan.plan_config as Record<string, unknown>,
-        }
+    profile: ctx.profile,
+    goals: ctx.goals,
+    plan: ctx.plan
+      ? { split_type: ctx.plan.split_type, plan_config: ctx.plan.plan_config }
       : null,
-    todaySession,
-    recovery,
-    weekStats,
-    hrZones,
-    block: blockContext,
-    availability,
+    todaySession: ctx.todaySession,
+    recovery: ctx.recovery,
+    weekStats: ctx.weekStats,
+    hrZones: ctx.hrZones,
+    trainingPaces: ctx.trainingPaces,
+    block: ctx.block,
+    availability: ctx.availability,
+    upcomingPlannedSessions: ctx.upcomingPlannedSessions,
+    facts: ctx.facts,
   });
 
   // Convert UIMessages from client using AI SDK's proper converter
@@ -284,8 +129,9 @@ export async function POST(request: Request) {
       search_research: getSearchResearchTool(),
       propose_next_block: proposeNextBlockTool(userId),
       create_planned_workouts_batch: createPlannedWorkoutsBatchTool(userId),
-      modify_planned_workouts_range: modifyPlannedWorkoutsRangeTool(userId),
-      delete_planned_workouts_range: deletePlannedWorkoutsRangeTool(userId),
+      modify_planned_workouts: modifyPlannedWorkoutsTool(userId),
+      delete_planned_workouts: deletePlannedWorkoutsTool(userId),
+      swap_planned_workouts: swapPlannedWorkoutsTool(userId),
       get_checkin_history: getCheckinHistoryTool(userId),
       prompt_checkin: promptCheckinTool(),
     },
@@ -296,11 +142,45 @@ export async function POST(request: Request) {
         if (text) {
           await saveMessage(conversationId, "assistant", text, event.toolCalls);
         }
+        if (firstUserMessageForTitle) {
+          const title = await generateConversationTitle(firstUserMessageForTitle, text);
+          if (title) await renameConversation(userId, conversationId, title);
+        }
+        // Fire-and-forget fact extraction. Failures are logged but never block
+        // the response, and durable memory is allowed to lag a few seconds.
+        if (text) {
+          runChatExtractorJob({
+            userId,
+            conversationId,
+            userMessage: lastUserMessage.content,
+            assistantText: text,
+          });
+        }
       } catch (e) {
         console.error("onFinish error:", e);
       }
     },
   });
 
-  return result.toUIMessageStreamResponse();
+  return result.toUIMessageStreamResponse({
+    headers: { "x-conversation-id": conversationId },
+  });
+}
+
+async function generateConversationTitle(userMessage: string, assistantReply: string): Promise<string | null> {
+  // Cheap fallback when the model call fails or isn't available.
+  const fallback = userMessage.trim().split(/\s+/).slice(0, 6).join(" ").slice(0, 60) || "New chat";
+  try {
+    const { text } = await generateText({
+      model: anthropic("claude-haiku-4-5-20251001"),
+      system:
+        "You name a fitness-coach chat thread in 3-6 words. No quotes, no punctuation at the end, no leading 'Chat about'. Output only the title.",
+      prompt: `User said: "${userMessage}"\nAssistant replied: "${assistantReply.slice(0, 400)}"`,
+      maxOutputTokens: 30,
+    });
+    const cleaned = text.trim().replace(/^["'`]+|["'`]+$/g, "").slice(0, 60);
+    return cleaned || fallback;
+  } catch {
+    return fallback;
+  }
 }

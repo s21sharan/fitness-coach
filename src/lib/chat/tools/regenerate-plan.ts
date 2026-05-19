@@ -64,7 +64,7 @@ export function regeneratePlanTool(userId: string) {
 
         const [plannedRes, liftRes, cardioRes] = await Promise.all([
           supabase.from("planned_workouts")
-            .select("date, session_type, targets")
+            .select("date, session_type, targets, status, skip_reason")
             .eq("plan_id", activePlan.id)
             .gte("date", sinceStr)
             .lte("date", untilStr),
@@ -91,6 +91,8 @@ export function regeneratePlanTool(userId: string) {
                 session_type: p.session_type,
                 targets: (p as { targets?: PlannedWorkoutTargets | null }).targets ?? null,
               }),
+              status: (p as { status?: string | null }).status ?? null,
+              skip_reason: (p as { skip_reason?: string | null }).skip_reason ?? null,
             })),
             actualLifting: (liftRes.data || []).map((l) => ({ date: l.date, name: l.name })),
             actualCardio: (cardioRes.data || []).map((c) => ({ date: c.date, type: c.type, distance: c.distance })),
@@ -146,6 +148,9 @@ export function regeneratePlanTool(userId: string) {
       return {
         success: true,
         proposed: true,
+        committed: false,
+        status: "PROPOSAL_ONLY_USER_MUST_ACCEPT_IN_UI",
+        hint: "This is a PROPOSAL ONLY — NO DATABASE WRITE HAS HAPPENED and the calendar is unchanged. The proposal is shown to the user as a card in the chat. They must click 'Accept plan' in the UI for the new sessions to land on the calendar. Do NOT tell the user the change is done. Tell them to review the card and accept it. After they accept, re-read the 'Sessions on your calendar' block in your context (it will refresh on the next message) to verify.",
         split_type: plan.split_type,
         reasoning: plan.narrative,
         risks: plan.risks,

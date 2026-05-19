@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import { chartColors, tooltipStyle, tooltipItemStyle, tooltipLabelStyle, gridProps, axisProps } from "@/components/charts/chart-theme";
 import { TYPE_COLORS, ZONE_COLORS, estimateLoad, hrZone, fmtSec, cType, fmtMin, type ZoneBoundary } from "@/lib/training/calendar-data";
-import { fmtDist as fmtDistUnit, fmtPace as fmtPaceUnit, distanceLabel, type UnitPreferences } from "@/lib/units";
+import { fmtCardioDist, fmtCardioPace, cardioDistanceLabel, type UnitPreferences } from "@/lib/units";
 import type { CardioLog } from "@/lib/hooks/use-dashboard-data";
 
 interface CardioModalProps {
@@ -116,8 +116,8 @@ export function CardioModal({ cardio, allCardio, units, hrZoneBoundaries, open, 
 
   if (!open) return null;
 
-  const distLabel = cardio.distance > 0 ? `${fmtDistUnit(cardio.distance, units.distance)} ${distanceLabel(units.distance)}` : null;
-  const paceLabel = cardio.pace_or_speed != null && cardio.pace_or_speed > 0 ? fmtPaceUnit(cardio.pace_or_speed, units.distance) : null;
+  const distLabel = cardio.distance > 0 ? `${fmtCardioDist(cardio.distance, cardio.type, units)} ${cardioDistanceLabel(cardio.type, units)}` : null;
+  const paceLabel = cardio.pace_or_speed != null && cardio.pace_or_speed > 0 ? fmtCardioPace(cardio.pace_or_speed, cardio.type, units) : null;
 
   return (
     <div
@@ -293,7 +293,7 @@ export function CardioModal({ cardio, allCardio, units, hrZoneBoundaries, open, 
                 <Delta
                   label="Distance"
                   delta={stats.distanceDelta}
-                  format={(v) => `${fmtDistUnit(Math.abs(v), units.distance)} ${distanceLabel(units.distance)}`}
+                  format={(v) => `${fmtCardioDist(Math.abs(v), cardio.type, units)} ${cardioDistanceLabel(cardio.type, units)}`}
                   positiveIsGood
                 />
               )}

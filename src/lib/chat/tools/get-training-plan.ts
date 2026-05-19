@@ -25,11 +25,26 @@ export function getTrainingPlanTool(userId: string) {
       nextSunday.setDate(thisMonday.getDate() + 13);
       const { data: workouts } = await supabase
         .from("planned_workouts")
-        .select("date, day_of_week, session_type, ai_notes, status, approved")
+        .select("id, date, day_of_week, session_type, ai_notes, status, approved, targets, skip_reason")
         .eq("plan_id", plan.id)
         .gte("date", thisMonday.toISOString().slice(0, 10))
         .lte("date", nextSunday.toISOString().slice(0, 10))
         .order("date");
+      const shaped = (workouts ?? []).map((w) => {
+        const targets = (w.targets as { contract?: { sport?: string; slot?: string } } | null) ?? null;
+        return {
+          id: w.id,
+          date: w.date,
+          day_of_week: w.day_of_week,
+          session_type: w.session_type,
+          ai_notes: w.ai_notes,
+          status: w.status,
+          approved: w.approved,
+          skip_reason: w.skip_reason,
+          sport: targets?.contract?.sport ?? null,
+          slot: targets?.contract?.slot ?? null,
+        };
+      });
       return {
         plan: {
           split_type: plan.split_type,
@@ -37,7 +52,8 @@ export function getTrainingPlanTool(userId: string) {
           race_type: plan.race_type,
           plan_config: plan.plan_config,
         },
-        workouts: workouts || [],
+        workouts: shaped,
+        hint: "Each workout has an `id` — pass these ids into modify_planned_workouts / delete_planned_workouts / swap_planned_workouts when the user wants to edit specific sessions.",
       };
     },
   });

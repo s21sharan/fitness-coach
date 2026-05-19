@@ -16,12 +16,15 @@ import {
 } from "recharts";
 import {
   type DistanceUnit,
-  fmtDist as fmtDistUnit,
-  fmtPace as fmtPaceUnit,
+  type SwimDistanceUnit,
+  type UnitPreferences,
   convertPace,
-  convertDistance,
-  distanceLabel,
-  paceLabel,
+  convertSwimPace,
+  cardioDistanceLabel,
+  cardioPaceLabel,
+  fmtCardioDist,
+  fmtCardioPace,
+  isSwimType,
 } from "@/lib/units";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
@@ -70,8 +73,10 @@ interface ActivityDetailModalProps {
   open: boolean;
   onClose: () => void;
   activity: ActivityData | null;
-  distanceUnit?: DistanceUnit;
+  units?: UnitPreferences;
 }
+
+const DEFAULT_UNITS: UnitPreferences = { distance: "mi", weight: "lbs", swimDistance: "m" };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -108,6 +113,14 @@ function fmtSec(s: number): string {
 /** Format pace as M:SS (no unit suffix — used for chart axis/tooltip where label is separate) */
 function fmtPaceRaw(minPerKm: number, du: DistanceUnit): string {
   const pace = convertPace(minPerKm, du);
+  const mins = Math.floor(pace);
+  const secs = Math.round((pace - mins) * 60);
+  return `${mins}:${String(secs).padStart(2, "0")}`;
+}
+
+/** Format swim pace (min per 100 units) as M:SS (no suffix) */
+function fmtSwimPaceRaw(minPerKm: number, sdu: SwimDistanceUnit): string {
+  const pace = convertSwimPace(minPerKm, sdu);
   const mins = Math.floor(pace);
   const secs = Math.round((pace - mins) * 60);
   return `${mins}:${String(secs).padStart(2, "0")}`;
@@ -169,19 +182,23 @@ function EmptyState({ message }: { message: string }) {
 
 // ─── Timeline Tab ─────────────────────────────────────────────────────────────
 
-function TimelineTab({ splits, du }: { splits: Split[] | null; du: DistanceUnit }) {
+function TimelineTab({ splits, activityType, units }: { splits: Split[] | null; activityType: string; units: UnitPreferences }) {
   if (!splits || splits.length < 2) {
     return <EmptyState message="No split data available" />;
   }
 
   const hasCadence = splits.some((s) => s.cadence != null);
   const hasElevation = splits.some((s) => s.elevation != null);
+  const swim = isSwimType(activityType);
+  const perLabel = cardioDistanceLabel(activityType, units);
+  const pLabel = cardioPaceLabel(activityType, units);
+  const formatPaceTick = (v: number) => swim ? fmtSwimPaceRaw(v, units.swimDistance) : fmtPaceRaw(v, units.distance);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {/* Pace Chart */}
       <div>
-        <SectionLabel>Pace per {distanceLabel(du)}</SectionLabel>
+        <SectionLabel>Pace per {perLabel}</SectionLabel>
         <ResponsiveContainer width="100%" height={160}>
           <ComposedChart data={splits} margin={{ top: 4, right: 4, bottom: 4, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -197,13 +214,13 @@ function TimelineTab({ splits, du }: { splits: Split[] | null; du: DistanceUnit 
               tick={{ fontSize: 10, fill: "#9ca3af" }}
               axisLine={false}
               tickLine={false}
-              tickFormatter={(v: number) => fmtPaceRaw(v, du)}
+              tickFormatter={formatPaceTick}
               domain={["auto", "auto"]}
             />
             <Tooltip
               contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e5e7eb" }}
               labelFormatter={(v: number) => `Lap ${v}`}
-              formatter={(val: number) => [fmtPaceRaw(val, du) + paceLabel(du), "Pace"]}
+              formatter={(val: number) => [formatPaceTick(val) + pLabel, "Pace"]}
             />
             <Line
               dataKey="pace_min_km"
@@ -218,7 +235,7 @@ function TimelineTab({ splits, du }: { splits: Split[] | null; du: DistanceUnit 
 
       {/* HR Chart */}
       <div>
-        <SectionLabel>Heart Rate per {distanceLabel(du)}</SectionLabel>
+        <SectionLabel>Heart Rate per {perLabel}</SectionLabel>
         <ResponsiveContainer width="100%" height={140}>
           <ComposedChart data={splits} margin={{ top: 4, right: 4, bottom: 4, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -261,7 +278,7 @@ function TimelineTab({ splits, du }: { splits: Split[] | null; du: DistanceUnit 
       {/* Cadence Chart (only if data exists) */}
       {hasCadence && (
         <div>
-          <SectionLabel>Cadence per {distanceLabel(du)}</SectionLabel>
+          <SectionLabel>Cadence per {perLabel}</SectionLabel>
           <ResponsiveContainer width="100%" height={120}>
             <ComposedChart data={splits} margin={{ top: 4, right: 4, bottom: 4, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -467,12 +484,15 @@ function HrTab({ zones }: { zones: HrZone[] | null }) {
 function DataTab({
   activity,
   splits,
-  du,
+  units,
 }: {
   activity: ActivityData;
   splits: Split[] | null;
-  du: DistanceUnit;
+  units: UnitPreferences;
 }) {
+  const swim = isSwimType(activity.type);
+  const pLabel = cardioPaceLabel(activity.type, units);
+  const formatPaceTick = (v: number) => swim ? fmtSwimPaceRaw(v, units.swimDistance) : fmtPaceRaw(v, units.distance);
   const stats: { label: string; value: string | null }[] = [
     {
       label: "Training Effect Aerobic",
@@ -633,7 +653,7 @@ function DataTab({
                     {s.km}
                   </td>
                   <td style={{ color: "#374151" }}>
-                    {s.pace_min_km != null ? fmtPaceRaw(s.pace_min_km, du) + paceLabel(du) : "—"}
+                    {s.pace_min_km != null ? formatPaceTick(s.pace_min_km) + pLabel : "—"}
                   </td>
                   <td style={{ color: "#374151" }}>
                     {s.avg_hr != null ? `${s.avg_hr} bpm` : "—"}
@@ -660,7 +680,7 @@ export function ActivityDetailModal({
   open,
   onClose,
   activity,
-  distanceUnit: du = "mi",
+  units = DEFAULT_UNITS,
 }: ActivityDetailModalProps) {
   const [activeTab, setActiveTab] = useState<"timeline" | "hr" | "data">(
     "timeline"
@@ -694,7 +714,7 @@ export function ActivityDetailModal({
   const icon = getActivityIcon(activity.type);
   const typeName =
     activity.type.charAt(0).toUpperCase() + activity.type.slice(1).toLowerCase();
-  const distFormatted = fmtDistUnit(activity.distance, du);
+  const distFormatted = fmtCardioDist(activity.distance, activity.type, units);
 
   const tabs: { key: "timeline" | "hr" | "data"; label: string }[] = [
     { key: "timeline", label: "Timeline" },
@@ -703,13 +723,13 @@ export function ActivityDetailModal({
   ];
 
   const metrics: { label: string; value: string | null }[] = [
-    { label: "Distance", value: `${distFormatted} ${distanceLabel(du)}` },
+    { label: "Distance", value: `${distFormatted} ${cardioDistanceLabel(activity.type, units)}` },
     { label: "Duration", value: fmtSec(activity.duration) },
     {
       label: "Pace",
       value:
         activity.pace_or_speed != null
-          ? fmtPaceUnit(activity.pace_or_speed, du)
+          ? fmtCardioPace(activity.pace_or_speed, activity.type, units)
           : null,
     },
     {
@@ -873,11 +893,11 @@ export function ActivityDetailModal({
 
         {/* ── Tab Content ── */}
         {activeTab === "timeline" && (
-          <TimelineTab splits={activity.splits} du={du} />
+          <TimelineTab splits={activity.splits} activityType={activity.type} units={units} />
         )}
         {activeTab === "hr" && <HrTab zones={activity.hr_zones} />}
         {activeTab === "data" && (
-          <DataTab activity={activity} splits={activity.splits} du={du} />
+          <DataTab activity={activity} splits={activity.splits} units={units} />
         )}
       </div>
     </div>

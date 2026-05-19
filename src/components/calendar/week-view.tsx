@@ -10,7 +10,7 @@ import {
   weekNumberFor, fmtSec,
 } from "@/lib/training/calendar-data";
 import type { ApiData, CardioLog, WorkoutLog } from "@/lib/hooks/use-dashboard-data";
-import { fmtDist as fmtDistUnit, distanceLabel, type UnitPreferences } from "@/lib/units";
+import { fmtDist as fmtDistUnit, distanceLabel, fmtCardioDist, cardioDistanceLabel, type UnitPreferences } from "@/lib/units";
 
 import type { PlannedClickPayload } from "./day-cell";
 
@@ -98,7 +98,7 @@ export function WeekView({ data, units, onWorkoutClick, onCardioClick, onPlanned
               background: "#fafafa", border: "1px solid #f3f4f6", borderRadius: 10,
               minWidth: 150,
             }}>
-              <DayCell day={day} variant="tall" units={units} hrZoneBoundaries={data.hrZones?.boundaries ?? null} onWorkoutClick={onWorkoutClick} onCardioClick={onCardioClick} onPlannedClick={onPlannedClick} />
+              <DayCell day={day} variant="tall" units={units} hrZoneBoundaries={data.hrZones?.boundaries ?? null} linkedActuals={data.linkedActuals} onWorkoutClick={onWorkoutClick} onCardioClick={onCardioClick} onPlannedClick={onPlannedClick} />
             </div>
           ))}
         </div>
@@ -139,7 +139,7 @@ export function WeekView({ data, units, onWorkoutClick, onCardioClick, onPlanned
                           {c?.label || k}
                         </td>
                         <td style={{ textAlign: "right", fontWeight: 600 }}>{fmtSec(bt.timeSec)}</td>
-                        <td style={{ textAlign: "right", fontWeight: 600 }}>{bt.distKm > 0 ? `${fmtDist(bt.distKm)} ${distUnit}` : "—"}</td>
+                        <td style={{ textAlign: "right", fontWeight: 600 }}>{bt.distKm > 0 ? `${fmtCardioDist(bt.distKm, k, units)} ${cardioDistanceLabel(k, units)}` : "—"}</td>
                         <td style={{ textAlign: "right", fontWeight: 700 }}>{bt.load}</td>
                         <td style={{ textAlign: "right", fontWeight: 600 }}>{bt.count}</td>
                       </tr>

@@ -33,11 +33,19 @@ export function updatePlannedWorkoutTool(userId: string) {
         .optional()
         .describe("Notes / rationale to attach to the workout."),
       status: z
-        .enum(["scheduled", "moved"])
+        .enum(["scheduled", "moved", "skipped"])
         .optional()
-        .describe("New status."),
+        .describe(
+          "New status. Use 'skipped' to mark the session as deliberately skipped (provide skip_reason). Use 'scheduled' to revert a skip back to active."
+        ),
+      skip_reason: z
+        .string()
+        .optional()
+        .describe(
+          "When status='skipped', a short reason (illness, travel, soreness, etc.) the coach will reference when planning around the gap."
+        ),
     }),
-    execute: async ({ date, name, session_type, contract, ai_notes, status }) => {
+    execute: async ({ date, name, session_type, contract, ai_notes, status, skip_reason }) => {
       const guard = assertDateNotPast(date);
       if (!guard.ok) return { success: false, error: guard.error };
 
@@ -55,6 +63,15 @@ export function updatePlannedWorkoutTool(userId: string) {
       if (newSessionType !== undefined) updates.session_type = newSessionType;
       if (ai_notes !== undefined) updates.ai_notes = ai_notes;
       if (status !== undefined) updates.status = status;
+      if (status === "skipped") {
+        updates.skip_reason = skip_reason?.trim().slice(0, 2000) || null;
+        updates.skipped_at = new Date().toISOString();
+      } else if (status === "scheduled" || status === "moved") {
+        // Reverting to active wipes any stale skip context so the prompt
+        // doesn't keep surfacing an outdated "skipped because…" line.
+        updates.skip_reason = null;
+        updates.skipped_at = null;
+      }
 
       if (contract !== undefined) {
         const { data: existing } = await supabase
@@ -83,9 +100,26 @@ export function updatePlannedWorkoutTool(userId: string) {
         .update(updates)
         .eq("plan_id", plan.id)
         .eq("date", date)
-        .select("date, session_type, ai_notes, status, targets")
+        .select("id, date, session_type, ai_notes, status, targets, skip_reason")
         .single();
       if (error) return { success: false, error: error.message };
+
+      // When the coach marks a session as skipped, also unlink any actual log
+      // that the matcher previously linked — keeping the planned row in a
+      // contradictory state (skipped but still pointing at an actual) would
+      // confuse compliance and the next sync.
+      if (data && status === "skipped") {
+        const now = new Date().toISOString();
+        await supabase
+          .from("workout_logs")
+          .update({ planned_workout_id: null, unmatched_at: now })
+          .eq("planned_workout_id", data.id);
+        await supabase
+          .from("cardio_logs")
+          .update({ planned_workout_id: null, unmatched_at: now })
+          .eq("planned_workout_id", data.id);
+      }
+
       return { success: true, updated: data };
     },
   });
