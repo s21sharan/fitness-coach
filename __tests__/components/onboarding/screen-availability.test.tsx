@@ -29,18 +29,18 @@ describe("ScreenAvailability", () => {
 
   it("toggles a scheduling rule", () => {
     const { onUpdate } = renderScreen();
-    fireEvent.click(screen.getByText("Long run on weekends"));
+    fireEvent.click(screen.getByText("Keep one full rest day"));
     const call = onUpdate.mock.calls[0][0];
-    expect(call.availability_rules[0].rule_key).toBe("long_run_weekend");
+    expect(call.availability_rules[0].rule_key).toBe("keep_one_rest_day");
   });
 
   it("removes a previously selected rule", () => {
     const profile = {
       ...getDefaultAthleteProfile(),
-      availability_rules: [{ id: "r1", rule_key: "long_run_weekend", params: null }],
+      availability_rules: [{ id: "r1", rule_key: "keep_one_rest_day", params: null }],
     };
     const { onUpdate } = renderScreen(profile);
-    fireEvent.click(screen.getByText("Long run on weekends"));
+    fireEvent.click(screen.getByText("Keep one full rest day"));
     const call = onUpdate.mock.calls[0][0];
     expect(call.availability_rules).toEqual([]);
   });

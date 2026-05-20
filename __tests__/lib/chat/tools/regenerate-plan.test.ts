@@ -1,5 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// ── athlete-context mocks ─────────────────────────────────────────────────────
+
+vi.mock("@/lib/athlete-context/facts", () => ({
+  fetchActiveFacts: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock("@/lib/athlete-context/format", () => ({
+  formatFactsForPlanPrompt: vi.fn().mockReturnValue(""),
+}));
+
 // ── blocks mock ───────────────────────────────────────────────────────────────
 
 const mockGetActiveBlock = vi.fn();
