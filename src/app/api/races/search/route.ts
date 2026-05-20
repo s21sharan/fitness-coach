@@ -89,6 +89,9 @@ export async function GET(req: Request): Promise<NextResponse> {
   if (process.env.RUNSIGNUP_API_KEY) {
     params.set("api_key", process.env.RUNSIGNUP_API_KEY);
   }
+  if (process.env.RUNSIGNUP_API_SECRET) {
+    params.set("api_secret", process.env.RUNSIGNUP_API_SECRET);
+  }
 
   if (location) {
     params.set("zipcode", location);
