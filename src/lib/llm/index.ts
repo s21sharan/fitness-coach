@@ -23,7 +23,7 @@ export function getLLMProvider(): LLMProvider {
     return cached;
   }
   if (preferred === "anthropic" && anthropicKey) {
-    const model = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";
+    const model = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
     const key = `anthropic::${model}::${anthropicKey.slice(-6)}`;
     if (cached && cachedKey === key) return cached;
     cached = new AnthropicProvider({ apiKey: anthropicKey, model });
@@ -33,7 +33,7 @@ export function getLLMProvider(): LLMProvider {
 
   // Default precedence: Anthropic, then OpenAI.
   if (anthropicKey) {
-    const model = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";
+    const model = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
     const key = `anthropic::${model}::${anthropicKey.slice(-6)}`;
     if (cached && cachedKey === key) return cached;
     cached = new AnthropicProvider({ apiKey: anthropicKey, model });

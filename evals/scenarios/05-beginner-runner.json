@@ -1,0 +1,49 @@
+{
+  "id": "05-beginner-runner",
+  "name": "Beginner runner training for first 5K",
+  "description": "Never raced before, minimal running history. Plan should be conservative: build aerobic base with mostly easy running, very little intensity, and walk-run intervals if needed.",
+  "profile": {
+    "age": 35,
+    "height": 170,
+    "weight": 175,
+    "sex": "female",
+    "training_experience": "beginner"
+  },
+  "goals": {
+    "body_goal": "lose_weight",
+    "emphasis": "endurance",
+    "days_per_week": 4,
+    "lifting_days": 1,
+    "training_for_race": true,
+    "race_type": "5k",
+    "race_date": "2026-08-15",
+    "goal_time": null,
+    "does_cardio": true,
+    "cardio_types": ["run"]
+  },
+  "recentActivity": {
+    "avgRunPaceMinKm": 7.5,
+    "avgRunDistanceKm": 3,
+    "avgRunHr": 165,
+    "weeklyRunCount": 2,
+    "weeklyLiftCount": 0,
+    "avgLiftDurationMin": null,
+    "avgHrv": 55,
+    "avgSleepHours": 6.8
+  },
+  "weeks": 4,
+  "must_have": [
+    "Easy-paced runs make up ≥80% of run volume",
+    "At most one quality session per week (and even then, mild — e.g. strides or short tempo segments)",
+    "Run volume increases gradually (no jumps >10% week-over-week)",
+    "Cross-training or rest filling the non-run days",
+    "Conservative long-run progression (e.g. 4km → 6km, not 4km → 10km)"
+  ],
+  "must_not_have": [
+    "VO2max intervals (too advanced for beginner)",
+    "More than 2 quality sessions in any week",
+    "Running 4+ days/week (athlete is new — recovery capacity is low)",
+    "Heavy lifting that interferes with the priority sport (running)",
+    "Daily running with no rest days"
+  ]
+}

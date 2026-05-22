@@ -7,8 +7,9 @@ import {
   exerciseSummary, estimateLoad, hrZone, fmtMin, fmtSec, cType, toDS,
   type DayData, type ZoneBoundary,
 } from "@/lib/training/calendar-data";
-import type { CardioLog, LinkedActual, PlannedWorkout, RecoveryLog, WorkoutLog } from "@/lib/hooks/use-dashboard-data";
+import type { CardioLog, LinkedActual, PlannedWorkout, RecoveryLog, UserHrZones, WorkoutLog } from "@/lib/hooks/use-dashboard-data";
 import { fmtCardioDist, fmtCardioPace, cardioDistanceLabel, type UnitPreferences } from "@/lib/units";
+import { resolveHrZoneBoundaries } from "@/lib/training/zones";
 
 export type DayCellVariant = "compact" | "tall";
 
@@ -29,7 +30,7 @@ interface DayCellProps {
   day: DayData;
   variant?: DayCellVariant;
   units: UnitPreferences;
-  hrZoneBoundaries?: ZoneBoundary[] | null;
+  hrZones?: UserHrZones | null;
   linkedActuals?: Record<string, LinkedActual>;
   onWorkoutClick?: (w: WorkoutLog) => void;
   onCardioClick?: (c: CardioLog) => void;
@@ -107,10 +108,11 @@ function WorkoutCardTall({ w, onClick }: { w: WorkoutLog; onClick?: () => void }
   );
 }
 
-function CardioCardTall({ c: a, units, boundaries, onClick }: { c: CardioLog; units: UnitPreferences; boundaries?: ZoneBoundary[] | null; onClick?: () => void }) {
+function CardioCardTall({ c: a, units, hrZones, onClick }: { c: CardioLog; units: UnitPreferences; hrZones?: UserHrZones | null; onClick?: () => void }) {
   const t = cType(a.type);
   const cl = TYPE_COLORS[t];
   const load = estimateLoad(a.avg_hr, a.duration);
+  const boundaries = resolveHrZoneBoundaries(a.type, hrZones);
   const zone = hrZone(a.avg_hr, boundaries);
 
   return (
@@ -262,7 +264,7 @@ function inferTypeFromSession(session: string): string {
 
 /* ─── DayCell ─── */
 
-export function DayCell({ day, variant = "compact", units, hrZoneBoundaries, linkedActuals, onWorkoutClick, onCardioClick, onPlannedClick }: DayCellProps) {
+export function DayCell({ day, variant = "compact", units, hrZones, linkedActuals, onWorkoutClick, onCardioClick, onPlannedClick }: DayCellProps) {
   const today = toDS(new Date());
   const isToday = day.date === today;
   const isFuture = day.date > today;
@@ -313,7 +315,7 @@ export function DayCell({ day, variant = "compact", units, hrZoneBoundaries, lin
           <WorkoutCardTall key={`w-${i}`} w={w} onClick={onWorkoutClick ? () => onWorkoutClick(w) : undefined} />
         ))}
         {day.cardio.map((c, i) => (
-          <CardioCardTall key={`c-${i}`} c={c} units={units} boundaries={hrZoneBoundaries} onClick={onCardioClick ? () => onCardioClick(c) : undefined} />
+          <CardioCardTall key={`c-${i}`} c={c} units={units} hrZones={hrZones} onClick={onCardioClick ? () => onCardioClick(c) : undefined} />
         ))}
         {day.planned && splitAmPmSessions(
           day.planned.session_type,

@@ -142,7 +142,7 @@ function DashboardPageInner() {
           cardio={selectedCardio}
           allCardio={data.cardio}
           units={units}
-          hrZoneBoundaries={data.hrZones?.boundaries ?? null}
+          hrZones={data.hrZones ?? null}
           open={true}
           onClose={() => setSelectedCardio(null)}
         />

@@ -1,0 +1,49 @@
+{
+  "id": "02-70_3-taper",
+  "name": "70.3 athlete, 2 weeks out — taper",
+  "description": "Half-Ironman triathlete entering taper. Volume must drop sharply while intensity is preserved through short, race-pace work. Final week is very light.",
+  "profile": {
+    "age": 38,
+    "height": 175,
+    "weight": 170,
+    "sex": "male",
+    "training_experience": "advanced"
+  },
+  "goals": {
+    "body_goal": "maintain",
+    "emphasis": "endurance",
+    "days_per_week": 6,
+    "lifting_days": 1,
+    "training_for_race": true,
+    "race_type": "half_ironman",
+    "race_date": "2026-06-02",
+    "goal_time": "5:00:00",
+    "does_cardio": true,
+    "cardio_types": ["run", "bike", "swim"]
+  },
+  "recentActivity": {
+    "avgRunPaceMinKm": 4.8,
+    "avgRunDistanceKm": 14,
+    "avgRunHr": 155,
+    "weeklyRunCount": 4,
+    "weeklyLiftCount": 1,
+    "avgLiftDurationMin": 40,
+    "avgHrv": 70,
+    "avgSleepHours": 7.6
+  },
+  "weeks": 2,
+  "must_have": [
+    "Week 1 (2 weeks out): total volume reduced 40-50% from peak training",
+    "Week 2 (race week): total volume reduced 60-70% from peak, with race-day Saturday or Sunday",
+    "Short, sharp race-pace sessions preserved (e.g. 3-5×400m at race pace, or 4×5min at threshold)",
+    "Swim, bike, run all represented even in taper",
+    "Last 2-3 days before race are easy spin/jog or rest, no quality work"
+  ],
+  "must_not_have": [
+    "Long ride >2.5h within 10 days of race",
+    "Long run >90 min within 10 days of race",
+    "Any heavy lifting (>RPE 7) in either week",
+    "Quality intervals in the final 3 days before race",
+    "Increased weekly volume vs prior week (taper goes DOWN)"
+  ]
+}

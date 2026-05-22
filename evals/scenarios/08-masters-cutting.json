@@ -1,0 +1,49 @@
+{
+  "id": "08-masters-cutting",
+  "name": "Masters athlete cutting weight while preserving muscle",
+  "description": "48-year-old in a calorie deficit, wants to lose body fat without losing strength. Recovery capacity is reduced (age + deficit). Plan should keep heavy intensity to preserve muscle but limit total volume, with 2:1 loading instead of 3:1.",
+  "profile": {
+    "age": 48,
+    "height": 174,
+    "weight": 190,
+    "sex": "male",
+    "training_experience": "advanced"
+  },
+  "goals": {
+    "body_goal": "lose_weight",
+    "emphasis": "strength",
+    "days_per_week": 4,
+    "lifting_days": 4,
+    "training_for_race": false,
+    "race_type": null,
+    "race_date": null,
+    "goal_time": null,
+    "does_cardio": true,
+    "cardio_types": ["bike"]
+  },
+  "recentActivity": {
+    "avgRunPaceMinKm": null,
+    "avgRunDistanceKm": null,
+    "avgRunHr": null,
+    "weeklyRunCount": 0,
+    "weeklyLiftCount": 4,
+    "avgLiftDurationMin": 55,
+    "avgHrv": 50,
+    "avgSleepHours": 6.9
+  },
+  "weeks": 3,
+  "must_have": [
+    "Heavy compound work preserved (e.g. 3-5 reps RPE 7-8 on main lifts) — preserves strength in a cut",
+    "2:1 loading (2 loading weeks + 1 deload), not 3:1 — masters athlete in deficit has reduced recovery",
+    "Total weekly working sets capped around 12-15 per muscle (not 18-20) given reduced recovery",
+    "Optional light cycling at Z2 for cardiovascular health — short sessions only (≤30 min)",
+    "Deload week clearly cuts volume by ≥30%"
+  ],
+  "must_not_have": [
+    "Adding HIIT or intense intervals — interferes with strength recovery during deficit",
+    "Very high-rep failure training (>15 reps to failure) on every set — counterproductive in cut for muscle preservation",
+    "Squats or deadlifts on consecutive days",
+    "5+ lifting days/week (athlete asked for 4)",
+    "Long endurance sessions (>45 min) — would compromise the strength priority in a deficit"
+  ]
+}

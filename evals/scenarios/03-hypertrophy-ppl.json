@@ -1,0 +1,49 @@
+{
+  "id": "03-hypertrophy-ppl",
+  "name": "Intermediate lifter, hypertrophy focus, 6 days",
+  "description": "Pure hypertrophy goal with no cardio. PPL or upper/lower with each muscle hit 2x/week, accumulation phase, RPE 7-8.",
+  "profile": {
+    "age": 27,
+    "height": 180,
+    "weight": 190,
+    "sex": "male",
+    "training_experience": "intermediate"
+  },
+  "goals": {
+    "body_goal": "gain_muscle",
+    "emphasis": "strength",
+    "days_per_week": 6,
+    "lifting_days": 6,
+    "training_for_race": false,
+    "race_type": null,
+    "race_date": null,
+    "goal_time": null,
+    "does_cardio": false,
+    "cardio_types": []
+  },
+  "recentActivity": {
+    "avgRunPaceMinKm": null,
+    "avgRunDistanceKm": null,
+    "avgRunHr": null,
+    "weeklyRunCount": 0,
+    "weeklyLiftCount": 5,
+    "avgLiftDurationMin": 65,
+    "avgHrv": 58,
+    "avgSleepHours": 7.2
+  },
+  "weeks": 4,
+  "must_have": [
+    "Each major muscle group trained ≥2x per week",
+    "Weekly working sets per muscle in the 12-20 range (intermediate hypertrophy)",
+    "Compound lift on each session with sets×reps×RPE specified",
+    "A deload week (volume cut 30-40%) within the 4-week block",
+    "Accumulation-style RPE targets (RPE 7-8, RIR 2-3) on main lifts"
+  ],
+  "must_not_have": [
+    "Lower-body sessions on consecutive days (e.g. legs Mon + legs Tue)",
+    "Sessions with no specific exercises listed (generic 'Push' with no contract)",
+    "RPE 9-10 on every working set during accumulation",
+    "Same muscle group trained 4x+ per week",
+    "Cardio sessions added (the athlete said no cardio)"
+  ]
+}

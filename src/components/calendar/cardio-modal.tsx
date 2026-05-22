@@ -7,13 +7,14 @@ import {
 import { chartColors, tooltipStyle, tooltipItemStyle, tooltipLabelStyle, gridProps, axisProps } from "@/components/charts/chart-theme";
 import { TYPE_COLORS, ZONE_COLORS, estimateLoad, hrZone, fmtSec, cType, fmtMin, type ZoneBoundary } from "@/lib/training/calendar-data";
 import { fmtCardioDist, fmtCardioPace, cardioDistanceLabel, type UnitPreferences } from "@/lib/units";
-import type { CardioLog } from "@/lib/hooks/use-dashboard-data";
+import { resolveHrZoneBoundaries } from "@/lib/training/zones";
+import type { CardioLog, UserHrZones } from "@/lib/hooks/use-dashboard-data";
 
 interface CardioModalProps {
   cardio: CardioLog;
   allCardio: CardioLog[];
   units: UnitPreferences;
-  hrZoneBoundaries?: ZoneBoundary[] | null;
+  hrZones?: UserHrZones | null;
   open: boolean;
   onClose: () => void;
 }
@@ -57,7 +58,8 @@ function intensityFactor(avgHr: number | null, boundaries: ZoneBoundary[] | null
   return Math.round((avgHr / threshold) * 100) / 100;
 }
 
-export function CardioModal({ cardio, allCardio, units, hrZoneBoundaries, open, onClose }: CardioModalProps) {
+export function CardioModal({ cardio, allCardio, units, hrZones, open, onClose }: CardioModalProps) {
+  const hrZoneBoundaries = resolveHrZoneBoundaries(cardio.type, hrZones);
   const handleEsc = useCallback((e: KeyboardEvent) => {
     if (e.key === "Escape") onClose();
   }, [onClose]);

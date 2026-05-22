@@ -1,4 +1,5 @@
 import { formatPaceSecPerKm, formatTimeSec, type TrainingPaces } from "@/lib/training/training-paces";
+import { COACHING_PRINCIPLES } from "@/lib/training/coaching-principles";
 import type { AthleteFact } from "@/lib/athlete-context/types";
 
 interface SystemPromptInput {
@@ -449,6 +450,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   lines.push("- If their last check-in was more than 7 days ago (or they've never done one), suggest a check-in using prompt_checkin — but only at the start of a conversation or when discussing body composition, not every message.");
   lines.push("- When prompting a check-in, give a brief motivating message like 'Time for your weekly progress photos!' or 'Let's see how things are looking this week.'");
   lines.push("");
+  lines.push(COACHING_PRINCIPLES);
   lines.push(REASONING_FRAMEWORK);
   lines.push(TOOL_STRATEGY);
 

@@ -1,0 +1,49 @@
+{
+  "id": "04-hybrid-balance",
+  "name": "Hybrid athlete — 10K + hypertrophy",
+  "description": "Wants to run a fast 10K AND keep building muscle. Classic concurrent-training case. Needs careful sequencing to avoid interference. Emphasis is balanced.",
+  "profile": {
+    "age": 30,
+    "height": 176,
+    "weight": 180,
+    "sex": "male",
+    "training_experience": "intermediate"
+  },
+  "goals": {
+    "body_goal": "gain_muscle",
+    "emphasis": "none",
+    "days_per_week": 5,
+    "lifting_days": 3,
+    "training_for_race": true,
+    "race_type": "10k",
+    "race_date": "2026-08-10",
+    "goal_time": "42:00",
+    "does_cardio": true,
+    "cardio_types": ["run"]
+  },
+  "recentActivity": {
+    "avgRunPaceMinKm": 5.0,
+    "avgRunDistanceKm": 8,
+    "avgRunHr": 158,
+    "weeklyRunCount": 3,
+    "weeklyLiftCount": 3,
+    "avgLiftDurationMin": 55,
+    "avgHrv": 65,
+    "avgSleepHours": 7.0
+  },
+  "weeks": 4,
+  "must_have": [
+    "3 run days and 3 lift days per week (one shared day with two-a-day is fine)",
+    "At least one threshold/tempo run per week (10K race prep needs speed)",
+    "One long run per week (≥10km, easy pace)",
+    "Lower-body lift never the day before tempo/intervals/long run",
+    "When lift+run share a day, run first (priority is the race) OR ≥6h gap",
+    "A deload week within the 4-week block"
+  ],
+  "must_not_have": [
+    "Heavy back squat or deadlift on the day before a quality run",
+    "Two consecutive quality runs (tempo Mon + intervals Tue)",
+    "Cardio reduced to zero during a 'lift week'",
+    "Lifting frequency dropped below 3x/week (athlete requested 3 lift days)"
+  ]
+}

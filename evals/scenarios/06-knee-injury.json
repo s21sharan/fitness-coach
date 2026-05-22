@@ -1,0 +1,49 @@
+{
+  "id": "06-knee-injury",
+  "name": "Athlete with knee injury — no impact loading",
+  "description": "Recovering from patellar tendinopathy. Wants to maintain fitness but cannot run, jump, or squat deep. Plan must respect this constraint absolutely — any heavy knee-loading is a blocker.",
+  "profile": {
+    "age": 34,
+    "height": 182,
+    "weight": 185,
+    "sex": "male",
+    "training_experience": "intermediate"
+  },
+  "goals": {
+    "body_goal": "maintain",
+    "emphasis": "none",
+    "days_per_week": 5,
+    "lifting_days": 3,
+    "training_for_race": false,
+    "race_type": null,
+    "race_date": null,
+    "goal_time": null,
+    "does_cardio": true,
+    "cardio_types": ["bike", "swim"]
+  },
+  "recentActivity": {
+    "avgRunPaceMinKm": null,
+    "avgRunDistanceKm": null,
+    "avgRunHr": null,
+    "weeklyRunCount": 0,
+    "weeklyLiftCount": 3,
+    "avgLiftDurationMin": 50,
+    "avgHrv": 60,
+    "avgSleepHours": 7.0
+  },
+  "factsBlock": "Athlete facts (MUST RESPECT):\n- Knee injury — patellar tendinopathy diagnosed 2026-04-10. No running, jumping, or deep squatting until cleared. Cycling and swimming are fine. Upper-body lifting unrestricted.\n- Prefers swim on Tuesdays and Thursdays (lap pool access).",
+  "weeks": 3,
+  "must_have": [
+    "Zero running sessions across all weeks",
+    "No back squat, front squat, jump squat, lunges, or other deep-knee-loading movements",
+    "Cycling and/or swimming as the cardio modalities",
+    "Upper-body lifting present (chest/back/shoulders/arms) — this is allowed and athlete still wants to train",
+    "Tuesday and Thursday biased toward swim sessions per the athlete's facts"
+  ],
+  "must_not_have": [
+    "Any session involving running (treadmill, outdoor, intervals — all banned)",
+    "Squats, lunges, leg press, jumps, plyometrics in any session",
+    "Heavy hinge work (deadlift) without an explicit modification note",
+    "Ignoring the Tue/Thu swim preference"
+  ]
+}

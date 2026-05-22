@@ -64,3 +64,29 @@ export const POWER_ZONE_MODE_LABELS: Record<PowerZoneMode, string> = {
   custom: "Full Custom",
   percent_ftp: "% FTP",
 };
+
+interface ResolvableHrZones {
+  boundaries: ZoneBoundary[];
+  bySport?: {
+    global?: { boundaries: ZoneBoundary[] };
+    run?: { boundaries: ZoneBoundary[] };
+    bike?: { boundaries: ZoneBoundary[] };
+  };
+}
+
+// Pick the best HR zone boundaries for a given activity type. Priority:
+// per-sport custom (run / bike) → global custom → top-level fallback (which
+// itself is global custom → first custom → Garmin in the API). Aggregate
+// views that don't have a specific sport should keep using `.boundaries`.
+export function resolveHrZoneBoundaries(
+  activityType: string | null | undefined,
+  hrZones: ResolvableHrZones | null | undefined,
+): ZoneBoundary[] | null {
+  if (!hrZones) return null;
+  const t = (activityType ?? "").toLowerCase();
+  const sport: "run" | "bike" | null = t === "run" ? "run" : t === "bike" || t === "ride" ? "bike" : null;
+  const bySport = hrZones.bySport;
+  if (sport && bySport?.[sport]?.boundaries.length === 5) return bySport[sport]!.boundaries;
+  if (bySport?.global?.boundaries.length === 5) return bySport.global.boundaries;
+  return hrZones.boundaries.length === 5 ? hrZones.boundaries : null;
+}

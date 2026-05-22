@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
 
       // Generate plan for the upcoming week
       const { object: newPlan } = await generateObject({
-        model: anthropic("claude-sonnet-4-20250514"),
+        model: anthropic("claude-sonnet-4-6"),
         schema: planGenerationSchema,
         system: PLAN_SYSTEM_PROMPT,
         prompt: userPrompt + "\n\nGenerate the plan for the upcoming week only (7 days).",

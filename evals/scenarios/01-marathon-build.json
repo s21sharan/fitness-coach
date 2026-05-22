@@ -1,0 +1,50 @@
+{
+  "id": "01-marathon-build",
+  "name": "Marathon athlete mid-build, 14 weeks out",
+  "description": "Intermediate marathoner deep in the Build phase. Needs threshold + MP work woven in without compromising long-run quality. No lifting interference — pure run focus.",
+  "profile": {
+    "age": 32,
+    "height": 178,
+    "weight": 165,
+    "sex": "male",
+    "training_experience": "intermediate"
+  },
+  "goals": {
+    "body_goal": "maintain",
+    "emphasis": "endurance",
+    "days_per_week": 6,
+    "lifting_days": 2,
+    "training_for_race": true,
+    "race_type": "marathon",
+    "race_date": "2026-08-25",
+    "goal_time": "3:15:00",
+    "does_cardio": true,
+    "cardio_types": ["run"]
+  },
+  "recentActivity": {
+    "avgRunPaceMinKm": 5.3,
+    "avgRunDistanceKm": 12,
+    "avgRunHr": 152,
+    "weeklyRunCount": 5,
+    "weeklyLiftCount": 2,
+    "avgLiftDurationMin": 45,
+    "avgHrv": 62,
+    "avgSleepHours": 7.4
+  },
+  "weeks": 4,
+  "must_have": [
+    "One long run per week progressing from ~26km to ~32km over the block (with one deload week reducing it)",
+    "One threshold/tempo session per week (e.g. 4-6km @ threshold or cruise intervals)",
+    "Marathon-pace work integrated into a long run at least once (e.g. last 8-12km @ MP)",
+    "A deload week with volume reduced 30-40% while keeping at least one quality session",
+    "≥80% of weekly run volume at easy/Z2 pace",
+    "Lifting limited to upper-body or full-body with no heavy legs 48h before quality runs"
+  ],
+  "must_not_have": [
+    "Three or more quality sessions in the same week",
+    "Heavy lower-body lift the day before a long run, tempo, or interval session",
+    "Long run >35% of weekly volume",
+    "Linear weekly volume increase >10%",
+    "Marathon-pace or threshold work omitted entirely"
+  ]
+}

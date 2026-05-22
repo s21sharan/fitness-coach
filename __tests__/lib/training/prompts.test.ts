@@ -118,15 +118,15 @@ describe("MULTI_WEEK_SYSTEM_PROMPT", () => {
   });
 
   it("contains progressive overload guidance", () => {
-    expect(MULTI_WEEK_SYSTEM_PROMPT).toContain("progressive overload");
+    expect(MULTI_WEEK_SYSTEM_PROMPT.toLowerCase()).toContain("progressive overload");
   });
 
   it("contains heavy lower-body sequencing rule", () => {
-    expect(MULTI_WEEK_SYSTEM_PROMPT).toContain("heavy lower-body");
+    expect(MULTI_WEEK_SYSTEM_PROMPT.toLowerCase()).toContain("heavy lower-body");
   });
 
   it("contains hard/easy day alternation guidance", () => {
-    expect(MULTI_WEEK_SYSTEM_PROMPT).toContain("hard/easy");
+    expect(MULTI_WEEK_SYSTEM_PROMPT.toLowerCase()).toContain("hard/easy");
   });
 
   it("contains am_session and pm_session format guidance", () => {

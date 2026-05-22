@@ -1,3 +1,5 @@
+import { COACHING_PRINCIPLES } from "./coaching-principles";
+
 export interface RecentActivity {
   avgRunPaceMinKm: number | null;
   avgRunDistanceKm: number | null;
@@ -126,12 +128,9 @@ export interface MultiWeekPromptContext extends UserContext {
 
 export const MULTI_WEEK_SYSTEM_PROMPT = `You are an expert hybrid-athlete coach producing a structured multi-week training block.
 
-## Coaching Methodology
-- **Endurance:** 80/20 polarized approach — ~80% easy/Zone 2, ~20% threshold/VO2max work.
-- **Lifting:** progressive overload via volume or intensity week-over-week. RPE-based autoregulation.
-- **Hybrid sequencing:** hard/easy day alternation. Never schedule heavy lower-body lifting the day before a key cardio session (tempo, intervals, long run/ride).
-- **Deload:** Every 3rd or 4th week, reduce volume 30-40% while maintaining intensity.
-- **Two-a-days:** Only when the athlete has the time and recovery capacity. Place the priority session in the slot where the athlete has more energy (usually AM for cardio, PM for lifting).
+${COACHING_PRINCIPLES}
+
+The methodology block above is authoritative — every weekly layout, deload cadence, intensity distribution, and sequencing decision below must conform to it. If a user constraint conflicts with a principle (e.g. they request three quality sessions/week without the volume to support it), honor the user but call it out in the plan narrative.
 
 ## Session Specificity
 Sessions must be specific and actionable — not generic labels.

@@ -3,9 +3,9 @@
 import { DayCell } from "./day-cell";
 import {
   weekTotals, toDS, fmtSec,
-  type DayData, type ZoneBoundary,
+  type DayData,
 } from "@/lib/training/calendar-data";
-import type { CardioLog, LinkedActual, WorkoutLog } from "@/lib/hooks/use-dashboard-data";
+import type { CardioLog, LinkedActual, UserHrZones, WorkoutLog } from "@/lib/hooks/use-dashboard-data";
 import { fmtDist as fmtDistUnit, distanceLabel, type UnitPreferences } from "@/lib/units";
 import type { TrainingBlock } from "@/lib/training/blocks";
 import { computeBlockWeekNumber } from "@/lib/training/blocks";
@@ -17,7 +17,7 @@ interface WeekRowProps {
   days: DayData[];
   weekNum: number;
   units: UnitPreferences;
-  hrZoneBoundaries?: ZoneBoundary[] | null;
+  hrZones?: UserHrZones | null;
   linkedActuals?: Record<string, LinkedActual>;
   onWorkoutClick?: (w: WorkoutLog) => void;
   onCardioClick?: (c: CardioLog) => void;
@@ -26,7 +26,7 @@ interface WeekRowProps {
   activeBlock?: TrainingBlock | null;
 }
 
-export function WeekRow({ days, weekNum, units, hrZoneBoundaries, linkedActuals, onWorkoutClick, onCardioClick, onPlannedClick, onSummaryClick, activeBlock }: WeekRowProps) {
+export function WeekRow({ days, weekNum, units, hrZones, linkedActuals, onWorkoutClick, onCardioClick, onPlannedClick, onSummaryClick, activeBlock }: WeekRowProps) {
   const todayStr = toDS(new Date());
   const isFutureWeek = days[0].date > todayStr;
   const hasData = !isFutureWeek;
@@ -98,7 +98,7 @@ export function WeekRow({ days, weekNum, units, hrZoneBoundaries, linkedActuals,
       <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 0, minWidth: 0 }}>
         {days.map((day, i) => (
           <div key={day.date} style={{ borderRight: i < 6 ? "1px solid #f3f4f6" : "none", padding: "0 2px" }}>
-            <DayCell day={day} variant="compact" units={units} hrZoneBoundaries={hrZoneBoundaries} linkedActuals={linkedActuals} onWorkoutClick={onWorkoutClick} onCardioClick={onCardioClick} onPlannedClick={onPlannedClick} />
+            <DayCell day={day} variant="compact" units={units} hrZones={hrZones} linkedActuals={linkedActuals} onWorkoutClick={onWorkoutClick} onCardioClick={onCardioClick} onPlannedClick={onPlannedClick} />
           </div>
         ))}
       </div>

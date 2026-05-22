@@ -115,7 +115,7 @@ export async function runWeeklyCheckIn(userId: string, planId: string): Promise<
   });
 
   const { object: adjustment } = await generateObject({
-    model: anthropic("claude-sonnet-4-20250514"),
+    model: anthropic("claude-sonnet-4-6"),
     schema: weeklyAdjustmentSchema,
     system: ADJUSTMENT_SYSTEM_PROMPT,
     prompt,

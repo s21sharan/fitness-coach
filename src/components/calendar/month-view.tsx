@@ -96,7 +96,7 @@ export function MonthView({ data, units, onWorkoutClick, onCardioClick, onPlanne
             days={weekDays}
             weekNum={weekNumbers[wi]}
             units={units}
-            hrZoneBoundaries={data.hrZones?.boundaries ?? null}
+            hrZones={data.hrZones ?? null}
             onWorkoutClick={onWorkoutClick}
             onCardioClick={onCardioClick}
             onPlannedClick={onPlannedClick}

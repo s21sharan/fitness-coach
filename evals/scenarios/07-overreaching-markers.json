@@ -1,0 +1,49 @@
+{
+  "id": "07-overreaching-markers",
+  "name": "Athlete with overreaching markers — needs deload",
+  "description": "Recent metrics show overreaching: HRV is well below baseline, sleep is poor, RHR elevated. Athlete is mid-block and wants to keep training, but the plan should pull volume back and prioritize recovery before resuming progression.",
+  "profile": {
+    "age": 40,
+    "height": 176,
+    "weight": 168,
+    "sex": "male",
+    "training_experience": "advanced"
+  },
+  "goals": {
+    "body_goal": "maintain",
+    "emphasis": "endurance",
+    "days_per_week": 6,
+    "lifting_days": 2,
+    "training_for_race": false,
+    "race_type": null,
+    "race_date": null,
+    "goal_time": null,
+    "does_cardio": true,
+    "cardio_types": ["run", "bike"]
+  },
+  "recentActivity": {
+    "avgRunPaceMinKm": 4.9,
+    "avgRunDistanceKm": 11,
+    "avgRunHr": 162,
+    "weeklyRunCount": 5,
+    "weeklyLiftCount": 2,
+    "avgLiftDurationMin": 50,
+    "avgHrv": 42,
+    "avgSleepHours": 6.1
+  },
+  "factsBlock": "Recent state (MUST RESPECT):\n- HRV dropped from 7-day avg of 58 to 42 over the past 5 days (~28% drop).\n- Sleep averaging 6.1h, well below the athlete's normal 7.5h.\n- Athlete reports leg heaviness and unusually high RPE on easy runs.\n- No race on the horizon — this is general fitness training.",
+  "weeks": 2,
+  "must_have": [
+    "Week 1 is a deload — total volume cut 30-40% vs typical training",
+    "At most ONE quality session in Week 1 (or zero — easy/recovery only is also valid)",
+    "Easy/recovery sessions dominate (>85% of total volume at low intensity)",
+    "Week 2 begins gradual reload only if recovery would have improved (still conservative — no return to prior peak volume)",
+    "Plan narrative or risks section explicitly references the recovery markers"
+  ],
+  "must_not_have": [
+    "Multiple quality sessions in Week 1 (VO2max + threshold + long run is wrong here)",
+    "Long run >15km in Week 1",
+    "Heavy lifting sessions (RPE >7) in Week 1",
+    "Treating this like a normal training week"
+  ]
+}

@@ -14,7 +14,7 @@ export class AnthropicProvider implements LLMProvider {
 
   constructor(cfg: AnthropicProviderConfig) {
     this.client = new Anthropic({ apiKey: cfg.apiKey });
-    this.model = cfg.model ?? "claude-sonnet-4-20250514";
+    this.model = cfg.model ?? "claude-sonnet-4-6";
   }
 
   async complete(opts: CompleteOptions): Promise<string> {

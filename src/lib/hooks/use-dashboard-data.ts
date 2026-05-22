@@ -86,11 +86,22 @@ export interface ZoneBoundary {
   high: number;
 }
 
+export interface HrZoneScopeData {
+  boundaries: ZoneBoundary[];
+  mode?: "custom" | "percent_hrr" | "percent_max" | "percent_threshold";
+  syncedAt: string | null;
+}
+
 export interface UserHrZones {
   source: "custom" | "garmin" | "legacy";
   mode?: "custom" | "percent_hrr" | "percent_max" | "percent_threshold";
   boundaries: ZoneBoundary[];
   syncedAt: string | null;
+  bySport?: {
+    global?: HrZoneScopeData;
+    run?: HrZoneScopeData;
+    bike?: HrZoneScopeData;
+  };
 }
 
 export interface UserPowerZones {

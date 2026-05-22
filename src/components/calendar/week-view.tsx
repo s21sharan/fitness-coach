@@ -98,7 +98,7 @@ export function WeekView({ data, units, onWorkoutClick, onCardioClick, onPlanned
               background: "#fafafa", border: "1px solid #f3f4f6", borderRadius: 10,
               minWidth: 150,
             }}>
-              <DayCell day={day} variant="tall" units={units} hrZoneBoundaries={data.hrZones?.boundaries ?? null} linkedActuals={data.linkedActuals} onWorkoutClick={onWorkoutClick} onCardioClick={onCardioClick} onPlannedClick={onPlannedClick} />
+              <DayCell day={day} variant="tall" units={units} hrZones={data.hrZones ?? null} linkedActuals={data.linkedActuals} onWorkoutClick={onWorkoutClick} onCardioClick={onCardioClick} onPlannedClick={onPlannedClick} />
             </div>
           ))}
         </div>

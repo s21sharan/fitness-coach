@@ -143,10 +143,14 @@ export async function generateTrainingPlan(input: GeneratePlanInput): Promise<{
   });
 
   const { object: plan } = await generateObject({
-    model: anthropic("claude-sonnet-4-20250514"),
+    model: anthropic("claude-sonnet-4-6"),
     schema: planGenerationSchema,
     system: PLAN_SYSTEM_PROMPT,
     prompt: userPrompt,
+    // jsonTool avoids the strict structured-output grammar limit (≤24 optional
+    // params) that the default "auto" mode enforces — our contract schema
+    // flattens to far more optional fields than that.
+    providerOptions: { anthropic: { structuredOutputMode: "jsonTool" } },
   });
 
   const supabase = createServerClient();
@@ -379,10 +383,18 @@ export interface GenerateMultiWeekInput {
    * `formatFactsForPlanPrompt(facts)` so we don't duplicate that logic.
    */
   factsBlock?: string | null;
+  /**
+   * Eval/test injection point. When provided, the planner skips the
+   * Supabase fetch for recent activity and uses these stats directly.
+   * Production callers should leave this undefined.
+   */
+  overrideRecentActivity?: RecentActivity | null;
 }
 
 export async function generateMultiWeekPlan(input: GenerateMultiWeekInput): Promise<MultiWeekPlan> {
-  const recentActivity = await getRecentActivityStats(input.userId);
+  const recentActivity = input.overrideRecentActivity !== undefined
+    ? input.overrideRecentActivity
+    : await getRecentActivityStats(input.userId);
 
   const ctx: MultiWeekPromptContext = {
     age: input.profile.age,
@@ -413,10 +425,14 @@ export async function generateMultiWeekPlan(input: GenerateMultiWeekInput): Prom
   }
 
   const { object: plan } = await generateObject({
-    model: anthropic("claude-sonnet-4-20250514"),
+    model: anthropic("claude-sonnet-4-6"),
     schema: multiWeekPlanSchema,
     system: MULTI_WEEK_SYSTEM_PROMPT,
     prompt,
+    // jsonTool avoids the strict structured-output grammar limit (≤24 optional
+    // params) that the default "auto" mode enforces — our contract schema
+    // flattens to far more optional fields than that.
+    providerOptions: { anthropic: { structuredOutputMode: "jsonTool" } },
   });
 
   return plan;

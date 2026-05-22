@@ -124,7 +124,7 @@ TOTALS (90 days):
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 300,
       messages: [{ role: "user", content: prompt }],
       system: "You are a sports science coach analyzing an athlete's training data. Be concise, specific to their numbers, and actionable. Use plain language, not jargon. Do not use markdown formatting or bullet points — write in flowing sentences.",

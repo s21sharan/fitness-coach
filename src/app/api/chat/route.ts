@@ -114,7 +114,7 @@ export async function POST(request: Request) {
       })), { role: "user" as const, content: lastUserMessage.content }];
 
   const result = streamText({
-    model: anthropic("claude-sonnet-4-20250514"),
+    model: anthropic("claude-sonnet-4-6"),
     system: systemPrompt,
     messages: finalMessages,
     tools: {
