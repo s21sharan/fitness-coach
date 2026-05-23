@@ -8,6 +8,8 @@ import { getActiveBlock } from "@/lib/training/blocks";
 import type { PlannedWorkoutTargets } from "@/lib/training/workout-contract";
 import { fetchActiveFacts } from "@/lib/athlete-context/facts";
 import { formatFactsForPlanPrompt } from "@/lib/athlete-context/format";
+import { ensureActiveSpec, specToPayload } from "@/lib/training/spec/store";
+import { checkPlanAgainstSpec } from "@/lib/training/spec/check-plan";
 
 export function regeneratePlanTool(userId: string) {
   return tool({
@@ -110,6 +112,12 @@ export function regeneratePlanTool(userId: string) {
       const activeFacts = await fetchActiveFacts(userId);
       const factsBlock = formatFactsForPlanPrompt(activeFacts);
 
+      // Per-athlete constraint spec: injected into the planner + enforced via a
+      // bounded repair loop inside generateMultiWeekPlan. Lazily backfilled for
+      // athletes who onboarded before specs existed.
+      const spec = await ensureActiveSpec(userId);
+      const specPayload = spec ? specToPayload(spec) : null;
+
       const plan = await generateMultiWeekPlan({
         userId,
         profile: {
@@ -135,7 +143,15 @@ export function regeneratePlanTool(userId: string) {
         compliance: complianceText,
         userRequest: user_request,
         factsBlock,
+        spec: specPayload,
       });
+
+      // Re-check the final plan and surface any residual blocker the repair loop
+      // couldn't resolve. Per the design, we escalate (flag a possibly-stale
+      // constraint) rather than silently loosening the spec during generation.
+      const residual = specPayload
+        ? checkPlanAgainstSpec(plan, specPayload.constraints).filter((v) => v.severity === "blocker")
+        : [];
 
       // Format multi-week display for PlanProposalCard
       const weekLayouts = plan.weeks.map((week) => ({
@@ -167,6 +183,11 @@ export function regeneratePlanTool(userId: string) {
         body_goal: goals?.body_goal || "general_fitness",
         race_type: goals?.race_type || null,
         block_id: activeBlock?.id ?? null,
+        constraint_violations: residual.map((v) => v.detail),
+        constraint_escalation:
+          residual.length > 0
+            ? "This plan could not fully satisfy the athlete's hard constraints. Do NOT silently ignore this. Either revise, or if you believe a constraint is now stale (the athlete's situation changed), tell the athlete and use update_constraints with a grounded justification — never loosen a constraint just to make the plan pass."
+            : null,
       };
     },
   });

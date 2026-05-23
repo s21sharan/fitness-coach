@@ -84,6 +84,15 @@ Top nav bar with three tabs: **Calendar** | **Coach** | **Settings**
 - Compliance tracking: matches planned sessions to actual Hevy/Strava data
 - Plan accept/reject: `/api/plan/accept` saves proposed plan + creates 2 weeks of `planned_workouts`
 
+### Coaching Constraint Spec (per-athlete scheduling guardrails)
+- **Purpose:** improve the coach's scheduling reliability without hardcoding global rules. Each athlete has a machine-checkable constraint spec; plans are hard-checked against it and repaired on violation.
+- **Code:** `src/lib/training/spec/` — `schema.ts` (Zod spec + `SpecConstraints`), `movement.ts` (exercise→movement-pattern classifier, reuses `exercise-muscles.ts`), `check-spec.ts` (internal-consistency hard check), `check-plan.ts` (`checkPlanAgainstSpec` — slot-aware hour math closes the AM/PM gaming loophole), `render.ts` (spec→prompt, violations→repair prompt), `author.ts` (LLM authors spec from athlete context), `review.ts` (supervisor reasonableness review), `context.ts`, `store.ts` (versioned persistence + `mutateSpec` pipeline + `ensureActiveSpec` lazy backfill).
+- **Constraints are per-athlete values, NOT global rules:** days/week, lifting days, `max_quality_sessions_per_week` (e.g. 3 for an advanced athlete), `min_hours_between_heavy_lower_and_quality_run` (default 48), `allow_quality_back_to_back`, `max_weekly_volume_increase_pct`, `forbidden_movement_patterns` (injuries), `forbidden_modalities`, `required_modality_days` (e.g. swim only Tue/Thu).
+- **Lifecycle (one pipeline for every mutation):** `propose → hard-check (consistency) → supervisor review → persist new active version` (append-only, versioned, `justification` stored per version). Seeded fire-and-forget at onboarding (`authorOnboardingSpec`), lazily backfilled for pre-existing athletes via `ensureActiveSpec`.
+- **Enforcement:** `generateMultiWeekPlan` takes an optional `spec`, injects it into the planner context, checks the output, and runs a bounded targeted-repair loop (`MAX_SPEC_REPAIRS=2`) with concrete per-violation feedback. Generation is READ-ONLY on the spec; residual blockers are escalated to the coach (`constraint_escalation` in `regenerate_plan`), never silently loosened.
+- **Editing:** coach `update_constraints` tool edits the spec — separate from generation, requires an athlete-grounded justification, gated by hard-check + supervisor.
+- **Migration:** `022_athlete_specs.sql` (versioned table, one active per user). Evals: `EVAL_USE_SPEC=1 npm run evals` authors a spec per scenario and enforces it.
+
 ### Exercise → Muscle Mapping
 - `src/lib/exercise-muscles.ts` — keyword-based fuzzy matching of Hevy exercise names to 11 muscle groups
 - `computeMuscleVolume()` computes sets + volume per muscle group

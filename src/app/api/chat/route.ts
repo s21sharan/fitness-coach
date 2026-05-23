@@ -27,6 +27,7 @@ import {
   modifyPlannedWorkoutsTool,
   deletePlannedWorkoutsTool,
   swapPlannedWorkoutsTool,
+  updateConstraintsTool,
 } from "@/lib/chat/tools";
 import { getCheckinHistoryTool } from "@/lib/chat/tools/get-checkin-history";
 import { promptCheckinTool } from "@/lib/chat/tools/prompt-checkin";
@@ -134,6 +135,7 @@ export async function POST(request: Request) {
       swap_planned_workouts: swapPlannedWorkoutsTool(userId),
       get_checkin_history: getCheckinHistoryTool(userId),
       prompt_checkin: promptCheckinTool(),
+      update_constraints: updateConstraintsTool(userId),
     },
     stopWhen: stepCountIs(5),
     onFinish: async (event) => {

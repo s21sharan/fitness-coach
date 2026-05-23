@@ -7,6 +7,9 @@ import { PLAN_SYSTEM_PROMPT, buildUserPrompt, type RecentActivity, MULTI_WEEK_SY
 import { estimateDurationMin, type WorkoutContractV1, type ContractStep, type PlannedWorkoutTargets } from "./workout-contract";
 import { getNextBlockType, blockTypeLabel } from "./phase-rules";
 import { createBlock } from "./blocks";
+import type { SpecPayload } from "./spec/schema";
+import { checkPlanAgainstSpec, hasBlockers } from "./spec/check-plan";
+import { renderSpecForPrompt, renderViolationsForRepair } from "./spec/render";
 
 interface GeneratePlanInput {
   userId: string;
@@ -389,7 +392,18 @@ export interface GenerateMultiWeekInput {
    * Production callers should leave this undefined.
    */
   overrideRecentActivity?: RecentActivity | null;
+  /**
+   * Per-athlete constraint spec. When provided, its hard constraints are
+   * injected into the planner's context AND the generated plan is checked
+   * against them; blocker violations trigger a bounded targeted-repair loop.
+   * Callers fetch/author this (see spec/store) and pass it in. Eval scenarios
+   * pass a spec to exercise the full loop.
+   */
+  spec?: SpecPayload | null;
 }
+
+/** Max targeted-repair re-generations before we ship the best effort + escalate. */
+const MAX_SPEC_REPAIRS = 2;
 
 export async function generateMultiWeekPlan(input: GenerateMultiWeekInput): Promise<MultiWeekPlan> {
   const recentActivity = input.overrideRecentActivity !== undefined
@@ -424,16 +438,39 @@ export async function generateMultiWeekPlan(input: GenerateMultiWeekInput): Prom
     prompt += `\n\nThe user specifically requested: ${input.userRequest}`;
   }
 
-  const { object: plan } = await generateObject({
-    model: anthropic("claude-sonnet-4-6"),
-    schema: multiWeekPlanSchema,
-    system: MULTI_WEEK_SYSTEM_PROMPT,
-    prompt,
-    // jsonTool avoids the strict structured-output grammar limit (≤24 optional
-    // params) that the default "auto" mode enforces — our contract schema
-    // flattens to far more optional fields than that.
-    providerOptions: { anthropic: { structuredOutputMode: "jsonTool" } },
-  });
+  if (input.spec) {
+    prompt += `\n\n${renderSpecForPrompt(input.spec)}`;
+  }
+
+  const generate = async (p: string): Promise<MultiWeekPlan> => {
+    const { object } = await generateObject({
+      model: anthropic("claude-sonnet-4-6"),
+      schema: multiWeekPlanSchema,
+      system: MULTI_WEEK_SYSTEM_PROMPT,
+      prompt: p,
+      // jsonTool avoids the strict structured-output grammar limit (≤24 optional
+      // params) that the default "auto" mode enforces — our contract schema
+      // flattens to far more optional fields than that.
+      providerOptions: { anthropic: { structuredOutputMode: "jsonTool" } },
+    });
+    return object;
+  };
+
+  let plan = await generate(prompt);
+
+  // Hard-check the plan against the athlete's spec and repair blocker
+  // violations with targeted feedback. Generation is read-only on the spec —
+  // we fix the PLAN, never loosen the constraints. After MAX_SPEC_REPAIRS we
+  // ship the best effort; callers re-check and escalate residual blockers.
+  if (input.spec) {
+    let violations = checkPlanAgainstSpec(plan, input.spec.constraints);
+    for (let attempt = 0; attempt < MAX_SPEC_REPAIRS && hasBlockers(violations); attempt++) {
+      const blockers = violations.filter((v) => v.severity === "blocker");
+      const repairPrompt = `${prompt}\n\n${renderViolationsForRepair(blockers)}`;
+      plan = await generate(repairPrompt);
+      violations = checkPlanAgainstSpec(plan, input.spec.constraints);
+    }
+  }
 
   return plan;
 }
