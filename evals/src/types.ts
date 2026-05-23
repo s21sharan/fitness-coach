@@ -1,4 +1,5 @@
 import type { RecentActivity } from "@/lib/training/prompts";
+import type { SpecPayload } from "@/lib/training/spec/schema";
 
 /**
  * Self-contained athlete scenario. Loaded from JSON files in evals/scenarios.
@@ -30,6 +31,11 @@ export interface Scenario {
   recentActivity: RecentActivity | null;
   /** Pre-rendered facts block (preferences, injuries, schedule constraints). */
   factsBlock?: string | null;
+  /**
+   * Optional hand-authored constraint spec. When omitted and EVAL_USE_SPEC is
+   * set, the runner authors one from this scenario's context.
+   */
+  spec?: SpecPayload | null;
   /** Number of weeks the plan should cover. */
   weeks: number;
   /** What the plan MUST do. Judge will check each statement and score adherence. */

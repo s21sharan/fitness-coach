@@ -27,6 +27,9 @@ import type {
 import { getDefaultAthleteProfile, proteinGramsFromTier } from "@/lib/onboarding/types";
 import { isValidIanaTimeZone } from "@/lib/dates/local-calendar";
 import { seedPlannedWorkoutsFromOnboardingPreview } from "@/lib/training/seed-plan-from-onboarding";
+import { gatherSpecAuthorContext } from "@/lib/training/spec/context";
+import { authorSpecPayload } from "@/lib/training/spec/author";
+import { mutateSpec } from "@/lib/training/spec/store";
 
 interface ActionResult {
   success: boolean;
@@ -634,6 +637,12 @@ export async function commitOnboardingData(
     if (!seed.ok) return failWith("planned_workouts", seed.error);
   }
 
+  // 12c. author the athlete's coaching constraint spec in the background from
+  // the freshly committed profile/goals/facts. Fire-and-forget so onboarding
+  // stays snappy; if it doesn't finish, ensureActiveSpec backfills it lazily on
+  // first plan generation. A failure here must never block onboarding.
+  void authorOnboardingSpec(userId);
+
   // 13. flip onboarding_completed + delete draft
   {
     const { error } = await supabase
@@ -654,6 +663,24 @@ export async function commitOnboardingData(
 function failWith(table: string, msg: string): ActionResult {
   console.error(`commitOnboardingData(${table}) failed:`, msg);
   return { success: false, error: `Failed to save ${table}: ${msg}` };
+}
+
+/** Author the initial constraint spec from onboarding data. Best-effort. */
+async function authorOnboardingSpec(userId: string): Promise<void> {
+  try {
+    const ctx = await gatherSpecAuthorContext(userId);
+    const proposed = await authorSpecPayload(ctx);
+    const result = await mutateSpec({
+      userId,
+      ctx,
+      proposed,
+      source: "onboarding",
+      justification: "Initial spec authored from onboarding profile, goals, and stated preferences/injuries.",
+    });
+    if (!result.ok) console.error("onboarding spec authoring rejected:", result);
+  } catch (e) {
+    console.error("onboarding spec authoring failed (will backfill lazily):", e);
+  }
 }
 
 function mapBodyGoal(

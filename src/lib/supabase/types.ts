@@ -687,6 +687,35 @@ export type Database = {
         };
         Update: Partial<Database["public"]["Tables"]["athlete_facts"]["Insert"]>;
       };
+      athlete_specs: {
+        Row: {
+          id: string;
+          user_id: string;
+          version: number;
+          status: "draft" | "active" | "superseded" | "archived";
+          constraints: Record<string, unknown>;
+          notes: string[];
+          justification: string;
+          source: "onboarding" | "backfill" | "coach_edit" | "reonboarding";
+          supersedes_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          version?: number;
+          status?: "draft" | "active" | "superseded" | "archived";
+          constraints: Record<string, unknown>;
+          notes?: string[];
+          justification?: string;
+          source: "onboarding" | "backfill" | "coach_edit" | "reonboarding";
+          supersedes_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["athlete_specs"]["Insert"]>;
+      };
       chat_conversations: {
         Row: {
           id: string;

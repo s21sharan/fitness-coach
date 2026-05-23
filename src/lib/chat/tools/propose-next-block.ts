@@ -6,6 +6,7 @@ import { fetchActiveFacts } from "@/lib/athlete-context/facts";
 import { formatFactsForPlanPrompt } from "@/lib/athlete-context/format";
 import { getNextBlockType, blockTypeLabel } from "@/lib/training/phase-rules";
 import { getActiveBlock, getBlockComplianceStats, getRecoveryTrends, createBlock } from "@/lib/training/blocks";
+import { ensureActiveSpec, specToPayload } from "@/lib/training/spec/store";
 
 export function proposeNextBlockTool(userId: string) {
   return tool({
@@ -72,6 +73,9 @@ export function proposeNextBlockTool(userId: string) {
       const activeFacts = await fetchActiveFacts(userId);
       const factsBlock = formatFactsForPlanPrompt(activeFacts);
 
+      const spec = await ensureActiveSpec(userId);
+      const specPayload = spec ? specToPayload(spec) : null;
+
       const multiWeekPlan = await generateMultiWeekPlan({
         userId,
         profile: {
@@ -99,6 +103,7 @@ export function proposeNextBlockTool(userId: string) {
           ? `${user_request}. Recommended phase: ${blockTypeLabel(nextBlockType)}`
           : `Generate a ${blockTypeLabel(nextBlockType)} block.`,
         factsBlock,
+        spec: specPayload,
       });
 
       // Calculate dates

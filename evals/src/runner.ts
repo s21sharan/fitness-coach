@@ -1,11 +1,43 @@
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
 import { generateMultiWeekPlan } from "@/lib/training/generate-plan";
+import { authorSpecPayload } from "@/lib/training/spec/author";
+import type { SpecAuthorContext } from "@/lib/training/spec/context";
+import type { SpecPayload } from "@/lib/training/spec/schema";
 import { renderPlanForJudge } from "./plan-summary";
 import { judgePlan, JUDGE_MODEL } from "./judge";
 import type { JudgeVerdict, RunReport, Scenario, ScenarioResult } from "./types";
 
 const PLANNER_MODEL = "claude-sonnet-4-6"; // mirrors src/lib/training/generate-plan.ts
+
+// When set, exercise the full spec pipeline: author a per-athlete constraint
+// spec from each scenario and enforce it (with repair) during generation.
+const USE_SPEC = !!process.env.EVAL_USE_SPEC && process.env.EVAL_USE_SPEC !== "0";
+
+function scenarioToAuthorContext(s: Scenario): SpecAuthorContext {
+  return {
+    profile: {
+      age: s.profile.age,
+      sex: s.profile.sex,
+      height: s.profile.height,
+      weight: s.profile.weight,
+      training_experience: s.profile.training_experience,
+    },
+    goals: {
+      body_goal: s.goals.body_goal,
+      emphasis: s.goals.emphasis,
+      days_per_week: s.goals.days_per_week,
+      lifting_days: s.goals.lifting_days,
+      training_for_race: s.goals.training_for_race,
+      race_type: s.goals.race_type,
+      race_date: s.goals.race_date,
+      does_cardio: s.goals.does_cardio,
+      cardio_types: s.goals.cardio_types,
+    },
+    factsBlock: s.factsBlock ?? null,
+    recentActivity: s.recentActivity,
+  };
+}
 
 const SCENARIOS_DIR = join(process.cwd(), "evals", "scenarios");
 const RESULTS_DIR = join(process.cwd(), "evals", "results");
@@ -49,6 +81,11 @@ async function runScenarioWithBackoff(scenario: Scenario, maxRetries = 3): Promi
 export async function runScenario(scenario: Scenario): Promise<ScenarioResult> {
   const t0 = Date.now();
   try {
+    let spec: SpecPayload | null = scenario.spec ?? null;
+    if (!spec && USE_SPEC) {
+      spec = await authorSpecPayload(scenarioToAuthorContext(scenario));
+    }
+
     const plan = await generateMultiWeekPlan({
       userId: `eval-${scenario.id}`,
       profile: scenario.profile,
@@ -57,6 +94,7 @@ export async function runScenario(scenario: Scenario): Promise<ScenarioResult> {
       compliance: null,
       factsBlock: scenario.factsBlock ?? null,
       overrideRecentActivity: scenario.recentActivity,
+      spec,
     });
 
     const planSummary = renderPlanForJudge(plan);

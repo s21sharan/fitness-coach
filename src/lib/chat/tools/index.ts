@@ -12,3 +12,4 @@ export { createPlannedWorkoutsBatchTool } from "./create-planned-workouts-batch"
 export { modifyPlannedWorkoutsTool } from "./modify-planned-workouts";
 export { deletePlannedWorkoutsTool } from "./delete-planned-workouts";
 export { swapPlannedWorkoutsTool } from "./swap-planned-workouts";
+export { updateConstraintsTool } from "./update-constraints";
