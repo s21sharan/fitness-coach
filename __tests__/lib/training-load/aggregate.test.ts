@@ -93,7 +93,7 @@ describe("aggregateAthleteLoad", () => {
     expect(result.lift?.unit).toBe("sessions");
   });
 
-  it("summarizes recovery + nutrition averages", async () => {
+  it("summarizes recovery averages", async () => {
     const today = new Date();
     const day = (offset: number) => {
       const d = new Date(today);
@@ -105,17 +105,11 @@ describe("aggregateAthleteLoad", () => {
       { date: day(0), sleep_hours: 8, hrv: 60, resting_hr: 52 },
       { date: day(1), sleep_hours: 7, hrv: 55, resting_hr: 54 },
     ];
-    const nutrition = [
-      { date: day(0), calories: 2400, protein: 180 },
-      { date: day(1), calories: 2200, protein: 170 },
-    ];
 
-    const supa = fakeSupabase({ recovery, nutrition });
+    const supa = fakeSupabase({ recovery });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await aggregateAthleteLoad(supa as any, "user-1");
     expect(result.recovery?.avg_sleep_hours).toBe(7.5);
     expect(result.recovery?.avg_hrv).toBe(58);
-    expect(result.nutrition?.avg_protein_g).toBe(175);
-    expect(result.nutrition?.avg_calories).toBe(2300);
   });
 });

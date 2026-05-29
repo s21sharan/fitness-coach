@@ -28,13 +28,14 @@ export async function POST(req: Request) {
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const since7 = sevenDaysAgo.toISOString().slice(0, 10);
 
-  const [recoveryRes, workoutsTodayRes, cardioTodayRes, workoutsHistRes, plannedRes, recovery7Res] = await Promise.all([
+  const [recoveryRes, workoutsTodayRes, cardioTodayRes, workoutsHistRes, plannedRes, recovery7Res, eventsRes] = await Promise.all([
     supabase.from("recovery_logs").select("sleep_hours, sleep_score, hrv, resting_hr, body_battery, stress_level, steps").eq("user_id", userId).eq("date", date).single(),
     supabase.from("workout_logs").select("name, duration_minutes, exercises").eq("user_id", userId).eq("is_suppressed", false).eq("date", date),
     supabase.from("cardio_logs").select("type, distance, duration, avg_hr, pace_or_speed, calories, elevation").eq("user_id", userId).eq("is_suppressed", false).eq("date", date),
     supabase.from("workout_logs").select("date, exercises").eq("user_id", userId).eq("is_suppressed", false).gte("date", since14),
     supabase.from("planned_workouts").select("session_type").eq("date", date).limit(1),
     supabase.from("recovery_logs").select("hrv").eq("user_id", userId).gte("date", since7),
+    supabase.from("athlete_events").select("name, event_date, priority, goal_time").eq("user_id", userId).gte("event_date", date).order("event_date", { ascending: true }).limit(5),
   ]);
 
   const recovery = recoveryRes.data;
@@ -42,6 +43,13 @@ export async function POST(req: Request) {
   const cardioToday = cardioTodayRes.data || [];
   const workoutsHist = workoutsHistRes.data || [];
   const plannedToday = (plannedRes.data?.[0] as { session_type?: string } | undefined)?.session_type || null;
+
+  const upcomingEvents = (eventsRes.data || []).map((ev: { name: string; event_date: string; priority: string | null; goal_time: string | null }) => {
+    const target = new Date(ev.event_date + "T00:00:00");
+    const today = new Date(date + "T00:00:00");
+    const days_away = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return { ...ev, days_away };
+  });
 
   // No data at all — return empty
   if (!recovery && workoutsToday.length === 0 && cardioToday.length === 0) {
@@ -61,7 +69,7 @@ export async function POST(req: Request) {
   );
 
   // Hash all data for cache invalidation
-  const dataForHash = JSON.stringify({ recovery, workoutsToday, cardioToday, trainingHistory });
+  const dataForHash = JSON.stringify({ recovery, workoutsToday, cardioToday, trainingHistory, upcomingEvents });
   const dataHash = createHash("md5").update(dataForHash).digest("hex");
 
   // Check cache
@@ -97,6 +105,7 @@ export async function POST(req: Request) {
     })),
     plannedToday,
     trainingHistory,
+    upcomingEvents,
   });
 
   // Generate via Claude

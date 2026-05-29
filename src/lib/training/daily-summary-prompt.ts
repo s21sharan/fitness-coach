@@ -34,6 +34,7 @@ export interface DailySummaryPromptInput {
   cardioToday: CardioData[];
   plannedToday: string | null;
   trainingHistory: TrainingHistory;
+  upcomingEvents?: { name: string; event_date: string; priority: string | null; goal_time: string | null; days_away: number }[];
 }
 
 export const DAILY_SUMMARY_SYSTEM_PROMPT = `You are a concise sports coach writing a daily briefing for a serious athlete.
@@ -136,6 +137,18 @@ export function buildDailySummaryPrompt(input: DailySummaryPromptInput): string 
       parts.push(`${e.sessions} session${e.sessions > 1 ? "s" : ""}`);
       if (e.sessions >= 2) parts.push(`(${e.progression})`);
       lines.push(`- ${e.name}: ${parts.join(", ")}`);
+    }
+    lines.push("");
+  }
+
+  // Upcoming races
+  if (input.upcomingEvents && input.upcomingEvents.length > 0) {
+    lines.push("UPCOMING RACES:");
+    for (const ev of input.upcomingEvents) {
+      const parts = [`${ev.name} (${ev.priority || "?"} race)`];
+      parts.push(`${ev.event_date} — ${ev.days_away} days away`);
+      if (ev.goal_time) parts.push(`goal: ${ev.goal_time}`);
+      lines.push(`- ${parts.join(", ")}`);
     }
     lines.push("");
   }

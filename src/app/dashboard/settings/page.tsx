@@ -11,6 +11,7 @@ import { getUnitPreferences, saveUnitPreferences, type DistanceUnit, type Weight
 import { getCheckinPreferences, saveCheckinPreferences, type CheckinPreferences } from "@/lib/checkin-preferences";
 import { isBetaAcknowledged, setBetaAcknowledged } from "@/lib/beta-features";
 import { TrainingZonesPanel } from "@/components/settings/training-zones-panel";
+import { RaceAutocomplete, type RaceSearchResult } from "@/components/shared/race-autocomplete";
 
 interface IntegrationStatus {
   provider: string;
@@ -42,6 +43,7 @@ const COMING_SOON = [
 const NAV_ITEMS = [
   { id: "integrations", label: "Integrations" },
   { id: "preferences", label: "Preferences" },
+  { id: "events", label: "Races & Events" },
   { id: "zones", label: "Training Zones" },
   { id: "account", label: "Account" },
   { id: "goals", label: "Goals & body" },
@@ -58,6 +60,20 @@ export default function SettingsPage() {
   const [activeNav, setActiveNav] = useState("integrations");
   const [unitPrefs, setUnitPrefs] = useState<UnitPreferences>({ distance: "mi", weight: "lbs", swimDistance: "m" });
   const [checkinPrefs, setCheckinPrefs] = useState<CheckinPreferences>({ enabled: true, frequencyWeeks: 1 });
+  const [events, setEvents] = useState<Array<{
+    id: string;
+    name: string;
+    sport_type: string | null;
+    distance: string | null;
+    event_date: string | null;
+    priority: string | null;
+    goal_type: string | null;
+    goal_time: string | null;
+    course_notes: string | null;
+    travel: boolean;
+  }>>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
 
   const fetchStatuses = useCallback(async () => {
     const res = await fetch("/api/integrations/status");
@@ -81,6 +97,44 @@ export default function SettingsPage() {
       window.history.replaceState({}, "", "/dashboard/settings");
     }
   }, [fetchStatuses]);
+
+  useEffect(() => {
+    if (activeNav === "events") {
+      setEventsLoading(true);
+      fetch("/api/events?include_past=true")
+        .then((r) => r.json())
+        .then((d) => setEvents(d.events || []))
+        .catch(() => setEvents([]))
+        .finally(() => setEventsLoading(false));
+    }
+  }, [activeNav]);
+
+  const addEvent = async () => {
+    const res = await fetch("/api/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "", event_date: new Date().toISOString().slice(0, 10), priority: "A", sport_type: "running" }),
+    });
+    if (res.ok) {
+      const { event } = await res.json();
+      setEvents((prev) => [...prev, event]);
+      setEditingEventId(event.id);
+    }
+  };
+
+  const updateEvent = async (id: string, patch: Record<string, unknown>) => {
+    setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+    await fetch(`/api/events/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+  };
+
+  const deleteEvent = async (id: string) => {
+    setEvents((prev) => prev.filter((e) => e.id !== id));
+    await fetch(`/api/events/${id}`, { method: "DELETE" });
+  };
 
   const openConnect = (provider: string, type: string) => {
     if (type === "oauth") {
@@ -501,6 +555,169 @@ export default function SettingsPage() {
 
             {activeNav === "zones" && (
               <TrainingZonesPanel onToast={setToastMessage} />
+            )}
+
+            {activeNav === "events" && (
+              <div>
+                <h2 style={{ fontSize: 20, fontWeight: 800, color: "#111827", marginBottom: 4 }}>Races & Events</h2>
+                <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>Manage your upcoming races and goal events.</p>
+
+                {eventsLoading ? (
+                  <div style={{ color: "#9ca3af", fontSize: 13 }}>Loading events...</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {events.map((ev) => {
+                      const isEditing = editingEventId === ev.id;
+                      return (
+                        <div key={ev.id} style={{
+                          background: "#fff",
+                          border: "1px solid #e5e7eb",
+                          borderRadius: 12,
+                          padding: 18,
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 12,
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ flex: 1 }}>
+                              <RaceAutocomplete
+                                value={ev.name}
+                                onChange={(name) => updateEvent(ev.id, { name })}
+                                onSelectRace={(race: RaceSearchResult) => {
+                                  updateEvent(ev.id, {
+                                    name: race.name,
+                                    event_date: race.date,
+                                    sport_type: race.sport_type,
+                                    distance: race.distance,
+                                  });
+                                }}
+                                placeholder="Search races or type a name..."
+                                inputStyle={{ fontSize: 15, fontWeight: 700 }}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => deleteEvent(ev.id)}
+                              style={{
+                                padding: "8px 10px",
+                                borderRadius: 8,
+                                border: "1px solid #e5e7eb",
+                                background: "transparent",
+                                cursor: "pointer",
+                                color: "#9ca3af",
+                                fontFamily: "inherit",
+                                fontSize: 13,
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                            <div>
+                              <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 4, display: "block" }}>Date</label>
+                              <input
+                                type="date"
+                                value={ev.event_date ?? ""}
+                                onChange={(e) => updateEvent(ev.id, { event_date: e.target.value || null })}
+                                style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1.5px solid #e5e7eb", fontSize: 13, fontFamily: "inherit" }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 4, display: "block" }}>Goal time</label>
+                              <input
+                                type="text"
+                                value={ev.goal_time ?? ""}
+                                onChange={(e) => updateEvent(ev.id, { goal_time: e.target.value || null })}
+                                placeholder="3:50:00"
+                                style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1.5px solid #e5e7eb", fontSize: 13, fontFamily: "inherit" }}
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 4, display: "block" }}>Priority</label>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              {(["A", "B", "C"] as const).map((p) => (
+                                <button
+                                  key={p}
+                                  type="button"
+                                  onClick={() => updateEvent(ev.id, { priority: p })}
+                                  style={{
+                                    flex: 1,
+                                    padding: "8px",
+                                    borderRadius: 8,
+                                    border: ev.priority === p ? "2px solid #111827" : "1.5px solid #e5e7eb",
+                                    background: ev.priority === p ? "#111827" : "#fff",
+                                    color: ev.priority === p ? "#fff" : "#111827",
+                                    cursor: "pointer",
+                                    fontFamily: "inherit",
+                                    fontWeight: 700,
+                                    fontSize: 13,
+                                  }}
+                                >
+                                  {p} — {p === "A" ? "Goal" : p === "B" ? "Tune-up" : "Training"}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {!isEditing && (
+                            <button
+                              type="button"
+                              onClick={() => setEditingEventId(ev.id)}
+                              style={{ alignSelf: "flex-start", fontSize: 12, color: "#6b7280", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 700 }}
+                            >
+                              + More options
+                            </button>
+                          )}
+
+                          {isEditing && (
+                            <>
+                              <div>
+                                <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 4, display: "block" }}>Course notes</label>
+                                <textarea
+                                  value={ev.course_notes ?? ""}
+                                  onChange={(e) => updateEvent(ev.id, { course_notes: e.target.value })}
+                                  rows={2}
+                                  placeholder="Hilly, hot, altitude…"
+                                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1.5px solid #e5e7eb", fontSize: 13, fontFamily: "inherit", resize: "vertical" }}
+                                />
+                              </div>
+                              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#374151" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={ev.travel}
+                                  onChange={(e) => updateEvent(ev.id, { travel: e.target.checked })}
+                                />
+                                Travel involved
+                              </label>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      onClick={addEvent}
+                      style={{
+                        padding: "12px 16px",
+                        borderRadius: 10,
+                        border: "1.5px dashed #d1d5db",
+                        background: "transparent",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        color: "#6b7280",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      + Add race
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
 
             {activeNav === "account" && (

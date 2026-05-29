@@ -9,6 +9,7 @@ import {
   makeId,
 } from "@/lib/onboarding/types";
 import { inputStyle, labelStyle } from "./shared-styles";
+import { RaceAutocomplete, type RaceSearchResult } from "@/components/shared/race-autocomplete";
 
 interface EventListProps {
   events: AthleteEvent[];
@@ -124,14 +125,22 @@ function EventCard({
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <input
-          type="text"
-          value={ev.name}
-          onChange={(e) => onPatch({ name: e.target.value })}
-          placeholder="Event name (e.g. SF Marathon)"
-          style={{ ...inputStyle, fontSize: 16, fontWeight: 800 }}
-          onFocus={onEdit}
-        />
+        <div style={{ flex: 1 }} onFocus={onEdit}>
+          <RaceAutocomplete
+            value={ev.name}
+            onChange={(name) => onPatch({ name })}
+            onSelectRace={(race: RaceSearchResult) => {
+              onPatch({
+                name: race.name,
+                event_date: race.date,
+                sport_type: race.sport_type,
+                distance: race.distance,
+              });
+            }}
+            placeholder="Search races or type a name..."
+            inputStyle={{ ...inputStyle, fontSize: 16, fontWeight: 800 }}
+          />
+        </div>
         <button
           type="button"
           onClick={onRemove}

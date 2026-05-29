@@ -1,6 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { RaceCountdownStrip } from "./race-countdown-strip";
+
+interface RaceEvent {
+  id: string;
+  name: string;
+  event_date: string;
+  priority: string | null;
+}
 
 interface DailySummaryData {
   summary: string | null;
@@ -18,6 +26,7 @@ function formatGreeting(): string {
 export function DailySummaryCard() {
   const [data, setData] = useState<DailySummaryData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [events, setEvents] = useState<RaceEvent[]>([]);
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -30,6 +39,11 @@ export function DailySummaryCard() {
       .then((json) => setData(json))
       .catch(() => setData(null))
       .finally(() => setLoading(false));
+
+    fetch("/api/events")
+      .then((res) => res.json())
+      .then((json) => setEvents(json.events || []))
+      .catch(() => setEvents([]));
   }, []);
 
   // Error state — hide the card entirely
@@ -49,6 +63,7 @@ export function DailySummaryCard() {
         <div style={{ fontSize: 13, color: "#9ca3af", marginTop: 10 }}>
           No data synced for today yet.
         </div>
+        <RaceCountdownStrip events={events} />
       </div>
     );
   }
@@ -74,6 +89,8 @@ export function DailySummaryCard() {
           {data!.summary}
         </div>
       )}
+
+      {!loading && <RaceCountdownStrip events={events} />}
     </div>
   );
 }
