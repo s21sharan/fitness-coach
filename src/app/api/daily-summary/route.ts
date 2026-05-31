@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
 import { createHash } from "crypto";
 import { buildTrainingHistory } from "@/lib/training/training-history";
+import { trackTokenUsage } from "@/lib/usage/track";
 import { buildDailySummaryPrompt, DAILY_SUMMARY_SYSTEM_PROMPT } from "@/lib/training/daily-summary-prompt";
 
 export async function POST(req: Request) {
@@ -119,6 +120,13 @@ export async function POST(req: Request) {
     });
 
     const summary = message.content[0].type === "text" ? message.content[0].text : "";
+    trackTokenUsage({
+      userId,
+      source: "daily_summary",
+      model: "claude-sonnet-4-6",
+      inputTokens: message.usage.input_tokens,
+      outputTokens: message.usage.output_tokens,
+    });
     const now = new Date().toISOString();
 
     // Upsert cache

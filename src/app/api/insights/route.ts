@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
+import { trackTokenUsage } from "@/lib/usage/track";
 
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -131,6 +132,13 @@ TOTALS (90 days):
     });
 
     const text = message.content[0].type === "text" ? message.content[0].text : "";
+    trackTokenUsage({
+      userId,
+      source: "insights",
+      model: "claude-sonnet-4-6",
+      inputTokens: message.usage.input_tokens,
+      outputTokens: message.usage.output_tokens,
+    });
     return NextResponse.json({ insight: text });
   } catch (error) {
     console.error("Insights API error:", error);

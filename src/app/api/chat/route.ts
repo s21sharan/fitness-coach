@@ -33,6 +33,7 @@ import { getCheckinHistoryTool } from "@/lib/chat/tools/get-checkin-history";
 import { promptCheckinTool } from "@/lib/chat/tools/prompt-checkin";
 import { buildAthleteContext } from "@/lib/athlete-context/assembler";
 import { runChatExtractorJob } from "@/lib/chat/extractor-job";
+import { trackTokenUsage } from "@/lib/usage/track";
 
 export const maxDuration = 30;
 
@@ -145,8 +146,18 @@ export async function POST(request: Request) {
           await saveMessage(conversationId, "assistant", text, event.toolCalls);
         }
         if (firstUserMessageForTitle) {
-          const title = await generateConversationTitle(firstUserMessageForTitle, text);
+          const title = await generateConversationTitle(userId, firstUserMessageForTitle, text);
           if (title) await renameConversation(userId, conversationId, title);
+        }
+        // Track token usage
+        if (event.usage) {
+          trackTokenUsage({
+            userId,
+            source: "chat",
+            model: "claude-sonnet-4-6",
+            inputTokens: event.usage.promptTokens,
+            outputTokens: event.usage.completionTokens,
+          });
         }
         // Fire-and-forget fact extraction. Failures are logged but never block
         // the response, and durable memory is allowed to lag a few seconds.
@@ -169,17 +180,26 @@ export async function POST(request: Request) {
   });
 }
 
-async function generateConversationTitle(userMessage: string, assistantReply: string): Promise<string | null> {
+async function generateConversationTitle(userId: string, userMessage: string, assistantReply: string): Promise<string | null> {
   // Cheap fallback when the model call fails or isn't available.
   const fallback = userMessage.trim().split(/\s+/).slice(0, 6).join(" ").slice(0, 60) || "New chat";
   try {
-    const { text } = await generateText({
+    const { text, usage } = await generateText({
       model: anthropic("claude-haiku-4-5-20251001"),
       system:
         "You name a fitness-coach chat thread in 3-6 words. No quotes, no punctuation at the end, no leading 'Chat about'. Output only the title.",
       prompt: `User said: "${userMessage}"\nAssistant replied: "${assistantReply.slice(0, 400)}"`,
       maxOutputTokens: 30,
     });
+    if (usage) {
+      trackTokenUsage({
+        userId,
+        source: "title_gen",
+        model: "claude-haiku-4-5-20251001",
+        inputTokens: usage.promptTokens,
+        outputTokens: usage.completionTokens,
+      });
+    }
     const cleaned = text.trim().replace(/^["'`]+|["'`]+$/g, "").slice(0, 60);
     return cleaned || fallback;
   } catch {

@@ -47,7 +47,7 @@ export function RaceAutocomplete({
     try {
       const res = await fetch(`/api/races/search?q=${encodeURIComponent(query)}`);
       const data = await res.json();
-      setResults(data.results ?? []);
+      setResults(data.races ?? []);
       setShowDropdown(true);
       setSearched(true);
     } catch {
