@@ -15,4 +15,7 @@ export const config = {
   stravaClientSecret: required("STRAVA_CLIENT_SECRET"),
   stravaWebhookVerifyToken: process.env.STRAVA_WEBHOOK_VERIFY_TOKEN || "hybro-strava-verify",
   anthropicApiKey: required("ANTHROPIC_API_KEY"),
+  stripeSecretKey: required("STRIPE_SECRET_KEY"),
+  stripeWebhookSecret: required("STRIPE_WEBHOOK_SECRET"),
+  stripePriceId: required("STRIPE_PRICE_ID"),
 } as const;
