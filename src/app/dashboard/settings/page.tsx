@@ -49,8 +49,50 @@ const NAV_ITEMS = [
   { id: "goals", label: "Goals & body" },
   { id: "notifications", label: "Notifications" },
   { id: "privacy", label: "Privacy & data" },
+  { id: "usage", label: "AI Usage" },
   { id: "subscription", label: "Subscription" },
 ];
+
+function formatTokenCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+
+function sourceLabel(source: string): string {
+  const labels: Record<string, string> = {
+    chat: "AI Coach",
+    insights: "Chart Insights",
+    daily_summary: "Daily Summary",
+    plan_regenerate: "Plan Generation",
+    title_gen: "Title Generation",
+  };
+  return labels[source] || source;
+}
+
+function sourceColor(source: string): string {
+  const colors: Record<string, string> = {
+    chat: "var(--coral)",
+    insights: "var(--sky)",
+    daily_summary: "var(--mint)",
+    plan_regenerate: "#a78bfa",
+    title_gen: "var(--lemon)",
+  };
+  return colors[source] || "#9ca3af";
+}
+
+// Rough cost estimate: Sonnet input $3/MTok, output $15/MTok; Haiku input $0.80/MTok, output $4/MTok
+function estimateCost(bySource: Record<string, { input: number; output: number; count: number }>): string {
+  let cost = 0;
+  for (const [source, data] of Object.entries(bySource)) {
+    if (source === "title_gen") {
+      cost += (data.input / 1_000_000) * 0.8 + (data.output / 1_000_000) * 4;
+    } else {
+      cost += (data.input / 1_000_000) * 3 + (data.output / 1_000_000) * 15;
+    }
+  }
+  return cost < 0.01 ? "<0.01" : cost.toFixed(2);
+}
 
 export default function SettingsPage() {
   const [statuses, setStatuses] = useState<IntegrationStatus[]>([]);
@@ -74,6 +116,24 @@ export default function SettingsPage() {
   }>>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [usageData, setUsageData] = useState<{
+    month: string;
+    totalInput: number;
+    totalOutput: number;
+    totalTokens: number;
+    requestCount: number;
+    bySource: Record<string, { input: number; output: number; count: number }>;
+    daily: Array<{ date: string; input: number; output: number }>;
+  } | null>(null);
+  const [usageLoading, setUsageLoading] = useState(false);
+  const [subscription, setSubscription] = useState<{
+    active: boolean;
+    status?: string;
+    trialEnd?: string | null;
+    periodEnd?: string | null;
+    cancelAtPeriodEnd?: boolean;
+  } | null>(null);
+  const [subLoading, setSubLoading] = useState(true);
 
   const fetchStatuses = useCallback(async () => {
     const res = await fetch("/api/integrations/status");
@@ -97,6 +157,25 @@ export default function SettingsPage() {
       window.history.replaceState({}, "", "/dashboard/settings");
     }
   }, [fetchStatuses]);
+
+  useEffect(() => {
+    fetch("/api/stripe/status")
+      .then((r) => r.json())
+      .then(setSubscription)
+      .catch(() => setSubscription({ active: false }))
+      .finally(() => setSubLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (activeNav === "usage") {
+      setUsageLoading(true);
+      fetch("/api/usage")
+        .then((r) => r.json())
+        .then((d) => setUsageData(d))
+        .catch(() => setUsageData(null))
+        .finally(() => setUsageLoading(false));
+    }
+  }, [activeNav]);
 
   useEffect(() => {
     if (activeNav === "events") {
@@ -134,6 +213,22 @@ export default function SettingsPage() {
   const deleteEvent = async (id: string) => {
     setEvents((prev) => prev.filter((e) => e.id !== id));
     await fetch(`/api/events/${id}`, { method: "DELETE" });
+  };
+
+  const handleManageSubscription = async () => {
+    const res = await fetch("/api/stripe/portal", { method: "POST" });
+    const data = await res.json();
+    if (data.url) window.location.href = data.url;
+  };
+
+  const handleResubscribe = async () => {
+    const res = await fetch("/api/stripe/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ returnUrl: "/dashboard/settings", includeTrial: false }),
+    });
+    const data = await res.json();
+    if (data.url) window.location.href = data.url;
   };
 
   const openConnect = (provider: string, type: string) => {
@@ -206,6 +301,18 @@ export default function SettingsPage() {
       <Topbar title="Settings" subtitle="Integrations & account" />
 
       <div className="main">
+        {new URLSearchParams(typeof window !== "undefined" ? window.location.search : "").get("expired") === "true" && (
+          <div style={{
+            background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12,
+            padding: "12px 16px", marginBottom: 16,
+            display: "flex", alignItems: "center", gap: 8,
+          }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#dc2626" }}>
+              Your subscription has expired. Go to the Subscription tab to resubscribe.
+            </span>
+          </div>
+        )}
+
         {toastMessage && (
           <div
             style={{
@@ -769,15 +876,285 @@ export default function SettingsPage() {
               </div>
             )}
 
+            {activeNav === "usage" && (
+              <div>
+                <h2 style={{ fontSize: 20, fontWeight: 800, color: "var(--ink)", marginBottom: 4 }}>AI Usage</h2>
+                <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20 }}>
+                  Token usage for AI coach, insights, and other AI features this month.
+                </p>
+
+                {usageLoading ? (
+                  <div style={{ color: "var(--muted)", fontSize: 13 }}>Loading usage data...</div>
+                ) : !usageData ? (
+                  <div className="card" style={{ padding: 24 }}>
+                    <div style={{ fontSize: 13, color: "var(--muted)" }}>No usage data available yet.</div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    {/* Month header */}
+                    <div className="card" style={{
+                      padding: 24,
+                      background: "linear-gradient(135deg, var(--sky-soft) 0%, var(--surface) 100%)",
+                    }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>
+                        {new Date(usageData.month + "-01").toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+                        <div>
+                          <div style={{ fontSize: 28, fontWeight: 800, color: "var(--ink)" }}>
+                            {formatTokenCount(usageData.totalTokens)}
+                          </div>
+                          <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>Total tokens</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 28, fontWeight: 800, color: "var(--ink)" }}>
+                            {usageData.requestCount}
+                          </div>
+                          <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>API calls</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 28, fontWeight: 800, color: "var(--ink)" }}>
+                            ${estimateCost(usageData.bySource)}
+                          </div>
+                          <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>Est. cost</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Breakdown by source */}
+                    <div className="card" style={{ padding: 24 }}>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", marginBottom: 16 }}>
+                        Breakdown by feature
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                        {Object.entries(usageData.bySource).map(([source, data]) => {
+                          const total = data.input + data.output;
+                          const pct = usageData.totalTokens > 0 ? (total / usageData.totalTokens) * 100 : 0;
+                          return (
+                            <div key={source}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <div style={{
+                                    width: 8, height: 8, borderRadius: "50%",
+                                    background: sourceColor(source),
+                                  }} />
+                                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
+                                    {sourceLabel(source)}
+                                  </span>
+                                  <span style={{ fontSize: 11, color: "var(--muted)" }}>
+                                    {data.count} {data.count === 1 ? "call" : "calls"}
+                                  </span>
+                                </div>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-2)" }}>
+                                  {formatTokenCount(total)}
+                                </span>
+                              </div>
+                              <div style={{
+                                height: 6, borderRadius: 3,
+                                background: "var(--line)",
+                                overflow: "hidden",
+                              }}>
+                                <div style={{
+                                  height: "100%", borderRadius: 3,
+                                  background: sourceColor(source),
+                                  width: `${Math.max(pct, 1)}%`,
+                                  transition: "width 0.3s ease",
+                                }} />
+                              </div>
+                              <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
+                                <span style={{ fontSize: 11, color: "var(--muted)" }}>
+                                  In: {formatTokenCount(data.input)}
+                                </span>
+                                <span style={{ fontSize: 11, color: "var(--muted)" }}>
+                                  Out: {formatTokenCount(data.output)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {Object.keys(usageData.bySource).length === 0 && (
+                          <div style={{ fontSize: 13, color: "var(--muted)" }}>
+                            No AI usage recorded yet this month. Start chatting with your coach!
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Daily activity */}
+                    {usageData.daily.length > 0 && (
+                      <div className="card" style={{ padding: 24 }}>
+                        <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", marginBottom: 16 }}>
+                          Daily activity
+                        </div>
+                        <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 80 }}>
+                          {usageData.daily.map((day) => {
+                            const total = day.input + day.output;
+                            const maxTotal = Math.max(...usageData.daily.map((d) => d.input + d.output));
+                            const height = maxTotal > 0 ? (total / maxTotal) * 100 : 0;
+                            return (
+                              <div
+                                key={day.date}
+                                title={`${day.date}: ${formatTokenCount(total)} tokens`}
+                                style={{
+                                  flex: 1,
+                                  minWidth: 4,
+                                  maxWidth: 24,
+                                  height: `${Math.max(height, 4)}%`,
+                                  background: "var(--coral)",
+                                  borderRadius: "3px 3px 0 0",
+                                  opacity: 0.8,
+                                  cursor: "default",
+                                }}
+                              />
+                            );
+                          })}
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+                          <span style={{ fontSize: 10, color: "var(--muted)" }}>{usageData.daily[0]?.date}</span>
+                          <span style={{ fontSize: 10, color: "var(--muted)" }}>{usageData.daily[usageData.daily.length - 1]?.date}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Input vs Output breakdown */}
+                    <div className="card" style={{ padding: 24 }}>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", marginBottom: 16 }}>
+                        Token split
+                      </div>
+                      <div style={{ display: "flex", gap: 16 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", marginBottom: 4, textTransform: "uppercase" }}>Input</div>
+                          <div style={{ fontSize: 20, fontWeight: 800, color: "var(--ink)" }}>{formatTokenCount(usageData.totalInput)}</div>
+                          <div style={{ fontSize: 11, color: "var(--muted)" }}>
+                            {usageData.totalTokens > 0 ? Math.round((usageData.totalInput / usageData.totalTokens) * 100) : 0}% of total
+                          </div>
+                        </div>
+                        <div style={{ width: 1, background: "var(--line)" }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", marginBottom: 4, textTransform: "uppercase" }}>Output</div>
+                          <div style={{ fontSize: 20, fontWeight: 800, color: "var(--ink)" }}>{formatTokenCount(usageData.totalOutput)}</div>
+                          <div style={{ fontSize: 11, color: "var(--muted)" }}>
+                            {usageData.totalTokens > 0 ? Math.round((usageData.totalOutput / usageData.totalTokens) * 100) : 0}% of total
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeNav === "subscription" && (
               <div className="card" style={{ padding: 24 }}>
                 <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>Subscription</div>
-                <div style={{ display: "inline-block", background: "var(--mint-soft)", color: "var(--mint-deep)", padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 800, marginBottom: 12 }}>
-                  Free Plan
-                </div>
-                <div style={{ fontSize: 13, color: "var(--muted)" }}>
-                  You're on the free plan. All features are currently available during the MVP period.
-                </div>
+
+                {subLoading ? (
+                  <div style={{ fontSize: 13, color: "var(--muted)" }}>Loading...</div>
+                ) : !subscription?.active ? (
+                  <>
+                    <div style={{ display: "inline-block", background: "#fef2f2", color: "#dc2626", padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 800, marginBottom: 12 }}>
+                      No Active Plan
+                    </div>
+                    <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 16 }}>
+                      Your subscription has expired. Resubscribe to access your training data and AI coach.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleResubscribe}
+                      style={{
+                        padding: "10px 20px",
+                        borderRadius: 10,
+                        border: "none",
+                        background: "var(--coral)",
+                        color: "#fff",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      Resubscribe — $11.99/mo
+                    </button>
+                  </>
+                ) : subscription.status === "trialing" ? (
+                  <>
+                    <div style={{ display: "inline-block", background: "var(--sky-soft)", color: "var(--sky-deep, #2563eb)", padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 800, marginBottom: 12 }}>
+                      Free Trial
+                    </div>
+                    <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 16 }}>
+                      Your free trial ends on {subscription.trialEnd ? new Date(subscription.trialEnd).toLocaleDateString() : "—"}. Your card will be charged $11.99/mo after.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleManageSubscription}
+                      style={{
+                        padding: "10px 20px",
+                        borderRadius: 10,
+                        border: "1px solid var(--line)",
+                        background: "transparent",
+                        color: "var(--ink)",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      Cancel Trial
+                    </button>
+                  </>
+                ) : subscription.cancelAtPeriodEnd ? (
+                  <>
+                    <div style={{ display: "inline-block", background: "#fefce8", color: "#a16207", padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 800, marginBottom: 12 }}>
+                      Pro Plan — Cancelling
+                    </div>
+                    <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 16 }}>
+                      Your access continues until {subscription.periodEnd ? new Date(subscription.periodEnd).toLocaleDateString() : "—"}. After that, your subscription will end.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleManageSubscription}
+                      style={{
+                        padding: "10px 20px",
+                        borderRadius: 10,
+                        border: "none",
+                        background: "var(--coral)",
+                        color: "#fff",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      Resume Subscription
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display: "inline-block", background: "var(--mint-soft)", color: "var(--mint-deep)", padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 800, marginBottom: 12 }}>
+                      Pro Plan
+                    </div>
+                    <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 16 }}>
+                      $11.99/mo — Next billing date: {subscription.periodEnd ? new Date(subscription.periodEnd).toLocaleDateString() : "—"}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleManageSubscription}
+                      style={{
+                        padding: "10px 20px",
+                        borderRadius: 10,
+                        border: "1px solid var(--line)",
+                        background: "transparent",
+                        color: "var(--ink)",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      Manage Subscription
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
