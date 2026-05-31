@@ -383,20 +383,16 @@ export async function fetchAggregatedLoad() {
 }
 
 // ============================================================
-// Final commit — writes to all normalized tables
+// Core persistence helper — writes to all normalized athlete
+// tables but does NOT flip onboarding_completed or delete draft.
 // ============================================================
 
-export async function commitOnboardingData(
+async function persistProfileTables(
+  supabase: ReturnType<typeof createServerClient>,
+  userId: string,
   profile: AthleteContextProfile,
   calendarOpts?: { calendarWeekAnchorYmd?: string; calendarTimezone?: string }
 ): Promise<ActionResult> {
-  const { userId } = await auth();
-  if (!userId) return { success: false, error: "Not authenticated" };
-
-  const supabase = createServerClient();
-  const userErr = await ensureUsersRow(supabase, userId);
-  if (userErr) return userErr;
-
   // 1. user_profiles
   {
     const row: Record<string, unknown> = {
@@ -643,7 +639,28 @@ export async function commitOnboardingData(
   // first plan generation. A failure here must never block onboarding.
   void authorOnboardingSpec(userId);
 
-  // 13. flip onboarding_completed + delete draft
+  return { success: true };
+}
+
+// ============================================================
+// Final commit — persists profile tables + flips onboarding_completed
+// ============================================================
+
+export async function commitOnboardingData(
+  profile: AthleteContextProfile,
+  calendarOpts?: { calendarWeekAnchorYmd?: string; calendarTimezone?: string }
+): Promise<ActionResult> {
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: "Not authenticated" };
+
+  const supabase = createServerClient();
+  const userErr = await ensureUsersRow(supabase, userId);
+  if (userErr) return userErr;
+
+  const persistResult = await persistProfileTables(supabase, userId, profile, calendarOpts);
+  if (!persistResult.success) return persistResult;
+
+  // flip onboarding_completed + delete draft
   {
     const { error } = await supabase
       .from("users")
@@ -654,6 +671,26 @@ export async function commitOnboardingData(
   await supabase.from("onboarding_drafts").delete().eq("user_id", userId);
 
   return { success: true };
+}
+
+// ============================================================
+// Persist profile without completing onboarding — used before
+// redirecting to Stripe so data isn't lost if the user navigates
+// away during checkout.
+// ============================================================
+
+export async function commitProfileWithoutCompletion(
+  profile: AthleteContextProfile,
+  calendarOpts?: { calendarWeekAnchorYmd?: string; calendarTimezone?: string }
+): Promise<ActionResult> {
+  const { userId } = await auth();
+  if (!userId) return { success: false, error: "Not authenticated" };
+
+  const supabase = createServerClient();
+  const userErr = await ensureUsersRow(supabase, userId);
+  if (userErr) return userErr;
+
+  return persistProfileTables(supabase, userId, profile, calendarOpts);
 }
 
 // ============================================================

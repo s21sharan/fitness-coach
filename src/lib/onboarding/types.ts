@@ -100,7 +100,8 @@ export type StepId =
   | "injury"
   | "equipment"
   | "coach_style"
-  | "plan_preview";
+  | "plan_preview"
+  | "subscription";
 
 // ------------------------------------------------------------
 // Per-sport entries
@@ -576,7 +577,7 @@ export function getVisibleSteps(data: AthleteContextProfile): StepId[] {
     steps.push("equipment");
   }
 
-  steps.push("coach_style", "plan_preview");
+  steps.push("coach_style", "plan_preview", "subscription");
 
   return steps;
 }

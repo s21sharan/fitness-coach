@@ -10,6 +10,7 @@ import {
 } from "@/lib/onboarding/types";
 import {
   commitOnboardingData,
+  commitProfileWithoutCompletion,
   getOnboardingDraft,
   loadCommittedProfile,
   saveOnboardingDraft,
@@ -31,6 +32,7 @@ import { ScreenInjury, SCREEN_INJURY_TITLE, SCREEN_INJURY_SUBTITLE } from "@/com
 import { ScreenEquipment, SCREEN_EQUIPMENT_TITLE, SCREEN_EQUIPMENT_SUBTITLE } from "@/components/onboarding/screen-equipment";
 import { ScreenCoachStyle, SCREEN_COACH_STYLE_TITLE, SCREEN_COACH_STYLE_SUBTITLE } from "@/components/onboarding/screen-coach-style";
 import { ScreenPlanPreview, SCREEN_PLAN_PREVIEW_TITLE, SCREEN_PLAN_PREVIEW_SUBTITLE } from "@/components/onboarding/screen-plan-preview";
+import { ScreenSubscription, SCREEN_SUBSCRIPTION_TITLE, SCREEN_SUBSCRIPTION_SUBTITLE } from "@/components/onboarding/screen-subscription";
 
 type ScreenProps = {
   profile: AthleteContextProfile;
@@ -52,6 +54,7 @@ const SCREENS: Record<StepId, { Component: React.ComponentType<ScreenProps>; tit
   equipment: { Component: ScreenEquipment, title: SCREEN_EQUIPMENT_TITLE, subtitle: SCREEN_EQUIPMENT_SUBTITLE },
   coach_style: { Component: ScreenCoachStyle, title: SCREEN_COACH_STYLE_TITLE, subtitle: SCREEN_COACH_STYLE_SUBTITLE },
   plan_preview: { Component: ScreenPlanPreview, title: SCREEN_PLAN_PREVIEW_TITLE, subtitle: SCREEN_PLAN_PREVIEW_SUBTITLE },
+  subscription: { Component: ScreenSubscription, title: SCREEN_SUBSCRIPTION_TITLE, subtitle: SCREEN_SUBSCRIPTION_SUBTITLE },
 };
 
 export default function OnboardingPage() {
@@ -148,7 +151,32 @@ function OnboardingFlow() {
 
   const handleNext = async () => {
     setError(null);
-    if (isLast) {
+
+    const updatedVisible = getVisibleSteps(profile);
+    const updatedIdx = updatedVisible.indexOf(currentStep);
+    const next = updatedVisible[updatedIdx + 1];
+
+    // If advancing TO subscription step, persist profile first (but don't complete onboarding)
+    if (next === "subscription") {
+      setSaving(true);
+      try {
+        const res = await commitProfileWithoutCompletion(profile, {
+          calendarWeekAnchorYmd: weekAnchorMondayYmdFromLocalDate(new Date()),
+          calendarTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        });
+        if (!res.success) {
+          setError(res.error ?? "Couldn't save your profile");
+          return;
+        }
+      } finally {
+        setSaving(false);
+      }
+      goToStep(next);
+      return;
+    }
+
+    // If ON subscription step (returned from checkout), complete onboarding
+    if (currentStep === "subscription") {
       setSaving(true);
       try {
         const res = await commitOnboardingData(profile, {
@@ -165,10 +193,7 @@ function OnboardingFlow() {
       }
       return;
     }
-    // After updates, recompute visible steps and advance
-    const updatedVisible = getVisibleSteps(profile);
-    const updatedIdx = updatedVisible.indexOf(currentStep);
-    const next = updatedVisible[updatedIdx + 1];
+
     if (next) goToStep(next);
   };
 
